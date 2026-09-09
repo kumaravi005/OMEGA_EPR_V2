@@ -124,7 +124,7 @@ can't collide - no separate lookup collection needed.
 `firestore.rules`' `allow create` on `users` requires the caller to
 already be an admin - so there is no client-side path to self-register.
 Creating an account (`AdminAccountController.createAccount`, driven by
-`AdminHomeScreen -> CreateAccountScreen`) does two things in sequence:
+`AdminAccountsScreen -> CreateAccountScreen`) does two things in sequence:
 
 1. Creates the Firebase Auth user via a **throwaway secondary
    `FirebaseApp` instance** (`Firebase.initializeApp(name: '...')`,
@@ -177,7 +177,7 @@ server-side and can't be bypassed by a modified client):
   the app forces a local sign-out with a clear explanation - it does not
   wait for the user to notice.
 - **Admin reset** (a legitimate device replacement, e.g. a lost phone):
-  from `AdminHomeScreen`, "Reset session" writes `session: null` directly
+  from `AdminAccountsScreen`, "Reset session" writes `session: null` directly
   - allowed because `firestore.rules` lets an admin update
   `active`/`session` on *any* account, but never fabricate a session for
   someone else (it can only be nulled, never set to an arbitrary value)
@@ -194,11 +194,117 @@ someone else's, `list` the collection, `create` a new account, or
 still defaults to deny (see below) until the phase that implements it
 defines its own rules.
 
+## `teachers`, `students`, `batches` and payments (Set 3)
+
+Teacher management, student admission, batch-based fee configuration,
+payments and fee dues. All admin-managed - see "Role authorization,
+generally" below for exactly what a teacher/student can read of their
+own record (nothing more).
+
+```
+teachers/{uid}                  keyed the same as the matching users/{uid}
+  uid, accountId                 same account the teacher logs in with
+  name, dateOfBirth, gender, qualification, address
+  primaryMobile, secondaryMobile (optional)
+  assignments   [{ className, subject }, ...]   a teacher may have many -
+                                                  e.g. Class 5->Science AND
+                                                  Class 7->Hindi
+  createdAt, updatedAt
+
+students/{uid}                  keyed the same as the matching users/{uid}
+  uid, accountId
+  name, fatherName, dateOfBirth, gender, address
+  className, board, batchId, academicSession
+  primaryMobile, secondaryMobile (optional)
+  standardFee    number   snapshot of the batch's fee at admission time -
+                           reference only, never used in calculations
+  finalFee       number   the figure actually agreed - THIS is what every
+                           payment/due calculation uses (see "Fee model"
+                           below)
+  feeReason      string | null   required whenever finalFee != standardFee;
+                                  permanently stored, never silently dropped
+  paymentPlan    "monthly" | "installment"
+  active         bool
+  createdAt, updatedAt
+
+  students/{uid}/payments/{paymentId}      append-only - never edited/deleted
+    amount     number
+    date       timestamp
+    mode       "cash" | "upi" | "bankTransfer" | "cheque" | "other"
+    remark     string | null
+    createdAt  timestamp
+    createdBy  string (admin's uid)
+
+batches/{batchId}
+  name
+  standardMonthlyFee       number
+  standardInstallmentFee   number
+  active                   bool
+  createdAt, updatedAt
+```
+
+### Fee model
+
+A batch carries two standard fees (`standardMonthlyFee`,
+`standardInstallmentFee`). Which one applies to a student is decided by
+their `paymentPlan`: choosing "Monthly" auto-populates `standardFee` from
+`standardMonthlyFee`, choosing "Installment" from
+`standardInstallmentFee` (`_recomputeStandardFee` in
+`StudentFormScreen`, re-run whenever either the batch or the plan
+changes). Admin may still override `finalFee` down (or up) from there -
+that's the discount/adjustment workflow - but doing so **requires**
+`feeReason` to be filled in, enforced client-side in the form. Example:
+standard fee 9000, final fee 7500, reason "approved discount" - both
+figures and the reason are stored permanently on the student record.
+
+Every payment/due calculation (`totalPaid`, `due`, `dueLabel` in
+`student_repository.dart`) uses `finalFee`, never `standardFee` - this is
+what "future fee calculations must use the student's final agreed fee"
+means in practice. `due` can go negative (student has paid more than
+`finalFee`); `dueLabel` renders that as "Advance ₹X" rather than a
+confusing negative "Due".
+
+### Why payments are their own subcollection, not a top-level collection
+
+`students/{uid}/payments` scopes naturally to rules (`isAdmin() ||
+isSelf(studentId)`, same as the student's own document) and to queries
+(the fee-dues screen never needs to query payments *across* students -
+it filters `students`, then reads each matching student's own payment
+subcollection). No composite index is needed anywhere in Set 3: every
+list is fetched whole and filtered/sorted client-side, which is fine at
+this project's scale (~200 students).
+
+### Call / WhatsApp
+
+Not a messaging feature - `core/utils/contact_actions.dart` just opens
+the device's native phone dialer (`tel:`) or WhatsApp
+(`https://wa.me/<digits>`) pre-filled with the student's `primaryMobile`.
+Android 11+ needs the `<queries>` entries in
+`android/app/src/main/AndroidManifest.xml` for these intents to resolve
+(already added) - iOS needs no equivalent for plain `tel:`/`https:`
+links.
+
 ## Security posture (this phase)
 
 `storage.rules` still **denies all reads and writes** - Storage itself
-isn't enabled yet (see docs/firebase-setup.md). `firestore.rules` denies
-everything **except** the `users` collection rules described above; every
-other planned collection (`students`, `fees`, `attendance`, ...) stays
-fully closed until the phase that implements it, so access rules are
-never written against guessed requirements.
+isn't enabled yet (see docs/firebase-setup.md), so teacher/student
+**photos are not implemented** in Set 3 - deferred until Storage is
+enabled; every other field is in place, so adding photos later is an
+isolated change (a field + an upload widget), not a rework.
+
+`firestore.rules` denies everything **except** the collections described
+above:
+
+- `users`, `teachers`, `students`: a signed-in user may always `get`
+  their own document; only an admin may `get` someone else's, `list` the
+  collection, `create`, or `update`. A teacher/student can read their own
+  record but can never write to it (including their own fee data) -
+  matching "teacher cannot modify fee data" and "student can only access
+  own account/data" exactly.
+- `students/{uid}/payments`: same read access as the parent student
+  document; only admin may `create` (never update/delete - append-only).
+- `batches`: any signed-in account may read (it's a shared reference
+  catalogue, not personal data); only admin may write.
+- Every other planned collection (`fees`, `attendance`, `homework`, ...)
+  stays fully closed until the phase that implements it, so access rules
+  are never written against guessed requirements.

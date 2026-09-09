@@ -48,23 +48,50 @@ lib/
       application/          AuthController (login/logout/heartbeat),
                              DeviceIdService, the currentUserAccountProvider.
       presentation/         LoginScreen.
-    admin/                  Admin account-management foundation.
-      application/          AdminAccountController (create account via
-                             Cloud Function; reset session / toggle active
-                             via direct rule-gated Firestore writes).
-      presentation/         AdminHomeScreen (account list), CreateAccountScreen.
-    teacher/                presentation/TeacherHomeScreen - placeholder only.
-    student/                presentation/StudentHomeScreen - placeholder only
-                             (covers both Student and Parent).
+    admin/                  Admin account-management + navigation dashboard.
+      application/          AdminAccountController (create login account via
+                             a secondary FirebaseApp instance; reset session /
+                             toggle active via direct rule-gated writes).
+      presentation/         AdminDashboardScreen (nav to every admin section),
+                             AdminAccountsScreen (login-account list),
+                             CreateAccountScreen.
+    teacher/                Teacher-as-a-managed-record (Set 3) + the
+                             teacher's own placeholder app area (Set 2).
+      data/                 TeacherProfile (+ ClassSubjectAssignment) model,
+                             Firestore repository provider.
+      application/          TeacherFormController (create/update a profile).
+      presentation/         TeacherListScreen, TeacherFormScreen (one screen
+                             handles both create and edit),
+                             TeacherHomeScreen (placeholder app area).
+    student/                Student-as-a-managed-record (Set 3, including
+                             fees/payments) + the student/parent's own
+                             placeholder app area (Set 2).
+      data/                 StudentProfile, Payment models, Firestore
+                             repository providers (payments is a
+                             per-student subcollection - see
+                             docs/database-architecture.md).
+      application/          StudentFormController (admit/update),
+                             PaymentController (record a payment).
+      presentation/         StudentListScreen, StudentFormScreen (create/edit,
+                             batch fee auto-population), StudentProfileScreen
+                             (fee summary, payment history, call/WhatsApp),
+                             FeeDuesScreen, AddPaymentDialog,
+                             StudentHomeScreen (placeholder app area).
+    batches/                Batch catalogue (name + standard monthly/
+                             installment fee) - referenced by student
+                             admission, not a role's own app area.
+      data/                 Batch model, Firestore repository provider.
+      application/          BatchController (create/update/toggle active).
+      presentation/         BatchListScreen (list + create/edit dialog).
     public/                 presentation/PublicHomeScreen - the one public,
                              no-login-required screen for now.
 ```
 
-Every feature folder above is populated with only what Set 2 actually
-needed. Folders for students, teachers (as a managed *record*, distinct
-from the teacher app area), batches, fees, attendance, homework, etc. are
-intentionally **not** created yet — they are added when the phase that
-implements them starts.
+Every feature folder above is populated with only what's actually been
+built. Folders for fees-as-their-own-module, attendance, homework, etc.
+are intentionally **not** created yet — student fee/payment data lives
+under `features/student/` since it's tightly coupled to the student
+record, not a separate module (see docs/database-architecture.md).
 
 ## Why this shape
 
@@ -82,6 +109,15 @@ implements them starts.
   admin/teacher pool and ~200 students, the build-time cost and extra
   tooling of code generation isn't worth it. Plain Dart classes and plain
   `Provider`/`StreamProvider` keep the project approachable.
+- **Shared without over-unifying**: teacher and student forms don't share
+  a single mega-widget (their field sets differ too much - qualification
+  and assignments vs. father's name, academics and fees - a forced-shared
+  form would be a worse abstraction than two focused ones). What they do
+  share: `Gender` (`data/models/gender.dart`), the reusable widgets in
+  `core/widgets/`, and - the part that actually mattered to get right
+  once - `AccountProvisioningService` (`core/services/`), so the
+  secondary-`FirebaseApp` trick for account creation isn't reimplemented
+  three times over (admin/teacher/student).
 
 ## State management
 
@@ -121,15 +157,22 @@ on `users` to everyone except an already-existing admin.
 
 ## What's deliberately not here yet
 
-- Full admin/teacher/student dashboards - Set 2 only proves role-based
-  auth + routing with placeholder screens.
+- The teacher/student/parent app areas themselves (attendance, homework,
+  tests, results) - `TeacherHomeScreen`/`StudentHomeScreen` are still
+  Set 2's placeholders. Set 3 only built the *admin-facing* management of
+  teachers, students and fees.
+- Teacher/student **photos** - Storage isn't enabled on this project (see
+  docs/firebase-setup.md); every other admission/profile field is in
+  place, so this is an isolated addition later, not a rework.
 - The public website/content system (gallery, announcements, enquiries).
 - Any feature folder beyond `auth`, `admin`, `teacher`, `student`,
-  `public` (students-as-records, teachers-as-records, batches, fees,
-  attendance, homework, assignments, tests, notifications, enquiries,
-  reports, exports, settings).
-- Changing a role after account creation, or deleting an account (admin
-  deactivates via `active: false` instead).
+  `batches`, `public` - e.g. `fees` as its own module, attendance,
+  homework, assignments, tests, notifications, enquiries, reports,
+  exports, settings.
+- Changing a role after account creation, or deleting an account/teacher/
+  student/batch (admin deactivates via `active: false` instead).
+- Editing or deleting a recorded payment - append-only by design (see
+  docs/database-architecture.md).
 - Firebase App Check.
 
 These are built phase-by-phase in later sets.

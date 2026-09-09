@@ -41,5 +41,17 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Required so url_launcher can find the phone dialer (tel:) and
+             browser/WhatsApp (https: - wa.me links) on Android 11+, which
+             restricts package visibility by default. See
+             lib/core/utils/contact_actions.dart. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="tel"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
     </queries>
 </manifest>

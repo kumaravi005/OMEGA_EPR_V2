@@ -9,7 +9,14 @@ abstract final class AppRoutes {
   static const login = '/login';
 
   static const admin = '/admin';
+  static const adminAccounts = '/admin/accounts';
   static const adminCreateAccount = '/admin/create-account';
+  static const adminTeachers = '/admin/teachers';
+  static const adminNewTeacher = '/admin/teachers/new';
+  static const adminBatches = '/admin/batches';
+  static const adminStudents = '/admin/students';
+  static const adminNewStudent = '/admin/students/new';
+  static const adminFeeDues = '/admin/fee-dues';
 
   static const teacher = '/teacher';
 

@@ -3,15 +3,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/routing/app_routes.dart';
 import 'core/services/auth_service.dart';
-import 'features/admin/presentation/admin_home_screen.dart';
+import 'features/admin/presentation/admin_accounts_screen.dart';
+import 'features/admin/presentation/admin_dashboard_screen.dart';
 import 'features/admin/presentation/create_account_screen.dart';
 import 'features/auth/application/auth_providers.dart';
 import 'features/auth/application/device_id_service.dart';
 import 'features/auth/data/user_account.dart';
 import 'features/auth/presentation/login_screen.dart';
+import 'features/batches/presentation/batch_list_screen.dart';
 import 'features/public/presentation/public_home_screen.dart';
+import 'features/student/presentation/fee_dues_screen.dart';
+import 'features/student/presentation/student_form_screen.dart';
 import 'features/student/presentation/student_home_screen.dart';
+import 'features/student/presentation/student_list_screen.dart';
+import 'features/student/presentation/student_profile_screen.dart';
+import 'features/teacher/presentation/teacher_form_screen.dart';
 import 'features/teacher/presentation/teacher_home_screen.dart';
+import 'features/teacher/presentation/teacher_list_screen.dart';
 
 /// The app's route table and role-based/session-based redirect logic.
 ///
@@ -36,11 +44,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: AppRoutes.publicHome, builder: (context, state) => const PublicHomeScreen()),
       GoRoute(path: AppRoutes.login, builder: (context, state) => const LoginScreen()),
-      GoRoute(path: AppRoutes.admin, builder: (context, state) => const AdminHomeScreen()),
+
+      GoRoute(path: AppRoutes.admin, builder: (context, state) => const AdminDashboardScreen()),
+      GoRoute(path: AppRoutes.adminAccounts, builder: (context, state) => const AdminAccountsScreen()),
+      GoRoute(path: AppRoutes.adminCreateAccount, builder: (context, state) => const CreateAccountScreen()),
+
+      GoRoute(path: AppRoutes.adminTeachers, builder: (context, state) => const TeacherListScreen()),
+      GoRoute(path: AppRoutes.adminNewTeacher, builder: (context, state) => const TeacherFormScreen()),
       GoRoute(
-        path: AppRoutes.adminCreateAccount,
-        builder: (context, state) => const CreateAccountScreen(),
+        path: '${AppRoutes.adminTeachers}/:uid/edit',
+        builder: (context, state) => TeacherFormScreen(teacherUid: state.pathParameters['uid']),
       ),
+
+      GoRoute(path: AppRoutes.adminBatches, builder: (context, state) => const BatchListScreen()),
+
+      GoRoute(path: AppRoutes.adminStudents, builder: (context, state) => const StudentListScreen()),
+      GoRoute(path: AppRoutes.adminNewStudent, builder: (context, state) => const StudentFormScreen()),
+      GoRoute(
+        path: '${AppRoutes.adminStudents}/:uid/edit',
+        builder: (context, state) => StudentFormScreen(studentUid: state.pathParameters['uid']),
+      ),
+      GoRoute(
+        path: '${AppRoutes.adminStudents}/:uid',
+        builder: (context, state) => StudentProfileScreen(studentUid: state.pathParameters['uid']!),
+      ),
+
+      GoRoute(path: AppRoutes.adminFeeDues, builder: (context, state) => const FeeDuesScreen()),
+
       GoRoute(path: AppRoutes.teacher, builder: (context, state) => const TeacherHomeScreen()),
       GoRoute(path: AppRoutes.student, builder: (context, state) => const StudentHomeScreen()),
     ],

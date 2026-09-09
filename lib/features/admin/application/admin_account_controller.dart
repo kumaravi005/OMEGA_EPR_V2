@@ -1,8 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/services/account_provisioning_service.dart';
 import '../../auth/data/user_account.dart';
 import '../../auth/data/user_account_repository.dart';
 
@@ -30,16 +29,11 @@ class AdminAccountController {
 
   final Ref _ref;
 
-  /// Creates a new account.
-  ///
-  /// There are no Cloud Functions in this project (Spark plan), so this
-  /// runs entirely client-side. The one wrinkle: calling
-  /// `createUserWithEmailAndPassword` on the *primary* Firebase Auth
-  /// instance would sign the app in as the newly-created user, hijacking
-  /// the admin's own session. A throwaway secondary [FirebaseApp]
-  /// instance avoids that - it creates the Auth user in isolation, the
-  /// admin's primary session is never touched, and the instance is torn
-  /// down immediately after.
+  /// Creates a new admin/teacher/student login account. Teacher and
+  /// student *profiles* (the rich forms with photo/DOB/fees/etc.) build
+  /// on top of this via [AccountProvisioningService] directly, so they
+  /// can write their extra profile document in the same provisioning
+  /// step - see TeacherFormController / StudentFormController.
   Future<void> createAccount({
     required String accountId,
     required String password,
@@ -49,43 +43,30 @@ class AdminAccountController {
     final normalizedId = accountId.trim().toLowerCase();
     final email = '$normalizedId@${AppConstants.accountEmailDomain}';
 
-    final secondaryApp = await Firebase.initializeApp(
-      name: 'accountCreation-${DateTime.now().microsecondsSinceEpoch}',
-      options: Firebase.app().options,
-    );
-
     try {
-      final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
-
-      final UserCredential credential;
-      try {
-        credential = await secondaryAuth.createUserWithEmailAndPassword(email: email, password: password);
-      } on FirebaseAuthException catch (error) {
-        throw AdminActionFailure(_mapCreateError(error));
-      }
-
-      final uid = credential.user!.uid;
-      final now = DateTime.now();
-      final account = UserAccount(
-        uid: uid,
-        accountId: normalizedId,
-        role: role,
-        displayName: displayName.trim(),
-        active: true,
-        createdAt: now,
-        updatedAt: now,
-        lastLoginAt: null,
-        session: null,
-      );
-
-      try {
-        await _ref.read(userAccountRepositoryProvider).set(uid, account);
-      } catch (_) {
-        await credential.user!.delete().catchError((_) {});
-        throw const AdminActionFailure('Could not finish creating the account. Please try again.');
-      }
-    } finally {
-      await secondaryApp.delete();
+      await _ref
+          .read(accountProvisioningServiceProvider)
+          .createAccount(
+            email: email,
+            password: password,
+            writeProfile: (uid) async {
+              final now = DateTime.now();
+              final account = UserAccount(
+                uid: uid,
+                accountId: normalizedId,
+                role: role,
+                displayName: displayName.trim(),
+                active: true,
+                createdAt: now,
+                updatedAt: now,
+                lastLoginAt: null,
+                session: null,
+              );
+              await _ref.read(userAccountRepositoryProvider).set(uid, account);
+            },
+          );
+    } catch (error) {
+      throw AdminActionFailure(mapAccountCreationError(error));
     }
   }
 
@@ -110,21 +91,6 @@ class AdminAccountController {
       });
     } catch (_) {
       throw const AdminActionFailure('Could not update the account. Please try again.');
-    }
-  }
-
-  String _mapCreateError(FirebaseAuthException error) {
-    switch (error.code) {
-      case 'email-already-in-use':
-        return 'This Account ID is already in use.';
-      case 'weak-password':
-        return 'Password must be at least 8 characters.';
-      case 'invalid-email':
-        return 'Enter a valid Account ID.';
-      case 'network-request-failed':
-        return 'Could not reach the server. Check your connection.';
-      default:
-        return 'Could not create the account. Please try again.';
     }
   }
 }

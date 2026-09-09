@@ -1,6 +1,7 @@
 rules_version = '2';
 
-// Authentication/user-account security posture (Set 2).
+// Authentication/user-account security posture (Set 2), extended with
+// teacher/student/batch/fee records (Set 3).
 //
 // No Cloud Functions/Admin SDK are used anywhere in this project (Spark
 // plan) - every rule below is enforced purely by Firestore security
@@ -39,14 +40,18 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
-    // Admin may toggle `active` and/or clear `session` (to force a
-    // legitimate device replacement) on any account - never role,
-    // accountId, uid or the other identity fields, and never *set* a
-    // session to an arbitrary value (only null it).
+    // Admin may toggle `active`/`displayName` and/or clear `session` (to
+    // force a legitimate device replacement) on any account - never
+    // role, accountId, uid or the other identity fields, and never
+    // *set* a session to an arbitrary value (only null it).
     function adminUpdateIsValid() {
-      return changedKeys().hasOnly(['active', 'session', 'updatedAt'])
+      return changedKeys().hasOnly(['active', 'session', 'updatedAt', 'displayName'])
         && (!changedKeys().hasAny(['session']) || request.resource.data.session == null)
-        && (!changedKeys().hasAny(['active']) || request.resource.data.active is bool);
+        && (!changedKeys().hasAny(['active']) || request.resource.data.active is bool)
+        && (
+          !changedKeys().hasAny(['displayName'])
+          || (request.resource.data.displayName is string && request.resource.data.displayName.size() >= 2)
+        );
     }
 
     // A signed-in user may only ever touch their OWN session/lastLoginAt -
@@ -76,7 +81,7 @@ service cloud.firestore {
     }
 
     // The Firebase Auth user is always created first (via a throwaway
-    // secondary app instance, client-side - see AdminAccountController),
+    // secondary app instance, client-side - see AccountProvisioningService),
     // so accountId/email uniqueness is already guaranteed by Firebase
     // Auth by the time this document write happens. Only an admin may
     // perform it, and only with a well-formed, freshly-provisioned
@@ -111,6 +116,150 @@ service cloud.firestore {
 
       // No client-side delete; admin deactivates via `active: false`
       // instead, so no account/session history is lost.
+      allow delete: if false;
+    }
+
+    // Teacher profiles (Set 3): admin-managed only. A teacher may read
+    // their own profile but never write it - editing is exclusively an
+    // admin action (see docs/database-architecture.md).
+    function teacherFields() {
+      return [
+        'uid', 'accountId', 'name', 'dateOfBirth', 'gender', 'qualification', 'address', 'primaryMobile',
+        'secondaryMobile', 'assignments', 'createdAt', 'updatedAt'
+      ];
+    }
+
+    function newTeacherIsValid(teacherId) {
+      let data = request.resource.data;
+      return data.uid == teacherId
+        && data.accountId is string
+        && data.name is string && data.name.size() >= 2
+        && data.dateOfBirth is timestamp
+        && data.gender in ['male', 'female', 'other']
+        && data.qualification is string
+        && data.address is string
+        && data.primaryMobile is string && data.primaryMobile.size() >= 6
+        && data.assignments is list
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(teacherFields());
+    }
+
+    function teacherUpdateIsValid() {
+      return request.resource.data.uid == resource.data.uid
+        && request.resource.data.accountId == resource.data.accountId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.keys().hasOnly(teacherFields());
+    }
+
+    match /teachers/{teacherId} {
+      allow get: if isAdmin() || isSelf(teacherId);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && newTeacherIsValid(teacherId);
+      allow update: if isAdmin() && teacherUpdateIsValid();
+      allow delete: if false;
+    }
+
+    // Student admission + fee records (Set 3): admin-managed only. A
+    // student/parent may read their own record but never write it.
+    // `standardFee` is a snapshot for reference; `finalFee` is what
+    // every payment/due calculation actually uses.
+    function studentFields() {
+      return [
+        'uid', 'accountId', 'name', 'fatherName', 'dateOfBirth', 'gender', 'address', 'className', 'board',
+        'batchId', 'academicSession', 'primaryMobile', 'secondaryMobile', 'standardFee', 'finalFee', 'feeReason',
+        'paymentPlan', 'active', 'createdAt', 'updatedAt'
+      ];
+    }
+
+    function newStudentIsValid(studentId) {
+      let data = request.resource.data;
+      return data.uid == studentId
+        && data.accountId is string
+        && data.name is string && data.name.size() >= 2
+        && data.fatherName is string
+        && data.dateOfBirth is timestamp
+        && data.gender in ['male', 'female', 'other']
+        && data.address is string
+        && data.className is string
+        && data.board is string
+        && data.batchId is string
+        && data.academicSession is string
+        && data.primaryMobile is string && data.primaryMobile.size() >= 6
+        && data.standardFee is number && data.standardFee >= 0
+        && data.finalFee is number && data.finalFee >= 0
+        && data.paymentPlan in ['monthly', 'installment']
+        && data.active == true
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(studentFields());
+    }
+
+    function studentUpdateIsValid() {
+      return request.resource.data.uid == resource.data.uid
+        && request.resource.data.accountId == resource.data.accountId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.finalFee is number && request.resource.data.finalFee >= 0
+        && request.resource.data.standardFee is number && request.resource.data.standardFee >= 0
+        && request.resource.data.keys().hasOnly(studentFields());
+    }
+
+    function newPaymentIsValid() {
+      let data = request.resource.data;
+      return data.amount is number && data.amount > 0
+        && data.date is timestamp
+        && data.mode in ['cash', 'upi', 'bankTransfer', 'cheque', 'other']
+        && data.createdAt is timestamp
+        && data.createdBy is string
+        && data.keys().hasOnly(['amount', 'date', 'mode', 'remark', 'createdAt', 'createdBy']);
+    }
+
+    match /students/{studentId} {
+      allow get: if isAdmin() || isSelf(studentId);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && newStudentIsValid(studentId);
+      allow update: if isAdmin() && studentUpdateIsValid();
+      allow delete: if false;
+
+      // Payments are an append-only financial record - admin records
+      // them, nobody edits or deletes them afterwards. A student/parent
+      // may read their own payment history.
+      match /payments/{paymentId} {
+        allow get: if isAdmin() || isSelf(studentId);
+        allow list: if isAdmin() || isSelf(studentId);
+        allow create: if isAdmin() && newPaymentIsValid();
+        allow update, delete: if false;
+      }
+    }
+
+    // Batches (Set 3): a shared reference catalogue (name + standard
+    // fee), not sensitive personal data, so any signed-in account may
+    // read it - only admin may create/edit one.
+    function batchFields() {
+      return ['name', 'standardMonthlyFee', 'standardInstallmentFee', 'active', 'createdAt', 'updatedAt'];
+    }
+
+    function newBatchIsValid() {
+      let data = request.resource.data;
+      return data.name is string && data.name.size() >= 2
+        && data.standardMonthlyFee is number && data.standardMonthlyFee >= 0
+        && data.standardInstallmentFee is number && data.standardInstallmentFee >= 0
+        && data.active == true
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(batchFields());
+    }
+
+    function batchUpdateIsValid() {
+      return request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.keys().hasOnly(batchFields());
+    }
+
+    match /batches/{batchId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isAdmin() && newBatchIsValid();
+      allow update: if isAdmin() && batchUpdateIsValid();
       allow delete: if false;
     }
 

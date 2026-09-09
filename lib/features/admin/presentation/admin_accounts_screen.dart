@@ -10,11 +10,12 @@ import '../../auth/application/auth_providers.dart';
 import '../../auth/data/user_account.dart';
 import '../application/admin_account_controller.dart';
 
-/// Admin account-management foundation: list accounts, create one, and
-/// reset/toggle an existing one. Full admin dashboards (batches, fees,
-/// reports, ...) are a later phase.
-class AdminHomeScreen extends ConsumerWidget {
-  const AdminHomeScreen({super.key});
+/// Login-account management: list accounts, create one, and
+/// reset/toggle an existing one. This is about the raw `users` login
+/// accounts - teacher/student profiles have their own screens under
+/// features/teacher and features/student.
+class AdminAccountsScreen extends ConsumerWidget {
+  const AdminAccountsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
