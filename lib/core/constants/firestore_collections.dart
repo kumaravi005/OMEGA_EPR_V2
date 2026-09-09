@@ -29,4 +29,9 @@ abstract final class FirestoreCollections {
   static const announcements = 'announcements';
   static const reportTemplates = 'reportTemplates';
   static const auditLogs = 'auditLogs';
+
+  // Added in Set 5 - not anticipated by the original Set 1 list.
+  static const banners = 'banners';
+  static const upcomingBatches = 'upcomingBatches';
+  static const callbackRequests = 'callbackRequests';
 }

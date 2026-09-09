@@ -363,6 +363,138 @@ exact shape a future push sender or in-app notifications feed would
 consume. No UI reads this collection yet, so read access is admin-only
 for now (tightened/opened up once a consuming feature exists).
 
+## Public content, enquiries, callback requests and notifications (Set 5)
+
+```
+institutes/main                          singleton - the id is always
+                                           "main", never a generated one
+  name, tagline, about, contactPhone, contactEmail, address (all optional
+  except name)
+  updatedAt
+
+gallery/{itemId}
+  imageUrl, title, description, category (all but imageUrl/title optional)
+  active, createdAt, updatedAt
+
+banners/{bannerId}
+  imageUrl, title, description, ctaText, ctaUrl (optional)
+  active, displayFrom, displayUntil (optional - see "isLive" below)
+  createdAt, updatedAt
+
+upcomingBatches/{upcomingBatchId}
+  posterUrl (optional), title, className, board, academicSession
+  startDate, timing, description (optional)
+  admissionStatus   string, free text (e.g. "Admission open") - not an
+                     enum, since the wording is the admin's call, not a
+                     fixed state machine
+  active, createdAt, updatedAt
+
+advertisements/{advertisementId}
+  posterUrl, title, description (optional), buttonText, buttonUrl (optional)
+  active, startDate, endDate (optional - see "isLive" below)
+  createdAt, updatedAt
+
+announcements/{announcementId}
+  title, body, active, createdAt, updatedAt
+
+enquiries/{enquiryId}                    created by an unauthenticated
+                                           visitor - see "Public writes"
+  name, guardianName (optional), className, board (optional)
+  primaryPhone, secondaryPhone (optional), message (optional)
+  status   "newEnquiry" | "contacted" | "followUp" | "admissionDone" |
+            "notInterested"   admin-managed only
+  createdAt, updatedAt
+
+callbackRequests/{callbackRequestId}     same visitor-write shape as enquiries
+  name, phone, message (optional)
+  status   "newRequest" | "contacted"
+  createdAt, updatedAt
+
+notifications/{notificationId}           extended from Set 4 - now also
+                                           read back by NotificationsScreen
+  type ("homework" | "assignment" | "test" | "result" | "feePayment" |
+        "announcement")
+  batchId (nullable - null means "broadcast", e.g. an announcement)
+  studentUid (optional - a payment notification targets one student
+              directly, independent of batch membership)
+  title, body, relatedId, createdAt
+```
+
+**`isLive(now)`**: a banner/advertisement is only shown on the public site
+while `active == true` AND (no display/active window is set, or `now`
+falls inside it) - `displayFrom`/`displayUntil` and `startDate`/`endDate`
+are both optional, so content without a configured window is simply
+always live while active.
+
+### Why images are plain URL strings, not Storage uploads
+
+Firebase Storage is still not enabled on this project (see
+docs/firebase-setup.md - staying on the free Spark plan is an explicit,
+repeated decision). Every gallery/banner/advertisement/upcoming-batch
+image field is therefore a plain string the admin pastes after hosting
+the image elsewhere, exactly like every other "future Storage upload"
+field in this project (teacher/student photos). Swapping in real uploads
+later only touches the admin form (an upload widget replacing a text
+field) - the model, rules, and public-facing rendering (`Image.network`)
+don't change.
+
+### Public writes: enquiries and callback requests
+
+Both collections allow `create` with **no authentication required** -
+this is the one deliberate exception to "every write requires a signed-in
+account" in this project, because the whole point is letting a website
+visitor who has no account submit one. The trade-off is contained
+narrowly: `newEnquiryIsValid()`/`newCallbackRequestIsValid()` require the
+exact expected field shape and `status` to start at the initial value
+(`newEnquiry`/`newRequest`) - a submission can't smuggle in an arbitrary
+status or extra fields. `get`/`list`/`update` stay admin-only, and
+`delete` is never allowed on either collection (same append-then-manage
+shape as everything else in this project - nothing is ever hard-deleted).
+
+### Public reads: gallery/banners/upcomingBatches/advertisements/announcements/institutes
+
+Each of the six content collections above allows `get`/`list` to anyone -
+signed in or not - but only for documents where `active == true` (an
+admin viewing their own admin screens always passes, via `isAdmin()`, so
+they can still see inactive/draft content while managing it).
+`institutes/main` has no `active` field at all - it's a singleton
+profile, always meant to be visible, so it's simply `allow get, list: if
+true`. Every `create`/`update` on all six requires `isAdmin()`; `delete`
+is never allowed anywhere in this group either.
+
+### The "once per session" ad popup
+
+`AdPopupTrigger` (`features/public/presentation/ad_popup.dart`) picks the
+first *live* advertisement and shows it in a dialog, but only once: a
+plain in-memory Riverpod `StateProvider<bool>` (`adPopupShownProvider`)
+flips to `true` the moment it's shown and is never reset until the app
+actually restarts/reloads - which *is* a new session. This is
+deliberately **not** `SharedPreferences` - that would persist "shown"
+across restarts too, making it "once per install" instead of "once per
+session," which is a different (and not what was asked for) rule. The
+dialog always has a visible close `X` (`IconButton` positioned via
+`Stack`), matching "must appear only once per app session... there must
+be a visible close X."
+
+### Notification targeting (extended)
+
+`isTargetOfNotification()` in `firestore.rules` now covers three shapes
+of `notifications` document, since Set 5 adds a payment-triggered
+notification alongside Set 4's batch-wide ones:
+
+- `batchId == null` - a broadcast (currently: announcements) - visible to
+  every signed-in user.
+- `studentUid` set and it's the caller's own uid - a personal notification
+  (currently: fee payment recorded) - visible only to that student,
+  independent of batch.
+- otherwise, `batchId` set and the caller is an active student of that
+  batch (homework/assignment/test/result events, same as Set 4).
+
+Admin and teacher can always `get`/`list` every notification (needed for
+oversight and to have created them in the first place); `update`/`delete`
+stay denied to everyone - a notification is either created correctly or
+not created, never edited after the fact.
+
 ## Security posture (this phase)
 
 `storage.rules` still **denies all reads and writes** - Storage itself
@@ -391,8 +523,15 @@ above:
   create/update; a student may read only their *current* batch's.
 - `testResults`: admin/teacher create and read all; a student may `get`
   only their own, and only once published (see above).
-- `notifications`: admin/teacher create; admin-only read for now (see
+- `notifications`: admin/teacher create; readable by admin/teacher and by
+  whichever student(s) it targets (see "Notification targeting" above).
+- `gallery`/`banners`/`upcomingBatches`/`advertisements`/`announcements`/
+  `institutes`: public read of active content (see "Public reads" above);
+  admin-only write.
+- `enquiries`/`callbackRequests`: public, unauthenticated `create`;
+  admin-only read/update; `delete` never allowed (see "Public writes"
   above).
-- Every other planned collection (`fees`, `enquiries`, `gallery`, ...)
-  stays fully closed until the phase that implements it, so access rules
-  are never written against guessed requirements.
+- Every other planned collection (`fees`, `subjects`, `academicSessions`,
+  `reportTemplates`, `auditLogs`, ...) stays fully closed until the phase
+  that implements it, so access rules are never written against guessed
+  requirements.

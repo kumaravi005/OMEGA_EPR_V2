@@ -117,8 +117,49 @@ lib/
                              create), EnterMarksScreen (mark-entry grid +
                              publish), StudentResultsScreen (own results,
                              published tests only).
-    public/                 presentation/PublicHomeScreen - the one public,
-                             no-login-required screen for now.
+    public/ (Set 5)          The public, no-login-required area, plus the
+                             admin screens that manage its content (gallery,
+                             banners, upcoming batches, advertisements,
+                             announcements, institute profile - all image
+                             fields are plain pasted URLs, since Storage
+                             isn't enabled; see docs/database-architecture.md).
+      data/                 GalleryItem, BannerItem, UpcomingBatch,
+                             Advertisement, Announcement, InstituteProfile
+                             models + one shared repositories file (each
+                             repository is a trivial one-liner over
+                             FirestoreRepository<T>).
+      application/           PublicContentController - save/toggle-active
+                             for all six content types (they share no real
+                             business logic beyond "write it, stamp
+                             timestamps, translate failures", so one class
+                             covers all of them rather than six near-empty
+                             ones).
+      presentation/          PublicHomeScreen (hero, banners, upcoming
+                             batches, gallery, announcements, about,
+                             contact w/ call+WhatsApp, enquiry/callback
+                             buttons - each section hides itself when
+                             empty), AdPopupTrigger (the once-per-session ad
+                             popup, see below), presentation/admin/ (one
+                             list+dialog screen per content type).
+    enquiries/ (Set 5)       Admission enquiries + callback requests from
+                             visitors - no login required to submit, admin-
+                             only to view/manage. No telecaller role exists;
+                             admin handles all enquiry/callback management.
+      data/                  Enquiry, CallbackRequest models (+ their status
+                             enums) and repositories.
+      application/           EnquiryController - submitEnquiry/
+                             submitCallbackRequest (public, unauthenticated)
+                             and updateStatus for each (admin-only).
+      presentation/          EnquiriesScreen, CallbackRequestsScreen (admin,
+                             with call/WhatsApp + a status dropdown),
+                             SubmitEnquiryDialog, RequestCallbackDialog
+                             (public, reachable from PublicHomeScreen).
+    notifications/ (Set 5)   A shared, read-only notification feed for every
+                             signed-in role.
+      presentation/          NotificationsScreen - reads myNotificationsProvider
+                             (core/services/notification_event.dart);
+                             firestore.rules does the actual per-user
+                             targeting, not the screen.
 ```
 
 Every feature folder above is populated with only what's actually been
@@ -191,23 +232,30 @@ on `users` to everyone except an already-existing admin.
 
 ## What's deliberately not here yet
 
-- Teacher/student **photos** - Storage isn't enabled on this project (see
-  docs/firebase-setup.md); every other admission/profile field is in
-  place, so this is an isolated addition later, not a rework.
-- The public website/content system (gallery, announcements, enquiries,
-  admission enquiries, callback requests).
+- Teacher/student **photos**, and every public-content image
+  (gallery/banner/advertisement/upcoming-batch poster) - Storage isn't
+  enabled on this project (see docs/firebase-setup.md), so as of Set 5
+  every such field is a plain `imageUrl`/`posterUrl` string the admin
+  pastes (external hosting - e.g. any image host URL). Every other
+  admission/profile/content field is in place, so switching to real
+  uploads later is an isolated addition, not a rework.
 - Actual push notification *delivery* - `notifications` documents are
   written (see docs/database-architecture.md's "Notification event
-  hooks"), but nothing sends an FCM push yet; there are no Cloud
-  Functions in this project to trigger one from, and no in-app
-  notifications feed reads the collection yet either.
+  hooks") and, as of Set 5, read back by a shared `NotificationsScreen`
+  per role, but nothing sends an FCM push yet - there are no Cloud
+  Functions in this project to trigger one from. "Fee due/reminder"
+  notifications specifically are also not implemented, since a
+  *scheduled* reminder needs a cron-like trigger, which needs server-side
+  compute this project deliberately doesn't have.
 - Enforcing "teacher may only manage their *assigned* class/subject" at
   the rules level for homework/assignments/tests - see
   docs/database-architecture.md for why this is a documented scope
   decision, not an oversight.
+- A telecaller role - enquiry/callback management is admin-only by
+  explicit requirement (Set 5).
 - Any feature folder beyond `auth`, `admin`, `teacher`, `student`,
-  `batches`, `attendance`, `homework`, `assignments`, `tests`, `public` -
-  e.g. `fees`/`notifications` as their own modules, enquiries, reports,
+  `batches`, `attendance`, `homework`, `assignments`, `tests`, `public`,
+  `enquiries`, `notifications` - e.g. `fees` as its own module, reports,
   exports, settings.
 - Changing a role after account creation, or deleting an account/teacher/
   student/batch (admin deactivates via `active: false` instead).

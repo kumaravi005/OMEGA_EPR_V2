@@ -143,7 +143,7 @@ class _ProfileBody extends ConsumerWidget {
               children: [
                 Expanded(child: Text('Payment history', style: Theme.of(context).textTheme.titleLarge)),
                 TextButton.icon(
-                  onPressed: () => showAddPaymentDialog(context, studentUid: student.uid),
+                  onPressed: () => showAddPaymentDialog(context, studentUid: student.uid, batchId: student.batchId),
                   icon: const Icon(Icons.add),
                   label: const Text('Record payment'),
                 ),

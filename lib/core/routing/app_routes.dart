@@ -20,16 +20,28 @@ abstract final class AppRoutes {
   static const adminMarkStudentAttendance = '/admin/attendance/students';
   static const adminMarkTeacherAttendance = '/admin/attendance/teachers';
   static const adminTests = '/admin/tests';
+  static const adminGallery = '/admin/gallery';
+  static const adminBanners = '/admin/banners';
+  static const adminUpcomingBatches = '/admin/upcoming-batches';
+  static const adminAdvertisements = '/admin/advertisements';
+  static const adminAnnouncements = '/admin/announcements';
+  static const adminInstituteProfile = '/admin/institute-profile';
+  static const adminEnquiries = '/admin/enquiries';
+  static const adminCallbackRequests = '/admin/callback-requests';
+  static const adminNotifications = '/admin/notifications';
 
   static const teacher = '/teacher';
   static const teacherAttendance = '/teacher/attendance';
   static const teacherHomework = '/teacher/homework';
   static const teacherAssignments = '/teacher/assignments';
   static const teacherTests = '/teacher/tests';
+  static const teacherNotifications = '/teacher/notifications';
 
   static const student = '/student';
   static const studentAttendance = '/student/attendance';
   static const studentHomework = '/student/homework';
   static const studentAssignments = '/student/assignments';
   static const studentResults = '/student/results';
+  static const studentFees = '/student/fees';
+  static const studentNotifications = '/student/notifications';
 }

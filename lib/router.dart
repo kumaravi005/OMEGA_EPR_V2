@@ -17,10 +17,20 @@ import 'features/auth/application/device_id_service.dart';
 import 'features/auth/data/user_account.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/batches/presentation/batch_list_screen.dart';
+import 'features/enquiries/presentation/callback_requests_screen.dart';
+import 'features/enquiries/presentation/enquiries_screen.dart';
 import 'features/homework/presentation/homework_list_screen.dart';
 import 'features/homework/presentation/student_homework_screen.dart';
+import 'features/notifications/presentation/notifications_screen.dart';
+import 'features/public/presentation/admin/advertisements_screen.dart';
+import 'features/public/presentation/admin/announcements_screen.dart';
+import 'features/public/presentation/admin/banners_screen.dart';
+import 'features/public/presentation/admin/gallery_screen.dart';
+import 'features/public/presentation/admin/institute_profile_screen.dart';
+import 'features/public/presentation/admin/upcoming_batches_screen.dart';
 import 'features/public/presentation/public_home_screen.dart';
 import 'features/student/presentation/fee_dues_screen.dart';
+import 'features/student/presentation/student_fee_screen.dart';
 import 'features/student/presentation/student_form_screen.dart';
 import 'features/student/presentation/student_home_screen.dart';
 import 'features/student/presentation/student_list_screen.dart';
@@ -100,6 +110,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => EnterMarksScreen(testId: state.pathParameters['testId']!),
       ),
 
+      GoRoute(path: AppRoutes.adminGallery, builder: (context, state) => const GalleryScreen()),
+      GoRoute(path: AppRoutes.adminBanners, builder: (context, state) => const BannersScreen()),
+      GoRoute(path: AppRoutes.adminUpcomingBatches, builder: (context, state) => const UpcomingBatchesScreen()),
+      GoRoute(path: AppRoutes.adminAdvertisements, builder: (context, state) => const AdvertisementsScreen()),
+      GoRoute(path: AppRoutes.adminAnnouncements, builder: (context, state) => const AnnouncementsScreen()),
+      GoRoute(path: AppRoutes.adminInstituteProfile, builder: (context, state) => const InstituteProfileScreen()),
+      GoRoute(path: AppRoutes.adminEnquiries, builder: (context, state) => const EnquiriesScreen()),
+      GoRoute(path: AppRoutes.adminCallbackRequests, builder: (context, state) => const CallbackRequestsScreen()),
+      GoRoute(path: AppRoutes.adminNotifications, builder: (context, state) => const NotificationsScreen()),
+
       GoRoute(path: AppRoutes.teacher, builder: (context, state) => const TeacherHomeScreen()),
       GoRoute(
         path: AppRoutes.teacherAttendance,
@@ -115,6 +135,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '${AppRoutes.teacherTests}/:testId',
         builder: (context, state) => EnterMarksScreen(testId: state.pathParameters['testId']!),
       ),
+      GoRoute(path: AppRoutes.teacherNotifications, builder: (context, state) => const NotificationsScreen()),
 
       GoRoute(path: AppRoutes.student, builder: (context, state) => const StudentHomeScreen()),
       GoRoute(
@@ -124,6 +145,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppRoutes.studentHomework, builder: (context, state) => const StudentHomeworkScreen()),
       GoRoute(path: AppRoutes.studentAssignments, builder: (context, state) => const StudentAssignmentsScreen()),
       GoRoute(path: AppRoutes.studentResults, builder: (context, state) => const StudentResultsScreen()),
+      GoRoute(path: AppRoutes.studentFees, builder: (context, state) => const StudentFeeScreen()),
+      GoRoute(path: AppRoutes.studentNotifications, builder: (context, state) => const NotificationsScreen()),
     ],
   );
 });

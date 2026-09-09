@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/services/notification_hook.dart';
 import '../../auth/application/auth_providers.dart';
 import '../data/payment.dart';
 import '../data/student_repository.dart';
@@ -21,6 +22,7 @@ class PaymentController {
 
   Future<void> recordPayment({
     required String studentUid,
+    required String batchId,
     required double amount,
     required DateTime date,
     required PaymentMode mode,
@@ -32,7 +34,7 @@ class PaymentController {
     }
 
     try {
-      await _ref
+      final id = await _ref
           .read(paymentRepositoryProvider(studentUid))
           .add(
             Payment(
@@ -45,6 +47,7 @@ class PaymentController {
               createdBy: admin.uid,
             ),
           );
+      await recordFeePaymentNotification(_ref, studentUid: studentUid, batchId: batchId, amount: amount, relatedId: id);
     } catch (_) {
       throw const PaymentFailure('Could not record the payment. Please try again.');
     }

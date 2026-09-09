@@ -71,6 +71,51 @@ class AdminDashboardScreen extends ConsumerWidget {
                   label: 'Tests & results',
                   onTap: () => context.push(AppRoutes.adminTests),
                 ),
+                NavTile(
+                  icon: Icons.contact_phone_outlined,
+                  label: 'Admission enquiries',
+                  onTap: () => context.push(AppRoutes.adminEnquiries),
+                ),
+                NavTile(
+                  icon: Icons.call_outlined,
+                  label: 'Callback requests',
+                  onTap: () => context.push(AppRoutes.adminCallbackRequests),
+                ),
+                NavTile(
+                  icon: Icons.photo_library_outlined,
+                  label: 'Gallery',
+                  onTap: () => context.push(AppRoutes.adminGallery),
+                ),
+                NavTile(
+                  icon: Icons.view_carousel_outlined,
+                  label: 'Banners',
+                  onTap: () => context.push(AppRoutes.adminBanners),
+                ),
+                NavTile(
+                  icon: Icons.calendar_month_outlined,
+                  label: 'Upcoming batches',
+                  onTap: () => context.push(AppRoutes.adminUpcomingBatches),
+                ),
+                NavTile(
+                  icon: Icons.campaign_outlined,
+                  label: 'Advertisements',
+                  onTap: () => context.push(AppRoutes.adminAdvertisements),
+                ),
+                NavTile(
+                  icon: Icons.announcement_outlined,
+                  label: 'Announcements',
+                  onTap: () => context.push(AppRoutes.adminAnnouncements),
+                ),
+                NavTile(
+                  icon: Icons.info_outline,
+                  label: 'Institute profile',
+                  onTap: () => context.push(AppRoutes.adminInstituteProfile),
+                ),
+                NavTile(
+                  icon: Icons.notifications_outlined,
+                  label: 'Notifications',
+                  onTap: () => context.push(AppRoutes.adminNotifications),
+                ),
               ],
             ),
           ),

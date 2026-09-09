@@ -7,14 +7,18 @@ import '../../../core/widgets/app_text_field.dart';
 import '../application/payment_controller.dart';
 import '../data/payment.dart';
 
-Future<void> showAddPaymentDialog(BuildContext context, {required String studentUid}) {
-  return showDialog<void>(context: context, builder: (context) => _AddPaymentDialog(studentUid: studentUid));
+Future<void> showAddPaymentDialog(BuildContext context, {required String studentUid, required String batchId}) {
+  return showDialog<void>(
+    context: context,
+    builder: (context) => _AddPaymentDialog(studentUid: studentUid, batchId: batchId),
+  );
 }
 
 class _AddPaymentDialog extends ConsumerStatefulWidget {
-  const _AddPaymentDialog({required this.studentUid});
+  const _AddPaymentDialog({required this.studentUid, required this.batchId});
 
   final String studentUid;
+  final String batchId;
 
   @override
   ConsumerState<_AddPaymentDialog> createState() => _AddPaymentDialogState();
@@ -61,6 +65,7 @@ class _AddPaymentDialogState extends ConsumerState<_AddPaymentDialog> {
           .read(paymentControllerProvider)
           .recordPayment(
             studentUid: widget.studentUid,
+            batchId: widget.batchId,
             amount: double.parse(_amountController.text),
             date: _date,
             mode: _mode,

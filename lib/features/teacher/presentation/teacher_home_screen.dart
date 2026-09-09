@@ -55,6 +55,11 @@ class TeacherHomeScreen extends ConsumerWidget {
                   label: 'Tests & results',
                   onTap: () => context.push(AppRoutes.teacherTests),
                 ),
+                NavTile(
+                  icon: Icons.notifications_outlined,
+                  label: 'Notifications',
+                  onTap: () => context.push(AppRoutes.teacherNotifications),
+                ),
               ],
             ),
           ),
