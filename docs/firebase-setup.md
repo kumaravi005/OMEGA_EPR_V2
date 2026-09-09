@@ -21,17 +21,16 @@ locally).
 
 ## 2. Register your app platforms
 
-Do this from **Project settings → Your apps** (gear icon, top left) —
-add one entry per platform you intend to ship:
+You can skip this — `flutterfire configure` in step 4 registers the
+Android, iOS and Web apps for you automatically (using the package
+name/bundle ID it detects from this project). It's only worth doing by
+hand if you want to pre-register an app under a different identifier than
+what's already in the project:
 
-- **Android**: package name must match `android/app/build.gradle.kts` →
-  `applicationId` (currently `com.omegaeducation.omega_epr_v2`).
-- **iOS**: bundle ID must match `ios/Runner.xcodeproj` → currently
+- **Android**: `android/app/build.gradle.kts` → `applicationId` (currently
+  `com.omegaeducation.omega_epr_v2`).
+- **iOS**: `ios/Runner.xcodeproj` → currently
   `com.omegaeducation.omegaEprV2`.
-- **Web**: register a web app (no extra values needed up front).
-
-You don't need to download any config files by hand here — step 4 does
-that for you.
 
 ## 3. Enable the products this project uses
 
@@ -47,6 +46,19 @@ All from the Firebase console, left sidebar → **Build**:
 Cloud Messaging needs no separate "enable" step — it activates once you
 register a platform in step 2. Uploading an APNs key for iOS push is only
 needed once notification *features* are built, not for this foundation.
+
+**Storage requires the Blaze (pay-as-you-go) plan.** Since late 2024,
+Firebase blocks creating a new Storage bucket on the free Spark plan —
+the console will prompt you to **Upgrade project** first. This needs a
+payment method on the account, so it's a deliberate decision, not
+something to click through by default. Blaze still has a free-tier quota
+(5GB stored, 1GB/day downloads) — you're only billed beyond that.
+
+You can safely skip Storage entirely for now and come back to it later:
+nothing in this codebase uploads or reads files yet (photos, gallery,
+banners, etc. are future-phase features), so `storage.rules` simply won't
+be deployed until Storage is enabled. Authentication and Firestore are
+unaffected either way.
 
 ## 4. Install the tooling and generate `firebase_options.dart`
 
@@ -69,7 +81,8 @@ flutterfire configure
 - ask which platforms to configure (choose Android, iOS, Web),
 - **overwrite `lib/firebase_options.dart`** with real values,
 - write `android/app/google-services.json`,
-- write `ios/Runner/GoogleService-Info.plist`.
+- write `ios/Runner/GoogleService-Info.plist` (macOS only — see the note
+  below if you're running this on Windows/Linux).
 
 These generated files are safe to commit — Firebase client configuration
 is not a secret; access is controlled by the security rules in
@@ -79,7 +92,24 @@ already excluded via `.gitignore` and must never be added.)
 
 If `flutterfire` isn't found after activating it, add Dart's global pub
 bin directory to your `PATH` (e.g. `%LOCALAPPDATA%\Pub\Cache\bin` on
-Windows) and restart your terminal.
+Windows) and restart your terminal. `flutterfire configure` also shells
+out to `firebase --version` internally, so the Firebase CLI itself
+(installed via `npm install -g firebase-tools`, typically at
+`%APPDATA%\npm` on Windows) needs to be on `PATH` too — if it isn't,
+`flutterfire configure` reports "Found 0 Firebase projects" and offers to
+**create a new project**. Answer **no** if you ever see that prompt and
+fix `PATH` instead; it means the CLI can't see your existing project, not
+that one doesn't exist.
+
+**iOS note (building on Windows):** `flutterfire configure` writes
+`ios/Runner/GoogleService-Info.plist` by editing the Xcode project file,
+which requires Xcode tooling that only exists on macOS. On Windows, the
+command still succeeds and correctly fills in the iOS values inside
+`lib/firebase_options.dart`, but the physical `.plist` file is not
+created. This doesn't block Android/Web development. Before building for
+iOS on a Mac, either re-run `flutterfire configure` there, or download
+`GoogleService-Info.plist` manually from **Project settings → Your apps →
+(iOS app)** in the console and drag it into the `Runner` target in Xcode.
 
 ## 5. Link the CLI to the project and deploy the security rules
 
@@ -87,11 +117,13 @@ Windows) and restart your terminal.
 firebase use --add
 # select the project you created, give it the alias "default"
 
-firebase deploy --only firestore:rules,storage:rules
+firebase deploy --only firestore:rules
+# add ",storage:rules" once Storage has been enabled (see the note above)
 ```
 
-This publishes the default-deny rules in `firestore.rules` and
-`storage.rules` (see docs/database-architecture.md for what they cover).
+This publishes the default-deny rules in `firestore.rules` (and
+`storage.rules` once Storage exists — see docs/database-architecture.md
+for what they cover).
 
 ## 6. Run the app
 
@@ -107,6 +139,11 @@ without a real Firebase project connected.
 
 ## Not set up yet, by design
 
+- **Cloud Storage**: deferred until it's actually needed, since enabling
+  it requires upgrading the project to the Blaze plan (see the note in
+  step 3). `firebase_storage` is still present as a dependency and
+  `storage.rules` still exists — there's just no bucket to deploy it to
+  yet.
 - **Firebase App Check**: deferred to a later security-hardening phase.
   It requires reCAPTCHA/Play Integrity/DeviceCheck registration per
   platform, which only makes sense once there are real endpoints beyond

@@ -5,5 +5,26 @@
   },
   "storage": {
     "rules": "storage.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "omega-education-centre-9a3b3",
+          "appId": "1:1054507585304:android:02acfda729609a3bb5d86d",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "omega-education-centre-9a3b3",
+          "configurations": {
+            "android": "1:1054507585304:android:02acfda729609a3bb5d86d",
+            "ios": "1:1054507585304:ios:0549b3474cd36768b5d86d",
+            "web": "1:1054507585304:web:a60525a2efbbaf65b5d86d"
+          }
+        }
+      }
+    }
   }
 }

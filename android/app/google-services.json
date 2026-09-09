@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1054507585304",
+    "project_id": "omega-education-centre-9a3b3",
+    "storage_bucket": "omega-education-centre-9a3b3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1054507585304:android:02acfda729609a3bb5d86d",
+        "android_client_info": {
+          "package_name": "com.omegaeducation.omega_epr_v2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKQmj2F3Ol66QFNoakPkg3dPf6QRijNrE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
