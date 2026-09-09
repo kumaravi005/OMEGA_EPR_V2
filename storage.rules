@@ -1,0 +1,16 @@
+rules_version = '2';
+
+// Foundation-only security posture: deny everything by default.
+//
+// Per-role read/upload permissions for student photos, teacher photos,
+// gallery images, banners, advertisements, the institute logo and report
+// assets (see docs/database-architecture.md for the planned path layout)
+// are added in the authentication/authorization phase. Until then nothing
+// is publicly or anonymously accessible.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

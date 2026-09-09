@@ -1,0 +1,16 @@
+rules_version = '2';
+
+// Foundation-only security posture: deny everything by default.
+//
+// Per-role access (admin / teacher / student / parent) is added in the
+// authentication/authorization phase, once the `users` collection carries
+// a role for each account. Until that phase lands, every collection stays
+// closed so nothing is ever left open to the public, or to signed-in
+// students/teachers beyond what their role should see.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
