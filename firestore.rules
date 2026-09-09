@@ -1,14 +1,119 @@
 rules_version = '2';
 
-// Foundation-only security posture: deny everything by default.
+// Authentication/user-account security posture (Set 2).
 //
-// Per-role access (admin / teacher / student / parent) is added in the
-// authentication/authorization phase, once the `users` collection carries
-// a role for each account. Until that phase lands, every collection stays
-// closed so nothing is ever left open to the public, or to signed-in
-// students/teachers beyond what their role should see.
+// No Cloud Functions/Admin SDK are used anywhere in this project (Spark
+// plan) - every rule below is enforced purely by Firestore security
+// rules, which run server-side and can't be bypassed by a modified
+// client. `role` lives on each account's own Firestore document; a
+// client can never set/change its OWN role (see `allow update` below),
+// and only an existing admin may `create` a new account at all - so a
+// client can never grant itself a role it wasn't given. The very first
+// admin account is created once, manually, via the Firebase Console
+// (see docs/firebase-setup.md) - the Console bypasses these rules the
+// same way the Admin SDK would, so no special-case bootstrap rule is
+// needed here.
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function callerAccount() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && callerAccount().role == 'admin'
+        && callerAccount().active == true;
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Admin may toggle `active` and/or clear `session` (to force a
+    // legitimate device replacement) on any account - never role,
+    // accountId, uid or the other identity fields, and never *set* a
+    // session to an arbitrary value (only null it).
+    function adminUpdateIsValid() {
+      return changedKeys().hasOnly(['active', 'session', 'updatedAt'])
+        && (!changedKeys().hasAny(['session']) || request.resource.data.session == null)
+        && (!changedKeys().hasAny(['active']) || request.resource.data.active is bool);
+    }
+
+    // A signed-in user may only ever touch their OWN session/lastLoginAt -
+    // this is the single-device login enforcement. Clearing session
+    // (logout) is always allowed. Claiming a session (login) is only
+    // allowed if the account is active, and the existing session is
+    // either absent, already this same device, or stale (no heartbeat for
+    // 30+ minutes, e.g. the app crashed without a clean logout).
+    function selfSessionUpdateIsValid() {
+      let newSession = request.resource.data.session;
+      return changedKeys().hasOnly(['session', 'lastLoginAt', 'updatedAt'])
+        && (
+          !changedKeys().hasAny(['session'])
+          || newSession == null
+          || (
+            resource.data.active == true
+            && newSession.deviceId is string
+            && newSession.loginAt is timestamp
+            && newSession.lastSeenAt is timestamp
+            && (
+              resource.data.session == null
+              || resource.data.session.deviceId == newSession.deviceId
+              || resource.data.session.lastSeenAt < request.time - duration.value(30, 'm')
+            )
+          )
+        );
+    }
+
+    // The Firebase Auth user is always created first (via a throwaway
+    // secondary app instance, client-side - see AdminAccountController),
+    // so accountId/email uniqueness is already guaranteed by Firebase
+    // Auth by the time this document write happens. Only an admin may
+    // perform it, and only with a well-formed, freshly-provisioned
+    // account (active, no session yet, no extra fields).
+    function newAccountIsValid(userId) {
+      let data = request.resource.data;
+      return data.uid == userId
+        && data.accountId is string && data.accountId.size() >= 3
+        && data.role in ['admin', 'teacher', 'student']
+        && data.displayName is string && data.displayName.size() >= 2
+        && data.active == true
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.lastLoginAt == null
+        && data.session == null
+        && data.keys().hasOnly(
+          ['uid', 'accountId', 'role', 'displayName', 'active', 'createdAt', 'updatedAt', 'lastLoginAt', 'session']
+        );
+    }
+
+    match /users/{userId} {
+      allow get: if isAdmin() || isSelf(userId);
+      allow list: if isAdmin();
+
+      allow create: if isAdmin() && newAccountIsValid(userId);
+
+      // Own document (even an admin's own) always goes through the
+      // self-session rules, so an admin can log themself in/out exactly
+      // like anyone else. Admin-management rules only apply to a
+      // *different* account.
+      allow update: if isSelf(userId) ? selfSessionUpdateIsValid() : (isAdmin() && adminUpdateIsValid());
+
+      // No client-side delete; admin deactivates via `active: false`
+      // instead, so no account/session history is lost.
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

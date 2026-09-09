@@ -5,9 +5,9 @@ Firebase values (API keys, project ID, app IDs, etc.) have been invented
 or guessed anywhere in this codebase — `lib/firebase_options.dart` is a
 placeholder that intentionally throws until you generate the real file.
 
-Follow these steps in order. They only need to be done once per
-environment (you, and later anyone else building the app, run steps 8–10
-locally).
+Follow these steps in order. Steps 1-5 and 7 are one-time, done once by
+whoever owns the Firebase project. Step 6 (`flutter run`) is what anyone
+building the app runs locally each time.
 
 ## 1. Create the Firebase project
 
@@ -137,8 +137,53 @@ With Firebase configured, the app's foundation screen should show
 instead of the "Unable to reach authentication service" error you'd see
 without a real Firebase project connected.
 
+## 7. Create the first admin account
+
+There is no sign-up screen anywhere in the app, by design (see
+docs/database-architecture.md). Every account after this one is created
+from inside the app itself, by an admin - but the very first admin has
+to be created manually, once, here in the console. No Cloud Functions,
+billing upgrade, or command-line tooling needed for this step.
+
+Pick an Account ID (e.g. `admin1` - lowercase, 3-24 characters, letters/
+numbers/`.`/`_`/`-`) and a password (8+ characters) before you start.
+
+1. **Authentication -> Users tab -> Add user.**
+   - Email: `<your accountId>@omegaerp.local` (e.g. `admin1@omegaerp.local`
+     - must match exactly, including the `omegaerp.local` part).
+   - Password: the password you picked.
+   - Click **Add user**. The new row shows a **User UID** - copy it, you
+     need it in the next step.
+2. **Firestore Database -> Data tab -> Start collection** (or **+ Add
+   document** if a `users` collection already exists).
+   - Collection ID: `users`.
+   - Document ID: paste the **User UID** from step 1 (not auto-ID).
+   - Add these fields (use the type picker next to each field name):
+
+     | Field | Type | Value |
+     |---|---|---|
+     | `uid` | string | the same User UID |
+     | `accountId` | string | the accountId you picked, lowercase (e.g. `admin1`) |
+     | `role` | string | `admin` |
+     | `displayName` | string | your name |
+     | `active` | boolean | `true` |
+     | `createdAt` | timestamp | current date/time |
+     | `updatedAt` | timestamp | current date/time |
+     | `lastLoginAt` | null | (select the "null" type) |
+     | `session` | null | (select the "null" type) |
+   - Click **Save**.
+3. In the app, sign in with the Account ID and password you picked. You
+   should land on the admin screen and be able to create further
+   admin/teacher/student accounts from there - see
+   docs/database-architecture.md for exactly how that works.
+
 ## Not set up yet, by design
 
+- **Cloud Functions / the Blaze plan**: deliberately avoided. The project
+  stays on the free Spark plan - account creation and single-device
+  session enforcement are both done with Firestore rules + a client-side
+  technique instead (see docs/architecture.md's "Why no Cloud
+  Functions"). Nothing in this project needs Blaze.
 - **Cloud Storage**: deferred until it's actually needed, since enabling
   it requires upgrading the project to the Blaze plan (see the note in
   step 3). `firebase_storage` is still present as a dependency and
@@ -148,8 +193,6 @@ without a real Firebase project connected.
   It requires reCAPTCHA/Play Integrity/DeviceCheck registration per
   platform, which only makes sense once there are real endpoints beyond
   the default-deny rules to protect.
-- **Cloud Functions**: none exist yet — nothing in Set 1 requires
-  server-side logic.
 - **Push notification sending**: Cloud Messaging is registered as a
   dependency/foundation only; composing and sending notifications is a
   future feature.

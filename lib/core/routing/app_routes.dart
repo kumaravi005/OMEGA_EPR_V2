@@ -1,9 +1,17 @@
-/// Named route identifiers for the app's navigation.
+/// Named route paths for the app's navigation (go_router).
 ///
-/// Only the foundation route exists in this phase. Feature modules
-/// register their own route names here as they are built, and a real
-/// router (e.g. named routes or go_router) is wired up once there is more
-/// than one screen to navigate between.
+/// PUBLIC: [publicHome], [login] - reachable without being signed in.
+/// PROTECTED: everything else - gated by [core/routing/app_router.dart]'s
+/// redirect logic, which also enforces role (an account can only reach
+/// its own role's area).
 abstract final class AppRoutes {
-  static const home = '/';
+  static const publicHome = '/';
+  static const login = '/login';
+
+  static const admin = '/admin';
+  static const adminCreateAccount = '/admin/create-account';
+
+  static const teacher = '/teacher';
+
+  static const student = '/student';
 }

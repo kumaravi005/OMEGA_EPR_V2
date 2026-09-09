@@ -11,6 +11,9 @@ class AppTextField extends StatelessWidget {
     this.keyboardType,
     this.validator,
     this.enabled = true,
+    this.suffixIcon,
+    this.textInputAction,
+    this.autofillHints,
   });
 
   final TextEditingController? controller;
@@ -20,6 +23,9 @@ class AppTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
   final bool enabled;
+  final Widget? suffixIcon;
+  final TextInputAction? textInputAction;
+  final Iterable<String>? autofillHints;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +35,9 @@ class AppTextField extends StatelessWidget {
       keyboardType: keyboardType,
       validator: validator,
       enabled: enabled,
-      decoration: InputDecoration(labelText: label, hintText: hintText),
+      textInputAction: textInputAction,
+      autofillHints: autofillHints,
+      decoration: InputDecoration(labelText: label, hintText: hintText, suffixIcon: suffixIcon),
     );
   }
 }

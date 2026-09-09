@@ -63,5 +63,12 @@ class FirestoreRepository<T> {
     return _dataSource.set(id, _toFirestore(value), merge: merge);
   }
 
+  /// Updates only the given [fields] on document [id], leaving every other
+  /// field untouched. Use this instead of [set] when a security rule (or
+  /// just good practice) restricts a write to specific fields only.
+  Future<void> updateFields(String id, Map<String, dynamic> fields) {
+    return _dataSource.update(id, fields);
+  }
+
   Future<void> delete(String id) => _dataSource.delete(id);
 }

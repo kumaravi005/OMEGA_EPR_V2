@@ -4,10 +4,9 @@ import 'firebase_providers.dart';
 
 /// Thin wrapper around [FirebaseAuth].
 ///
-/// Sign-in flows (email/password forms, role-based redirects, password
-/// reset, etc.) are built in the authentication/authorization phase; this
-/// foundation only exposes what's needed to observe the current auth
-/// state and sign out.
+/// There is deliberately no sign-up/self-registration method here -
+/// accounts are only ever created by the `createAccount` /
+/// `bootstrapFirstAdmin` Cloud Functions (see functions/src/index.ts).
 class AuthService {
   AuthService(this._auth);
 
@@ -16,6 +15,10 @@ class AuthService {
   Stream<User?> authStateChanges() => _auth.authStateChanges();
 
   User? get currentUser => _auth.currentUser;
+
+  Future<UserCredential> signInWithEmailAndPassword({required String email, required String password}) {
+    return _auth.signInWithEmailAndPassword(email: email, password: password);
+  }
 
   Future<void> signOut() => _auth.signOut();
 }

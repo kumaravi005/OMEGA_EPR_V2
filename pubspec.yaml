@@ -46,6 +46,12 @@ dependencies:
   firebase_messaging: ^16.6.0
   firebase_crashlytics: ^5.3.0
 
+  # Routing
+  go_router: ^16.2.4
+
+  # Local device identity (single-device session enforcement)
+  shared_preferences: ^2.5.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

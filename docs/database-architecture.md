@@ -82,13 +82,123 @@ Mirrors the same idea for Firebase Storage, via
 | `institute_logo/` | Institute logo/branding assets |
 | `report_assets/` | Assets used when generating reports/certificates |
 
+## `users` collection (Set 2)
+
+Every account - admin, teacher, or student/parent - is one document in
+`users`, keyed by the account's Firebase Auth `uid`:
+
+```
+users/{uid}
+  uid           string    same as the document id
+  accountId     string    the login ID (lowercase, e.g. "stu2026001")
+  role          "admin" | "teacher" | "student"
+  displayName   string
+  active        bool      admin can deactivate without deleting
+  createdAt     timestamp
+  updatedAt     timestamp
+  lastLoginAt   timestamp | null
+  session       { deviceId, loginAt, lastSeenAt } | null
+```
+
+`role` is security-authoritative here (there are no Cloud Functions /
+custom claims in this project - see "Why no Cloud Functions" in
+docs/architecture.md). A client can never change its *own* `role` and
+have that mean anything: `firestore.rules`' `update` rule never allows
+`role` to change for anyone, ever, after the account is created (see
+below) - the only document a `role` value is ever set on comes from the
+`create` rule, which requires the caller to already be an admin.
+
+### How login maps an Account ID to Firebase Auth
+
+Firebase Authentication is identity-based on email/password under the
+hood. To let people sign in with a short Account ID instead of an email,
+the app deterministically computes `"<accountId>@omegaerp.local"` (see
+`AppConstants.accountEmailDomain`) and uses that as the Firebase Auth
+email, both when creating and when signing in. `omegaerp.local` never
+receives real mail; it's just a stable, syntactically-valid identifier.
+Firebase Auth's own email-uniqueness check is what guarantees Account IDs
+can't collide - no separate lookup collection needed.
+
+### How admin-created accounts work
+
+`firestore.rules`' `allow create` on `users` requires the caller to
+already be an admin - so there is no client-side path to self-register.
+Creating an account (`AdminAccountController.createAccount`, driven by
+`AdminHomeScreen -> CreateAccountScreen`) does two things in sequence:
+
+1. Creates the Firebase Auth user via a **throwaway secondary
+   `FirebaseApp` instance** (`Firebase.initializeApp(name: '...')`,
+   reusing the same project config) and immediately tears it down. This
+   is what keeps the admin's own primary session untouched - calling
+   `createUserWithEmailAndPassword` on the *primary* instance would
+   otherwise sign the app in as the newly-created user.
+2. Writes the `users/{uid}` document using the admin's own (primary,
+   still signed-in) session. `firestore.rules`' `newAccountIsValid()`
+   requires the exact expected shape (`active: true`, `session: null`,
+   no extra fields, `role` one of the three valid values) - so even a
+   modified client can't smuggle in a privileged or malformed account.
+
+If step 2 fails after step 1 succeeded, the just-created Auth user is
+deleted again (best effort) rather than left as an orphaned credential
+with no Firestore profile.
+
+### Bootstrapping the first admin
+
+The very first admin account can't be created through the app (there's
+no admin yet to authorize it, and there's deliberately no sign-up
+screen). It's created **once, manually, in the Firebase Console** - see
+docs/firebase-setup.md for the exact steps (add a user under
+Authentication, then add the matching document under Firestore). This
+uses the Console's own privileged access, which - like the Admin SDK -
+bypasses `firestore.rules` entirely, so no special bootstrap carve-out
+rule is needed.
+
+### Single-device session enforcement
+
+`session` is the mandatory "only one active device" mechanism, enforced
+entirely by `firestore.rules` (no Cloud Function needed - rules run
+server-side and can't be bypassed by a modified client):
+
+- **Login** (self-write): a device may claim `session` (login) only if
+  the account is `active` AND the existing session is either absent,
+  already this same device, or **stale** (`lastSeenAt` older than 30
+  minutes - e.g. the app crashed or lost network without a clean
+  logout). A device that loses this check gets a Firestore
+  `permission-denied`, which the app turns into "This account is already
+  active on another device."
+- **Heartbeat**: while signed in, the app refreshes `session.lastSeenAt`
+  every 5 minutes so a genuinely active session never goes stale under a
+  competing device.
+- **Logout** (self-write): a device may always clear its own `session` to
+  `null`, regardless of `active` status.
+- **Detection while running**: the app listens to its own `users/{uid}`
+  document. If `session.deviceId` ever stops matching this device (taken
+  over after going stale, or reset by admin) or `active` turns `false`,
+  the app forces a local sign-out with a clear explanation - it does not
+  wait for the user to notice.
+- **Admin reset** (a legitimate device replacement, e.g. a lost phone):
+  from `AdminHomeScreen`, "Reset session" writes `session: null` directly
+  - allowed because `firestore.rules` lets an admin update
+  `active`/`session` on *any* account, but never fabricate a session for
+  someone else (it can only be nulled, never set to an arbitrary value)
+  and never touch `role`/`accountId`/`uid`. This is a direct, rule-gated
+  Firestore write from the admin's signed-in session - no server needed.
+
+### Role authorization, generally
+
+`firestore.rules` gates the whole `users` collection: a user may always
+`get` their own document; only an admin (checked via a `get()` lookup of
+the caller's *own* document and its `role`/`active` fields) may `get`
+someone else's, `list` the collection, `create` a new account, or
+`update` fields other than their own session. Every other collection
+still defaults to deny (see below) until the phase that implements it
+defines its own rules.
+
 ## Security posture (this phase)
 
-Both `firestore.rules` and `storage.rules` currently **deny all reads and
-writes by default** (see the files for the exact rule). This is a
-deliberate placeholder: no collection is public, and no student or
-teacher has unrestricted access. Per-role rules (e.g. a teacher may read
-their own batch's attendance; a student may read their own fee records)
-are added once the `users` collection carries a role and the
-authentication/authorization phase is implemented — not before, so access
-rules aren't written against guessed requirements.
+`storage.rules` still **denies all reads and writes** - Storage itself
+isn't enabled yet (see docs/firebase-setup.md). `firestore.rules` denies
+everything **except** the `users` collection rules described above; every
+other planned collection (`students`, `fees`, `attendance`, ...) stays
+fully closed until the phase that implements it, so access rules are
+never written against guessed requirements.

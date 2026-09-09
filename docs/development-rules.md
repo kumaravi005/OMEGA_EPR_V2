@@ -16,19 +16,31 @@ was built.
 ## Architecture
 
 - `core/` = reusable, feature-agnostic code (theme, Firebase provider
-  wrappers, generic widgets, utils). Never import a `features/*` file
-  from `core/`.
+  wrappers, generic widgets, utils, route *name* constants). Never import
+  a `features/*` file from `core/`.
 - `data/` = generic Firestore access (`FirestoreDataSource`,
   `FirestoreRepository<T>`). Feature-specific models and repositories live
   under their own `features/<name>/` folder and build on top of these,
   they don't duplicate CRUD logic.
-- `features/<name>/` = one folder per business module (auth, students,
-  fees, attendance, ...). Keep a feature's UI, state, and
+- `features/<name>/` = one folder per business module (auth, admin,
+  teacher, student, public, ...). Keep a feature's UI, state, and
   feature-specific logic together under its own folder.
+- `lib/router.dart` is the **one** file allowed to import across every
+  feature - it's the composition root that builds the route table. It
+  does not belong in `core/` (which stays feature-agnostic) or in any
+  single `features/*` module.
 - All institute-specific *operational* data (fees, batches, students,
   settings, announcements, ...) is Firestore-driven. Nothing operational
   is hardcoded in Dart — only branding/display constants belong in
   `core/constants/app_constants.dart`.
+- No Cloud Functions / server-side compute - the project stays on
+  Firebase's free Spark plan. Firestore security rules do all
+  authorization (role checks, single-device sessions); account creation
+  avoids the "creating a user hijacks the caller's session" problem with
+  a throwaway secondary `FirebaseApp` instance instead of a server (see
+  `AdminAccountController.createAccount` and docs/architecture.md's "Why
+  no Cloud Functions"). Don't introduce Cloud Functions unless a future
+  requirement genuinely can't be expressed as a security rule.
 
 ## State management
 
@@ -45,6 +57,10 @@ was built.
 - Firestore and Storage rules default to **deny all**. Any new access
   must be an explicit, reasoned rule — never widen to `if true` or an
   unauthenticated `allow` as a shortcut.
+- `role` can never be changed by any client write, including an admin's -
+  it's only ever set once, by the `create` rule, which itself requires
+  the caller to already be an admin. There is no "change role" operation
+  anywhere in the app.
 - Never commit real credentials, API secrets, or service-account keys.
   Firebase client config (`firebase_options.dart`, `google-services.json`,
   `GoogleService-Info.plist`) is the one exception — it is not a secret
