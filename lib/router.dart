@@ -6,11 +6,19 @@ import 'core/services/auth_service.dart';
 import 'features/admin/presentation/admin_accounts_screen.dart';
 import 'features/admin/presentation/admin_dashboard_screen.dart';
 import 'features/admin/presentation/create_account_screen.dart';
+import 'features/assignments/presentation/assignment_list_screen.dart';
+import 'features/assignments/presentation/student_assignments_screen.dart';
+import 'features/attendance/presentation/mark_student_attendance_screen.dart';
+import 'features/attendance/presentation/mark_teacher_attendance_screen.dart';
+import 'features/attendance/presentation/student_attendance_history_screen.dart';
+import 'features/attendance/presentation/teacher_attendance_history_screen.dart';
 import 'features/auth/application/auth_providers.dart';
 import 'features/auth/application/device_id_service.dart';
 import 'features/auth/data/user_account.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/batches/presentation/batch_list_screen.dart';
+import 'features/homework/presentation/homework_list_screen.dart';
+import 'features/homework/presentation/student_homework_screen.dart';
 import 'features/public/presentation/public_home_screen.dart';
 import 'features/student/presentation/fee_dues_screen.dart';
 import 'features/student/presentation/student_form_screen.dart';
@@ -20,6 +28,9 @@ import 'features/student/presentation/student_profile_screen.dart';
 import 'features/teacher/presentation/teacher_form_screen.dart';
 import 'features/teacher/presentation/teacher_home_screen.dart';
 import 'features/teacher/presentation/teacher_list_screen.dart';
+import 'features/tests/presentation/enter_marks_screen.dart';
+import 'features/tests/presentation/student_results_screen.dart';
+import 'features/tests/presentation/test_list_screen.dart';
 
 /// The app's route table and role-based/session-based redirect logic.
 ///
@@ -71,8 +82,48 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       GoRoute(path: AppRoutes.adminFeeDues, builder: (context, state) => const FeeDuesScreen()),
 
+      GoRoute(
+        path: AppRoutes.adminMarkStudentAttendance,
+        builder: (context, state) => const MarkStudentAttendanceScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminMarkTeacherAttendance,
+        builder: (context, state) => const MarkTeacherAttendanceScreen(),
+      ),
+
+      GoRoute(
+        path: AppRoutes.adminTests,
+        builder: (context, state) => const TestListScreen(basePath: AppRoutes.adminTests),
+      ),
+      GoRoute(
+        path: '${AppRoutes.adminTests}/:testId',
+        builder: (context, state) => EnterMarksScreen(testId: state.pathParameters['testId']!),
+      ),
+
       GoRoute(path: AppRoutes.teacher, builder: (context, state) => const TeacherHomeScreen()),
+      GoRoute(
+        path: AppRoutes.teacherAttendance,
+        builder: (context, state) => const TeacherAttendanceHistoryScreen(),
+      ),
+      GoRoute(path: AppRoutes.teacherHomework, builder: (context, state) => const HomeworkListScreen()),
+      GoRoute(path: AppRoutes.teacherAssignments, builder: (context, state) => const AssignmentListScreen()),
+      GoRoute(
+        path: AppRoutes.teacherTests,
+        builder: (context, state) => const TestListScreen(basePath: AppRoutes.teacherTests),
+      ),
+      GoRoute(
+        path: '${AppRoutes.teacherTests}/:testId',
+        builder: (context, state) => EnterMarksScreen(testId: state.pathParameters['testId']!),
+      ),
+
       GoRoute(path: AppRoutes.student, builder: (context, state) => const StudentHomeScreen()),
+      GoRoute(
+        path: AppRoutes.studentAttendance,
+        builder: (context, state) => const StudentAttendanceHistoryScreen(),
+      ),
+      GoRoute(path: AppRoutes.studentHomework, builder: (context, state) => const StudentHomeworkScreen()),
+      GoRoute(path: AppRoutes.studentAssignments, builder: (context, state) => const StudentAssignmentsScreen()),
+      GoRoute(path: AppRoutes.studentResults, builder: (context, state) => const StudentResultsScreen()),
     ],
   );
 });

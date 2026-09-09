@@ -36,6 +36,29 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isTeacher() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && callerAccount().role == 'teacher'
+        && callerAccount().active == true;
+    }
+
+    // For "student may read their batch's homework/assignments/tests"
+    // checks (Set 4) - based on the student's CURRENT batch, unlike
+    // attendance's own records map which reflects batch membership at the
+    // time attendance was taken (see selfSessionUpdateIsValid's sibling
+    // rules below for why that distinction matters).
+    function callerStudentDoc() {
+      return get(/databases/$(database)/documents/students/$(request.auth.uid)).data;
+    }
+
+    function isStudentOfBatch(batchId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/students/$(request.auth.uid))
+        && callerStudentDoc().batchId == batchId
+        && callerStudentDoc().active == true;
+    }
+
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
@@ -261,6 +284,271 @@ service cloud.firestore {
       allow create: if isAdmin() && newBatchIsValid();
       allow update: if isAdmin() && batchUpdateIsValid();
       allow delete: if false;
+    }
+
+    // Student attendance (Set 4): one record per batch/date, covering the
+    // whole batch - never split by subject. Document id is deterministic
+    // (`<batchId>_<dateKey>`), checked below, so the same batch/date can
+    // never produce two records - marking again just updates the one that
+    // exists (admin-only, matching the spec exactly).
+    function attendanceFields() {
+      return ['batchId', 'dateKey', 'date', 'records', 'markedBy', 'createdAt', 'updatedAt'];
+    }
+
+    function newAttendanceIsValid(recordId) {
+      let data = request.resource.data;
+      return recordId == data.batchId + '_' + data.dateKey
+        && data.batchId is string
+        && data.dateKey is string
+        && data.date is timestamp
+        && data.records is map
+        && data.markedBy is string
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(attendanceFields());
+    }
+
+    function attendanceUpdateIsValid() {
+      return request.resource.data.batchId == resource.data.batchId
+        && request.resource.data.dateKey == resource.data.dateKey
+        && request.resource.data.date == resource.data.date
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.records is map
+        && request.resource.data.keys().hasOnly(attendanceFields());
+    }
+
+    match /attendance/{recordId} {
+      allow get: if isAdmin() || isTeacher() || (isSignedIn() && resource.data.records.keys().hasAny([request.auth.uid]));
+      allow list: if isAdmin() || isTeacher() || (isSignedIn() && resource.data.records.keys().hasAny([request.auth.uid]));
+      allow create: if isAdmin() && newAttendanceIsValid(recordId);
+      allow update: if isAdmin() && attendanceUpdateIsValid();
+      allow delete: if false;
+    }
+
+    // Teacher attendance (Set 4): one record per teacher/date, same
+    // duplicate-prevention scheme as student attendance. Admin-only to
+    // write - "teacher cannot edit attendance unless explicitly permitted
+    // by admin", and no such permission exists yet in this phase.
+    function teacherAttendanceFields() {
+      return ['teacherUid', 'dateKey', 'date', 'status', 'markedBy', 'createdAt', 'updatedAt'];
+    }
+
+    function newTeacherAttendanceIsValid(recordId) {
+      let data = request.resource.data;
+      return recordId == data.teacherUid + '_' + data.dateKey
+        && data.teacherUid is string
+        && data.dateKey is string
+        && data.date is timestamp
+        && data.status in ['present', 'absent']
+        && data.markedBy is string
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(teacherAttendanceFields());
+    }
+
+    function teacherAttendanceUpdateIsValid() {
+      return request.resource.data.teacherUid == resource.data.teacherUid
+        && request.resource.data.dateKey == resource.data.dateKey
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.status in ['present', 'absent']
+        && request.resource.data.keys().hasOnly(teacherAttendanceFields());
+    }
+
+    match /teacherAttendance/{recordId} {
+      allow get: if isAdmin() || (isSignedIn() && resource.data.teacherUid == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.teacherUid == request.auth.uid);
+      allow create: if isAdmin() && newTeacherAttendanceIsValid(recordId);
+      allow update: if isAdmin() && teacherAttendanceUpdateIsValid();
+      allow delete: if false;
+    }
+
+    // Homework (Set 4): shared by every student in a batch, same as
+    // attendance. Admin/teacher create and manage completion; a student
+    // may read their own (current) batch's homework, never write it.
+    function homeworkFields() {
+      return [
+        'batchId', 'subject', 'date', 'description', 'dueDate', 'completionStatus', 'remark', 'createdBy',
+        'createdAt', 'updatedAt'
+      ];
+    }
+
+    function newHomeworkIsValid() {
+      let data = request.resource.data;
+      return data.batchId is string
+        && data.subject is string && data.subject.size() > 0
+        && data.date is timestamp
+        && data.description is string && data.description.size() > 0
+        && data.dueDate is timestamp
+        && data.completionStatus == 'pending'
+        && data.createdBy == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(homeworkFields());
+    }
+
+    function homeworkUpdateIsValid() {
+      // Only completion tracking changes after creation - the assignment
+      // itself (batch/subject/description/dates) is fixed once made.
+      return changedKeys().hasOnly(['completionStatus', 'remark', 'updatedAt'])
+        && request.resource.data.completionStatus in ['pending', 'completed'];
+    }
+
+    match /homework/{homeworkId} {
+      allow get: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
+      allow list: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
+      allow create: if (isAdmin() || isTeacher()) && newHomeworkIsValid();
+      allow update: if (isAdmin() || isTeacher()) && homeworkUpdateIsValid();
+      allow delete: if false;
+    }
+
+    // Assignments (Set 4): same shape/access pattern as homework.
+    function assignmentFields() {
+      return [
+        'batchId', 'subject', 'title', 'description', 'assignedDate', 'dueDate', 'status', 'teacherRemark',
+        'createdBy', 'createdAt', 'updatedAt'
+      ];
+    }
+
+    function newAssignmentIsValid() {
+      let data = request.resource.data;
+      return data.batchId is string
+        && data.subject is string && data.subject.size() > 0
+        && data.title is string && data.title.size() > 0
+        && data.description is string
+        && data.assignedDate is timestamp
+        && data.dueDate is timestamp
+        && data.status == 'active'
+        && data.createdBy == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(assignmentFields());
+    }
+
+    function assignmentUpdateIsValid() {
+      return changedKeys().hasOnly(['status', 'teacherRemark', 'updatedAt'])
+        && request.resource.data.status in ['active', 'closed'];
+    }
+
+    match /assignments/{assignmentId} {
+      allow get: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
+      allow list: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
+      allow create: if (isAdmin() || isTeacher()) && newAssignmentIsValid();
+      allow update: if (isAdmin() || isTeacher()) && assignmentUpdateIsValid();
+      allow delete: if false;
+    }
+
+    // Offline tests (Set 4): metadata only - there is no online exam
+    // engine. Marks live in the separate `testResults` collection below.
+    // Once created, only `resultPublished` may ever change (the offline
+    // test already happened - there's nothing else to edit).
+    function testFields() {
+      return [
+        'batchId', 'subject', 'title', 'chapterTopic', 'date', 'totalMarks', 'testType', 'description',
+        'resultPublished', 'createdBy', 'createdAt', 'updatedAt'
+      ];
+    }
+
+    function newTestIsValid() {
+      let data = request.resource.data;
+      return data.batchId is string
+        && data.subject is string && data.subject.size() > 0
+        && data.title is string && data.title.size() > 0
+        && data.chapterTopic is string
+        && data.date is timestamp
+        && data.totalMarks is number && data.totalMarks > 0
+        && data.testType in ['objective', 'subjective', 'mixed']
+        && data.resultPublished == false
+        && data.createdBy == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(testFields());
+    }
+
+    function testUpdateIsValid() {
+      return changedKeys().hasOnly(['resultPublished', 'updatedAt']) && request.resource.data.resultPublished == true;
+    }
+
+    match /tests/{testId} {
+      allow get: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
+      allow list: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
+      allow create: if (isAdmin() || isTeacher()) && newTestIsValid();
+      allow update: if (isAdmin() || isTeacher()) && testUpdateIsValid();
+      allow delete: if false;
+    }
+
+    // Test results / marks (Set 4): one document per test+student
+    // (deterministic id `<testId>_<studentUid>`, same duplicate-prevention
+    // scheme as attendance). "Do not expose unpublished marks to
+    // students" is enforced right here: a student can only ever `get`
+    // their own result, and only once the parent test's `resultPublished`
+    // is true.
+    function testResultFields() {
+      return ['testId', 'studentUid', 'batchId', 'obtainedMarks', 'totalMarks', 'remark', 'enteredBy', 'createdAt', 'updatedAt'];
+    }
+
+    function testIsPublished(testId) {
+      return get(/databases/$(database)/documents/tests/$(testId)).data.resultPublished == true;
+    }
+
+    function newTestResultIsValid(resultId) {
+      let data = request.resource.data;
+      return resultId == data.testId + '_' + data.studentUid
+        && data.testId is string
+        && data.studentUid is string
+        && data.batchId is string
+        && data.obtainedMarks is number && data.obtainedMarks >= 0
+        && data.totalMarks is number && data.obtainedMarks <= data.totalMarks
+        && data.enteredBy is string
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(testResultFields());
+    }
+
+    function testResultUpdateIsValid() {
+      return request.resource.data.testId == resource.data.testId
+        && request.resource.data.studentUid == resource.data.studentUid
+        && request.resource.data.batchId == resource.data.batchId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.obtainedMarks is number && request.resource.data.obtainedMarks >= 0
+        && request.resource.data.totalMarks is number
+        && request.resource.data.obtainedMarks <= request.resource.data.totalMarks
+        && request.resource.data.keys().hasOnly(testResultFields());
+    }
+
+    match /testResults/{resultId} {
+      allow get: if isAdmin() || isTeacher() || (isSelf(resource.data.studentUid) && testIsPublished(resource.data.testId));
+      allow list: if isAdmin() || isTeacher();
+      allow create: if (isAdmin() || isTeacher()) && newTestResultIsValid(resultId);
+      allow update: if (isAdmin() || isTeacher()) && testResultUpdateIsValid();
+      allow delete: if false;
+    }
+
+    // Notification event hooks (Set 4): a durable record of
+    // homework/assignment/test/result events for a future push sender or
+    // in-app feed to consume - not a delivery mechanism itself (no Cloud
+    // Functions in this project). No UI reads this collection yet, so
+    // read access is admin-only for now, tightened to whoever needs it
+    // once a consuming feature exists.
+    function notificationFields() {
+      return ['type', 'batchId', 'studentUid', 'title', 'body', 'relatedId', 'createdAt'];
+    }
+
+    function newNotificationIsValid() {
+      let data = request.resource.data;
+      return data.type in ['homework', 'assignment', 'test', 'result']
+        && data.batchId is string
+        && data.title is string
+        && data.body is string
+        && data.relatedId is string
+        && data.createdAt is timestamp
+        && data.keys().hasOnly(notificationFields());
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if (isAdmin() || isTeacher()) && newNotificationIsValid();
+      allow update, delete: if false;
     }
 
     match /{document=**} {

@@ -3,10 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/nav_tile.dart';
 import '../../auth/application/auth_providers.dart';
 
-/// Admin's landing screen: a simple list of the sections Set 2/Set 3
-/// have built so far. Full dashboards/reports are a later phase.
+/// Admin's landing screen: a simple list of the sections built so far.
+/// Full dashboards/reports are a later phase.
 class AdminDashboardScreen extends ConsumerWidget {
   const AdminDashboardScreen({super.key});
 
@@ -30,56 +31,50 @@ class AdminDashboardScreen extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.all(AppSpacing.md),
               children: [
-                _DashboardTile(
+                NavTile(
                   icon: Icons.manage_accounts_outlined,
                   label: 'Login accounts',
                   onTap: () => context.push(AppRoutes.adminAccounts),
                 ),
-                _DashboardTile(
+                NavTile(
                   icon: Icons.school_outlined,
                   label: 'Teachers',
                   onTap: () => context.push(AppRoutes.adminTeachers),
                 ),
-                _DashboardTile(
+                NavTile(
                   icon: Icons.groups_outlined,
                   label: 'Batches',
                   onTap: () => context.push(AppRoutes.adminBatches),
                 ),
-                _DashboardTile(
+                NavTile(
                   icon: Icons.people_alt_outlined,
                   label: 'Students',
                   onTap: () => context.push(AppRoutes.adminStudents),
                 ),
-                _DashboardTile(
+                NavTile(
                   icon: Icons.currency_rupee_outlined,
                   label: 'Fee dues',
                   onTap: () => context.push(AppRoutes.adminFeeDues),
+                ),
+                NavTile(
+                  icon: Icons.event_available_outlined,
+                  label: 'Student attendance',
+                  onTap: () => context.push(AppRoutes.adminMarkStudentAttendance),
+                ),
+                NavTile(
+                  icon: Icons.badge_outlined,
+                  label: 'Teacher attendance',
+                  onTap: () => context.push(AppRoutes.adminMarkTeacherAttendance),
+                ),
+                NavTile(
+                  icon: Icons.assignment_outlined,
+                  label: 'Tests & results',
+                  onTap: () => context.push(AppRoutes.adminTests),
                 ),
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _DashboardTile extends StatelessWidget {
-  const _DashboardTile({required this.icon, required this.label, required this.onTap});
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(label),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
       ),
     );
   }

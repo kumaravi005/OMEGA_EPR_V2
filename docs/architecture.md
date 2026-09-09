@@ -56,16 +56,19 @@ lib/
                              AdminAccountsScreen (login-account list),
                              CreateAccountScreen.
     teacher/                Teacher-as-a-managed-record (Set 3) + the
-                             teacher's own placeholder app area (Set 2).
+                             teacher's own app area (Set 2 placeholder,
+                             real nav hub as of Set 4).
       data/                 TeacherProfile (+ ClassSubjectAssignment) model,
                              Firestore repository provider.
       application/          TeacherFormController (create/update a profile).
       presentation/         TeacherListScreen, TeacherFormScreen (one screen
                              handles both create and edit),
-                             TeacherHomeScreen (placeholder app area).
+                             TeacherHomeScreen (nav hub: attendance,
+                             homework, assignments, tests).
     student/                Student-as-a-managed-record (Set 3, including
-                             fees/payments) + the student/parent's own
-                             placeholder app area (Set 2).
+                             fees/payments) + the student/parent's own app
+                             area (Set 2 placeholder, real nav hub as of
+                             Set 4).
       data/                 StudentProfile, Payment models, Firestore
                              repository providers (payments is a
                              per-student subcollection - see
@@ -76,22 +79,53 @@ lib/
                              batch fee auto-population), StudentProfileScreen
                              (fee summary, payment history, call/WhatsApp),
                              FeeDuesScreen, AddPaymentDialog,
-                             StudentHomeScreen (placeholder app area).
+                             StudentHomeScreen (nav hub: attendance,
+                             homework, assignments, results).
     batches/                Batch catalogue (name + standard monthly/
                              installment fee) - referenced by student
                              admission, not a role's own app area.
       data/                 Batch model, Firestore repository provider.
       application/          BatchController (create/update/toggle active).
       presentation/         BatchListScreen (list + create/edit dialog).
+    attendance/ (Set 4)     Student attendance (one record per batch/date,
+                             never per subject) and teacher attendance
+                             (admin-marked, teacher views own only).
+      data/                 StudentAttendanceRecord, TeacherAttendanceRecord.
+      application/          AttendanceController (mark/correct - both use
+                             a deterministic doc id, see
+                             docs/database-architecture.md).
+      presentation/         MarkStudentAttendanceScreen,
+                             MarkTeacherAttendanceScreen (both admin),
+                             *AttendanceHistoryScreen (own view, teacher
+                             and student each get one).
+    homework/, assignments/ (Set 4)   Same shape as each other - a batch-
+                             wide entry a teacher creates and tracks
+                             completion/status on, a student reads.
+      data/, application/, presentation/   Model+repository, Controller,
+                             an adaptive *ListScreen (teacher: batch
+                             picker + create; student: fixed to their own
+                             batch, read-only) plus a create dialog.
+      Student-only wrapper: `Student{Homework,Assignments}Screen` resolves
+      the signed-in student's own batch, then delegates to the shared
+      list screen with `fixedBatchId` set.
+    tests/ (Set 4)          Offline test metadata + marks - no online exam
+                             engine (see docs/database-architecture.md).
+      data/                 TestDefinition, TestResult models/repositories.
+      application/          TestController (create test, enter/validate
+                             marks, publish result).
+      presentation/         TestListScreen (teacher/admin: batch picker +
+                             create), EnterMarksScreen (mark-entry grid +
+                             publish), StudentResultsScreen (own results,
+                             published tests only).
     public/                 presentation/PublicHomeScreen - the one public,
                              no-login-required screen for now.
 ```
 
 Every feature folder above is populated with only what's actually been
-built. Folders for fees-as-their-own-module, attendance, homework, etc.
-are intentionally **not** created yet — student fee/payment data lives
-under `features/student/` since it's tightly coupled to the student
-record, not a separate module (see docs/database-architecture.md).
+built. `fees` as its own module is still folded into `features/student/`
+(tightly coupled to the student record - see
+docs/database-architecture.md); `notifications` has no feature folder of
+its own yet either - see `core/services/notification_hook.dart` below.
 
 ## Why this shape
 
@@ -157,22 +191,30 @@ on `users` to everyone except an already-existing admin.
 
 ## What's deliberately not here yet
 
-- The teacher/student/parent app areas themselves (attendance, homework,
-  tests, results) - `TeacherHomeScreen`/`StudentHomeScreen` are still
-  Set 2's placeholders. Set 3 only built the *admin-facing* management of
-  teachers, students and fees.
 - Teacher/student **photos** - Storage isn't enabled on this project (see
   docs/firebase-setup.md); every other admission/profile field is in
   place, so this is an isolated addition later, not a rework.
-- The public website/content system (gallery, announcements, enquiries).
+- The public website/content system (gallery, announcements, enquiries,
+  admission enquiries, callback requests).
+- Actual push notification *delivery* - `notifications` documents are
+  written (see docs/database-architecture.md's "Notification event
+  hooks"), but nothing sends an FCM push yet; there are no Cloud
+  Functions in this project to trigger one from, and no in-app
+  notifications feed reads the collection yet either.
+- Enforcing "teacher may only manage their *assigned* class/subject" at
+  the rules level for homework/assignments/tests - see
+  docs/database-architecture.md for why this is a documented scope
+  decision, not an oversight.
 - Any feature folder beyond `auth`, `admin`, `teacher`, `student`,
-  `batches`, `public` - e.g. `fees` as its own module, attendance,
-  homework, assignments, tests, notifications, enquiries, reports,
+  `batches`, `attendance`, `homework`, `assignments`, `tests`, `public` -
+  e.g. `fees`/`notifications` as their own modules, enquiries, reports,
   exports, settings.
 - Changing a role after account creation, or deleting an account/teacher/
   student/batch (admin deactivates via `active: false` instead).
-- Editing or deleting a recorded payment - append-only by design (see
-  docs/database-architecture.md).
+- Editing or deleting a recorded payment, attendance heartbeat aside -
+  attendance/testResults use a deterministic id so re-marking *corrects*
+  the same record (not a delete+recreate); payments themselves stay
+  append-only by design (see docs/database-architecture.md).
 - Firebase App Check.
 
 These are built phase-by-phase in later sets.

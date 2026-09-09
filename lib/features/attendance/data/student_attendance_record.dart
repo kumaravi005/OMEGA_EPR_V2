@@ -1,0 +1,79 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../data/models/firestore_document.dart';
+
+enum AttendanceStatus {
+  present,
+  absent;
+
+  static AttendanceStatus fromValue(String value) {
+    return AttendanceStatus.values.firstWhere(
+      (status) => status.name == value,
+      orElse: () => throw ArgumentError('Unknown attendance status: $value'),
+    );
+  }
+
+  String get label => this == AttendanceStatus.present ? 'Present' : 'Absent';
+}
+
+/// One common attendance record per batch/date, covering every student in
+/// that batch - never split by subject (see docs/database-architecture.md).
+/// The document id is deterministic (`<batchId>_<dateKey>`), so marking
+/// the same batch/date twice updates the same record instead of creating
+/// a duplicate.
+class StudentAttendanceRecord implements FirestoreDocument {
+  const StudentAttendanceRecord({
+    required this.recordId,
+    required this.batchId,
+    required this.dateKey,
+    required this.date,
+    required this.records,
+    required this.markedBy,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory StudentAttendanceRecord.fromMap(String id, Map<String, dynamic> map) {
+    final rawRecords = (map['records'] as Map<String, dynamic>? ?? const {});
+    return StudentAttendanceRecord(
+      recordId: id,
+      batchId: map['batchId'] as String,
+      dateKey: map['dateKey'] as String,
+      date: (map['date'] as Timestamp).toDate(),
+      records: rawRecords.map((uid, status) => MapEntry(uid, AttendanceStatus.fromValue(status as String))),
+      markedBy: map['markedBy'] as String,
+      createdAt: (map['createdAt'] as Timestamp).toDate(),
+      updatedAt: (map['updatedAt'] as Timestamp).toDate(),
+    );
+  }
+
+  final String recordId;
+  final String batchId;
+  final String dateKey;
+  final DateTime date;
+
+  /// studentUid -> status, for every student marked on this date.
+  final Map<String, AttendanceStatus> records;
+  final String markedBy;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  int get presentCount => records.values.where((s) => s == AttendanceStatus.present).length;
+
+  int get absentCount => records.values.where((s) => s == AttendanceStatus.absent).length;
+
+  @override
+  String get id => recordId;
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      'batchId': batchId,
+      'dateKey': dateKey,
+      'date': Timestamp.fromDate(date),
+      'records': records.map((uid, status) => MapEntry(uid, status.name)),
+      'markedBy': markedBy,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+    };
+  }
+}

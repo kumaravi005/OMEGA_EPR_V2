@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/nav_tile.dart';
 import '../../auth/application/auth_providers.dart';
 
-/// Placeholder teacher area, proving role-based routing works. The real
-/// teacher dashboard (batches, attendance, homework, ...) is a later
-/// phase.
+/// Teacher's landing screen: attendance (view own), homework, assignments
+/// and tests/results for whichever batch they're working with. Full
+/// batch/class-scoped dashboards (e.g. "only my assigned classes") are a
+/// later phase - see docs/architecture.md.
 class TeacherHomeScreen extends ConsumerWidget {
   const TeacherHomeScreen({super.key});
 
@@ -16,7 +19,7 @@ class TeacherHomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Teacher'),
+        title: Text('Teacher${account != null ? ' - ${account.displayName}' : ''}'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -26,14 +29,33 @@ class TeacherHomeScreen extends ConsumerWidget {
         ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: AppCard(
-            child: Text(
-              'Welcome, ${account?.displayName ?? 'Teacher'}.\n\n'
-              'The teacher dashboard (batches, attendance, homework, results) will be built in a later phase. '
-              'This screen only confirms that teacher sign-in and role-based routing work.',
-              style: Theme.of(context).textTheme.bodyMedium,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              children: [
+                NavTile(
+                  icon: Icons.event_available_outlined,
+                  label: 'My attendance',
+                  onTap: () => context.push(AppRoutes.teacherAttendance),
+                ),
+                NavTile(
+                  icon: Icons.menu_book_outlined,
+                  label: 'Homework',
+                  onTap: () => context.push(AppRoutes.teacherHomework),
+                ),
+                NavTile(
+                  icon: Icons.assignment_turned_in_outlined,
+                  label: 'Assignments',
+                  onTap: () => context.push(AppRoutes.teacherAssignments),
+                ),
+                NavTile(
+                  icon: Icons.assignment_outlined,
+                  label: 'Tests & results',
+                  onTap: () => context.push(AppRoutes.teacherTests),
+                ),
+              ],
             ),
           ),
         ),

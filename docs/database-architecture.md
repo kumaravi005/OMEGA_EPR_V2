@@ -284,6 +284,85 @@ Android 11+ needs the `<queries>` entries in
 (already added) - iOS needs no equivalent for plain `tel:`/`https:`
 links.
 
+## Attendance, homework, assignments, tests and results (Set 4)
+
+```
+attendance/{batchId}_{dateKey}          one record per batch/date - NEVER
+                                          split by subject
+  batchId, dateKey ("2026-09-10"), date
+  records    { studentUid: "present" | "absent", ... }   every student in
+                                                           the batch, in one map
+  markedBy, createdAt, updatedAt
+
+teacherAttendance/{teacherUid}_{dateKey}   one record per teacher/date
+  teacherUid, dateKey, date, status ("present" | "absent")
+  markedBy, createdAt, updatedAt
+
+homework/{homeworkId}                   shared by the whole batch
+  batchId, subject, date, description, dueDate
+  completionStatus ("pending" | "completed"), remark
+  createdBy, createdAt, updatedAt
+
+assignments/{assignmentId}              same shape/access as homework
+  batchId, subject, title, description, assignedDate, dueDate
+  status ("active" | "closed"), teacherRemark
+  createdBy, createdAt, updatedAt
+
+tests/{testId}                          metadata only - the test is
+                                          conducted on paper, offline
+  batchId, subject, title, chapterTopic, date, totalMarks
+  testType ("objective" | "subjective" | "mixed"), description
+  resultPublished (bool)
+  createdBy, createdAt, updatedAt
+
+testResults/{testId}_{studentUid}       one document per test+student
+  testId, studentUid, batchId
+  obtainedMarks, totalMarks   (percentage computed client-side, never stored)
+  remark, enteredBy, createdAt, updatedAt
+
+notifications/{notificationId}          event hooks only - see below
+  type ("homework" | "assignment" | "test" | "result")
+  batchId, studentUid (optional), title, body, relatedId, createdAt
+```
+
+Both attendance collections use a **deterministic document id**
+(`<batchId>_<dateKey>` / `<teacherUid>_<dateKey>`) instead of an
+auto-generated one - marking the same batch/date (or teacher/date) twice
+always updates the *same* document, so a duplicate attendance record is
+structurally impossible, not just discouraged. `testResults` uses the
+same trick (`<testId>_<studentUid>`) so re-entering a mark can never
+create a second record either, and so a student can fetch their own
+result with a plain `get()` instead of needing `list` permission on the
+whole collection.
+
+**"Do not expose unpublished marks to students"** is enforced in
+`firestore.rules`, not just the UI: a student's `get` on `testResults` is
+only allowed once the *parent test's* `resultPublished` field is `true`
+(checked via a `get()` on `tests/{testId}` from inside the rule). Test
+*metadata* (title, date, subject) is visible to the batch as soon as it's
+created - only the marks are gated.
+
+**Why homework/assignments/tests aren't restricted to "only the assigned
+teacher"**: a teacher's `assignments` list (see `teachers/{uid}` above)
+names *class* strings (e.g. "Class 5"), while homework/assignments/tests
+reference a *batch id* - the two aren't the same concept in this system,
+and there's no reliable server-side mapping between them yet. Rather than
+build a fragile cross-reference, any active teacher may manage any
+batch's homework/assignments/tests; the create screens still only offer
+batches that exist, so this is a scope decision (documented, not a bug),
+not a security gap - the real boundary that matters (teacher vs. student
+vs. admin) is still fully enforced.
+
+**Notification event hooks**: `recordNotificationEvent()`
+(`core/services/notification_hook.dart`) writes one `notifications`
+document whenever homework/an assignment/a test is created or a result is
+published. This is *not* a push-delivery mechanism - there are no Cloud
+Functions in this project (see docs/architecture.md), so nothing turns
+these into an actual FCM push yet. It's a durable, queryable trail in the
+exact shape a future push sender or in-app notifications feed would
+consume. No UI reads this collection yet, so read access is admin-only
+for now (tightened/opened up once a consuming feature exists).
+
 ## Security posture (this phase)
 
 `storage.rules` still **denies all reads and writes** - Storage itself
@@ -305,6 +384,15 @@ above:
   document; only admin may `create` (never update/delete - append-only).
 - `batches`: any signed-in account may read (it's a shared reference
   catalogue, not personal data); only admin may write.
-- Every other planned collection (`fees`, `attendance`, `homework`, ...)
+- `attendance`/`teacherAttendance`: admin-only to write; a student may
+  `get`/`list` only records that include their own uid (checked via the
+  `records` map's keys), a teacher their own attendance only.
+- `homework`/`assignments`/`tests`: admin or any active teacher may
+  create/update; a student may read only their *current* batch's.
+- `testResults`: admin/teacher create and read all; a student may `get`
+  only their own, and only once published (see above).
+- `notifications`: admin/teacher create; admin-only read for now (see
+  above).
+- Every other planned collection (`fees`, `enquiries`, `gallery`, ...)
   stays fully closed until the phase that implements it, so access rules
   are never written against guessed requirements.

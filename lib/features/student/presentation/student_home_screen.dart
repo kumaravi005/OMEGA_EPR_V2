@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/nav_tile.dart';
 import '../../auth/application/auth_providers.dart';
 
-/// Placeholder student/parent area, proving role-based routing works.
-/// The real student/parent dashboard (attendance, fees, homework,
-/// results, ...) is a later phase.
+/// Student/parent's landing screen: attendance, homework, assignments and
+/// published test results for their own batch. A dedicated fee-summary
+/// view for students (beyond what admin already sees in their profile -
+/// see features/student/presentation/student_profile_screen.dart) is a
+/// later phase.
 class StudentHomeScreen extends ConsumerWidget {
   const StudentHomeScreen({super.key});
 
@@ -16,7 +20,7 @@ class StudentHomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Student'),
+        title: Text('Student${account != null ? ' - ${account.displayName}' : ''}'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -26,14 +30,33 @@ class StudentHomeScreen extends ConsumerWidget {
         ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: AppCard(
-            child: Text(
-              'Welcome, ${account?.displayName ?? 'Student'}.\n\n'
-              'The student/parent dashboard (attendance, fees, homework, results) will be built in a later phase. '
-              'This screen only confirms that student sign-in and role-based routing work.',
-              style: Theme.of(context).textTheme.bodyMedium,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              children: [
+                NavTile(
+                  icon: Icons.event_available_outlined,
+                  label: 'My attendance',
+                  onTap: () => context.push(AppRoutes.studentAttendance),
+                ),
+                NavTile(
+                  icon: Icons.menu_book_outlined,
+                  label: 'Homework',
+                  onTap: () => context.push(AppRoutes.studentHomework),
+                ),
+                NavTile(
+                  icon: Icons.assignment_turned_in_outlined,
+                  label: 'Assignments',
+                  onTap: () => context.push(AppRoutes.studentAssignments),
+                ),
+                NavTile(
+                  icon: Icons.grade_outlined,
+                  label: 'My results',
+                  onTap: () => context.push(AppRoutes.studentResults),
+                ),
+              ],
             ),
           ),
         ),
