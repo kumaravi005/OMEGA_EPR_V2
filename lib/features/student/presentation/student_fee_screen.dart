@@ -27,13 +27,20 @@ class StudentFeeScreen extends ConsumerWidget {
             ? const LoadingView()
             : Consumer(
                 builder: (context, ref, _) {
-                  final studentsAsync = ref.watch(allStudentsProvider);
-                  return studentsAsync.when(
+                  final selfAsync = ref.watch(
+                    ownStudentProfileProvider(account.uid),
+                  );
+                  return selfAsync.when(
                     loading: () => const LoadingView(),
-                    error: (error, stackTrace) => ErrorView(message: 'Could not load your profile.\n$error'),
-                    data: (students) {
-                      final self = students.where((s) => s.uid == account.uid).firstOrNull;
-                      if (self == null) return const ErrorView(message: 'Student profile not found.');
+                    error: (error, stackTrace) => ErrorView(
+                      message: 'Could not load your profile.\n$error',
+                    ),
+                    data: (self) {
+                      if (self == null) {
+                        return const ErrorView(
+                          message: 'Student profile not found.',
+                        );
+                      }
                       return _FeeBody(student: self);
                     },
                   );
@@ -55,7 +62,8 @@ class _FeeBody extends ConsumerWidget {
 
     return paymentsAsync.when(
       loading: () => const LoadingView(),
-      error: (error, stackTrace) => ErrorView(message: 'Could not load payments.\n$error'),
+      error: (error, stackTrace) =>
+          ErrorView(message: 'Could not load payments.\n$error'),
       data: (payments) {
         final paid = totalPaid(payments);
         final remaining = due(student, payments);
@@ -67,20 +75,31 @@ class _FeeBody extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Fee summary', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    'Fee summary',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   const SizedBox(height: AppSpacing.sm),
-                  _Row('Final agreed fee', '₹${student.finalFee.toStringAsFixed(0)}'),
+                  _Row(
+                    'Final agreed fee',
+                    '₹${student.finalFee.toStringAsFixed(0)}',
+                  ),
                   _Row('Total paid', '₹${paid.toStringAsFixed(0)}'),
                   _Row(
                     remaining < 0 ? 'Advance' : 'Due',
                     '₹${remaining.abs().toStringAsFixed(0)}',
-                    color: remaining > 0 ? Theme.of(context).colorScheme.error : null,
+                    color: remaining > 0
+                        ? Theme.of(context).colorScheme.error
+                        : null,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            Text('Payment history', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Payment history',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: AppSpacing.sm),
             if (payments.isEmpty)
               const EmptyView(message: 'No payments recorded yet.')
@@ -102,7 +121,9 @@ class _PaymentTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        title: Text('₹${payment.amount.toStringAsFixed(0)} - ${payment.mode.label}'),
+        title: Text(
+          '₹${payment.amount.toStringAsFixed(0)} - ${payment.mode.label}',
+        ),
         subtitle: Text('${payment.date.toLocal()}'.split(' ').first),
       ),
     );
@@ -124,7 +145,10 @@ class _Row extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label),
-          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+          Text(
+            value,
+            style: TextStyle(color: color, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );

@@ -52,7 +52,9 @@ final currentUserAccountProvider = StreamProvider<UserAccount?>((ref) {
 /// (session taken over, deactivated, etc). Cleared once displayed.
 final sessionMessageProvider = StateProvider<String?>((ref) => null);
 
-final authControllerProvider = Provider<AuthController>((ref) => AuthController(ref));
+final authControllerProvider = Provider<AuthController>(
+  (ref) => AuthController(ref),
+);
 
 class AuthController {
   AuthController(this._ref);
@@ -60,7 +62,10 @@ class AuthController {
   final Ref _ref;
   Timer? _heartbeatTimer;
 
-  Future<void> login({required String accountId, required String password}) async {
+  Future<void> login({
+    required String accountId,
+    required String password,
+  }) async {
     final normalizedId = accountId.trim().toLowerCase();
     final email = '$normalizedId@${AppConstants.accountEmailDomain}';
     final auth = _ref.read(authServiceProvider);
@@ -68,19 +73,28 @@ class AuthController {
 
     final User user;
     try {
-      final credential = await auth.signInWithEmailAndPassword(email: email, password: password);
+      final credential = await auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
       user = credential.user!;
     } on FirebaseAuthException catch (error) {
       throw _mapSignInError(error);
     } catch (_) {
-      throw const AuthFailure(AuthFailureReason.network, 'Could not reach the server. Check your connection.');
+      throw const AuthFailure(
+        AuthFailureReason.network,
+        'Could not reach the server. Check your connection.',
+      );
     }
 
     try {
       final account = await repository.getById(user.uid);
       if (account == null) {
         await auth.signOut();
-        throw const AuthFailure(AuthFailureReason.invalidCredentials, 'Account ID or password is incorrect.');
+        throw const AuthFailure(
+          AuthFailureReason.invalidCredentials,
+          'Account ID or password is incorrect.',
+        );
       }
       if (!account.active) {
         await auth.signOut();
@@ -96,13 +110,18 @@ class AuthController {
         deviceId = DeviceIdService(prefs).getOrCreate();
       } catch (_) {
         await auth.signOut();
-        throw const AuthFailure(AuthFailureReason.unknown, 'Could not start the app. Please try again.');
+        throw const AuthFailure(
+          AuthFailureReason.unknown,
+          'Could not start the app. Please try again.',
+        );
       }
 
       final existingSession = account.session;
       final sameDevice = existingSession?.deviceId == deviceId;
       final stale =
-          existingSession != null && DateTime.now().difference(existingSession.lastSeenAt) > staleSessionAfter;
+          existingSession != null &&
+          DateTime.now().difference(existingSession.lastSeenAt) >
+              staleSessionAfter;
       if (existingSession != null && !sameDevice && !stale) {
         await auth.signOut();
         throw const AuthFailure(
@@ -114,7 +133,11 @@ class AuthController {
 
       final now = DateTime.now();
       await repository.updateFields(user.uid, {
-        'session': DeviceSession(deviceId: deviceId, loginAt: now, lastSeenAt: now).toMap(),
+        'session': DeviceSession(
+          deviceId: deviceId,
+          loginAt: now,
+          lastSeenAt: now,
+        ).toMap(),
         'lastLoginAt': Timestamp.fromDate(now),
         'updatedAt': Timestamp.fromDate(now),
       });
@@ -129,10 +152,16 @@ class AuthController {
           'mistake.',
         );
       }
-      throw const AuthFailure(AuthFailureReason.network, 'Could not reach the server. Check your connection.');
+      throw const AuthFailure(
+        AuthFailureReason.network,
+        'Could not reach the server. Check your connection.',
+      );
     } catch (_) {
       await auth.signOut();
-      throw const AuthFailure(AuthFailureReason.unknown, 'Something went wrong. Please try again.');
+      throw const AuthFailure(
+        AuthFailureReason.unknown,
+        'Something went wrong. Please try again.',
+      );
     }
 
     startHeartbeat();
@@ -144,7 +173,9 @@ class AuthController {
     final uid = auth.currentUser?.uid;
     if (uid != null) {
       try {
-        await _ref.read(userAccountRepositoryProvider).updateFields(uid, {'session': null});
+        await _ref.read(userAccountRepositoryProvider).updateFields(uid, {
+          'session': null,
+        });
       } catch (_) {
         // Best-effort: if this fails (e.g. offline), we still sign out
         // locally below. The session self-clears once it goes stale.
@@ -166,7 +197,10 @@ class AuthController {
 
   void startHeartbeat() {
     stopHeartbeat();
-    _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) => _sendHeartbeat());
+    _heartbeatTimer = Timer.periodic(
+      _heartbeatInterval,
+      (_) => _sendHeartbeat(),
+    );
   }
 
   void stopHeartbeat() {
@@ -194,21 +228,30 @@ class AuthController {
       case 'wrong-password':
       case 'invalid-credential':
       case 'invalid-email':
-        return const AuthFailure(AuthFailureReason.invalidCredentials, 'Account ID or password is incorrect.');
+        return const AuthFailure(
+          AuthFailureReason.invalidCredentials,
+          'Account ID or password is incorrect.',
+        );
       case 'user-disabled':
         return const AuthFailure(
           AuthFailureReason.accountInactive,
           'This account is inactive. Contact your administrator.',
         );
       case 'network-request-failed':
-        return const AuthFailure(AuthFailureReason.network, 'Could not reach the server. Check your connection.');
+        return const AuthFailure(
+          AuthFailureReason.network,
+          'Could not reach the server. Check your connection.',
+        );
       case 'too-many-requests':
         return const AuthFailure(
           AuthFailureReason.unknown,
           'Too many attempts. Please wait a moment and try again.',
         );
       default:
-        return const AuthFailure(AuthFailureReason.unknown, 'Something went wrong. Please try again.');
+        return const AuthFailure(
+          AuthFailureReason.unknown,
+          'Something went wrong. Please try again.',
+        );
     }
   }
 }

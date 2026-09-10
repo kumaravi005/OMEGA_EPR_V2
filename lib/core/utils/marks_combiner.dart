@@ -18,8 +18,14 @@ class CombinedScore {
 }
 
 CombinedScore combineMarks(List<double?> obtainedMarks, List<double> maxMarks) {
-  assert(obtainedMarks.length == maxMarks.length, 'Each obtained-marks entry needs a matching max-marks entry');
-  final total = obtainedMarks.fold<double>(0, (sum, marks) => sum + (marks ?? 0));
+  assert(
+    obtainedMarks.length == maxMarks.length,
+    'Each obtained-marks entry needs a matching max-marks entry',
+  );
+  final total = obtainedMarks.fold<double>(
+    0,
+    (sum, marks) => sum + (marks ?? 0),
+  );
   final possible = maxMarks.fold<double>(0, (sum, marks) => sum + marks);
   final percentage = possible == 0 ? null : (total / possible) * 100;
   return CombinedScore(total: total, percentage: percentage);

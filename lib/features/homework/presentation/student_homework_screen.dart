@@ -16,13 +16,18 @@ class StudentHomeworkScreen extends ConsumerWidget {
     final account = ref.watch(currentUserAccountProvider).valueOrNull;
     if (account == null) return const Scaffold(body: LoadingView());
 
-    final studentsAsync = ref.watch(allStudentsProvider);
-    return studentsAsync.when(
+    final selfAsync = ref.watch(ownStudentProfileProvider(account.uid));
+    return selfAsync.when(
       loading: () => const Scaffold(body: LoadingView()),
-      error: (error, stackTrace) => Scaffold(body: ErrorView(message: 'Could not load your profile.\n$error')),
-      data: (students) {
-        final self = students.where((s) => s.uid == account.uid).firstOrNull;
-        if (self == null) return const Scaffold(body: ErrorView(message: 'Student profile not found.'));
+      error: (error, stackTrace) => Scaffold(
+        body: ErrorView(message: 'Could not load your profile.\n$error'),
+      ),
+      data: (self) {
+        if (self == null) {
+          return const Scaffold(
+            body: ErrorView(message: 'Student profile not found.'),
+          );
+        }
         return HomeworkListScreen(fixedBatchId: self.batchId);
       },
     );

@@ -27,7 +27,9 @@ class FirestoreDataSource {
     return _collection.doc(id).snapshots();
   }
 
-  Future<DocumentReference<Map<String, dynamic>>> add(Map<String, dynamic> data) {
+  Future<DocumentReference<Map<String, dynamic>>> add(
+    Map<String, dynamic> data,
+  ) {
     return _collection.add(data);
   }
 

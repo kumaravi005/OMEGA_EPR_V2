@@ -48,9 +48,11 @@ class TestResult implements FirestoreDocument {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  double get percentage => totalMarks == 0 ? 0 : (obtainedMarks / totalMarks) * 100;
+  double get percentage =>
+      totalMarks == 0 ? 0 : (obtainedMarks / totalMarks) * 100;
 
-  static String idFor({required String testId, required String studentUid}) => '${testId}_$studentUid';
+  static String idFor({required String testId, required String studentUid}) =>
+      '${testId}_$studentUid';
 
   @override
   String get id => resultId;

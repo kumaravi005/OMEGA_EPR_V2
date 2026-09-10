@@ -24,16 +24,25 @@ class TeacherAttendanceHistoryScreen extends ConsumerWidget {
             ? const LoadingView()
             : Consumer(
                 builder: (context, ref, _) {
-                  final recordsAsync = ref.watch(teacherOwnAttendanceProvider(account.uid));
+                  final recordsAsync = ref.watch(
+                    teacherOwnAttendanceProvider(account.uid),
+                  );
                   return recordsAsync.when(
                     loading: () => const LoadingView(),
-                    error: (error, stackTrace) => ErrorView(message: 'Could not load attendance.\n$error'),
+                    error: (error, stackTrace) => ErrorView(
+                      message: 'Could not load attendance.\n$error',
+                    ),
                     data: (records) {
-                      if (records.isEmpty) return const EmptyView(message: 'No attendance recorded yet.');
+                      if (records.isEmpty) {
+                        return const EmptyView(
+                          message: 'No attendance recorded yet.',
+                        );
+                      }
                       return ListView.separated(
                         padding: const EdgeInsets.all(AppSpacing.md),
                         itemCount: records.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.xs),
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(height: AppSpacing.xs),
                         itemBuilder: (context, index) {
                           final record = records[index];
                           return Card(
@@ -42,7 +51,8 @@ class TeacherAttendanceHistoryScreen extends ConsumerWidget {
                               trailing: Text(
                                 record.status.label,
                                 style: TextStyle(
-                                  color: record.status == AttendanceStatus.present
+                                  color:
+                                      record.status == AttendanceStatus.present
                                       ? Theme.of(context).colorScheme.primary
                                       : Theme.of(context).colorScheme.error,
                                   fontWeight: FontWeight.w600,

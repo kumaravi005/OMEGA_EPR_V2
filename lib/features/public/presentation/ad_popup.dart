@@ -21,16 +21,21 @@ class AdPopupTrigger extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final alreadyShown = ref.watch(adPopupShownProvider);
-    final adsAsync = ref.watch(allAdvertisementsProvider);
+    final adsAsync = ref.watch(activeAdvertisementsProvider);
 
     if (!alreadyShown) {
-      final ad = adsAsync.valueOrNull?.where((a) => a.isLive(DateTime.now())).firstOrNull;
+      final ad = adsAsync.valueOrNull
+          ?.where((a) => a.isLive(DateTime.now()))
+          .firstOrNull;
       if (ad != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!context.mounted) return;
           if (ref.read(adPopupShownProvider)) return;
           ref.read(adPopupShownProvider.notifier).state = true;
-          showDialog<void>(context: context, builder: (context) => _AdDialog(ad: ad));
+          showDialog<void>(
+            context: context,
+            builder: (context) => _AdDialog(ad: ad),
+          );
         });
       }
     }
@@ -62,7 +67,9 @@ class _AdDialog extends StatelessWidget {
                     fit: BoxFit.cover,
                     errorBuilder: (_, _, _) => const SizedBox(
                       height: 160,
-                      child: Center(child: Icon(Icons.broken_image_outlined, size: 48)),
+                      child: Center(
+                        child: Icon(Icons.broken_image_outlined, size: 48),
+                      ),
                     ),
                   ),
                 ),
@@ -77,7 +84,10 @@ class _AdDialog extends StatelessWidget {
                   ElevatedButton(
                     onPressed: ad.buttonUrl == null
                         ? null
-                        : () => launchUrl(Uri.parse(ad.buttonUrl!), mode: LaunchMode.externalApplication),
+                        : () => launchUrl(
+                            Uri.parse(ad.buttonUrl!),
+                            mode: LaunchMode.externalApplication,
+                          ),
                     child: Text(ad.buttonText!),
                   ),
                 ],

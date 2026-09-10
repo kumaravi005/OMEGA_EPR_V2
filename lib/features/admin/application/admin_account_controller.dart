@@ -16,7 +16,9 @@ class AdminActionFailure implements Exception {
   String toString() => message;
 }
 
-final adminAccountControllerProvider = Provider<AdminAccountController>((ref) => AdminAccountController(ref));
+final adminAccountControllerProvider = Provider<AdminAccountController>(
+  (ref) => AdminAccountController(ref),
+);
 
 /// All accounts, for the admin's account list. Requires the caller to be
 /// an admin (enforced by firestore.rules `allow list`).
@@ -79,7 +81,9 @@ class AdminAccountController {
         'updatedAt': Timestamp.now(),
       });
     } catch (_) {
-      throw const AdminActionFailure('Could not reset the session. Please try again.');
+      throw const AdminActionFailure(
+        'Could not reset the session. Please try again.',
+      );
     }
   }
 
@@ -90,7 +94,9 @@ class AdminAccountController {
         'updatedAt': Timestamp.now(),
       });
     } catch (_) {
-      throw const AdminActionFailure('Could not update the account. Please try again.');
+      throw const AdminActionFailure(
+        'Could not update the account. Please try again.',
+      );
     }
   }
 }

@@ -28,7 +28,10 @@ class AccountProvisioningService {
 
     try {
       final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
-      final credential = await secondaryAuth.createUserWithEmailAndPassword(email: email, password: password);
+      final credential = await secondaryAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
       final uid = credential.user!.uid;
 
       try {

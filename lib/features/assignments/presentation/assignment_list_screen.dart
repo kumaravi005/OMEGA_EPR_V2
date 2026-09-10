@@ -20,7 +20,8 @@ class AssignmentListScreen extends ConsumerStatefulWidget {
   final String? fixedBatchId;
 
   @override
-  ConsumerState<AssignmentListScreen> createState() => _AssignmentListScreenState();
+  ConsumerState<AssignmentListScreen> createState() =>
+      _AssignmentListScreenState();
 }
 
 class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
@@ -36,7 +37,8 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
       appBar: AppBar(title: const Text('Assignments')),
       floatingActionButton: _isTeacherView && _batchId != null
           ? FloatingActionButton.extended(
-              onPressed: () => showCreateAssignmentDialog(context, batchId: _batchId!),
+              onPressed: () =>
+                  showCreateAssignmentDialog(context, batchId: _batchId!),
               icon: const Icon(Icons.add),
               label: const Text('New assignment'),
             )
@@ -49,9 +51,14 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                   final batchesAsync = ref.watch(activeBatchesProvider);
                   return batchesAsync.when(
                     loading: () => const LoadingView(),
-                    error: (error, stackTrace) => ErrorView(message: 'Could not load batches.\n$error'),
+                    error: (error, stackTrace) =>
+                        ErrorView(message: 'Could not load batches.\n$error'),
                     data: (batches) {
-                      if (batches.isEmpty) return const EmptyView(message: 'No active batches yet.');
+                      if (batches.isEmpty) {
+                        return const EmptyView(
+                          message: 'No active batches yet.',
+                        );
+                      }
                       _batchId ??= batches.first.batchId;
                       return Column(
                         children: [
@@ -59,14 +66,27 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
                             padding: const EdgeInsets.all(AppSpacing.md),
                             child: DropdownButtonFormField<String>(
                               initialValue: _batchId,
-                              decoration: const InputDecoration(labelText: 'Batch'),
+                              decoration: const InputDecoration(
+                                labelText: 'Batch',
+                              ),
                               items: batches
-                                  .map((b) => DropdownMenuItem(value: b.batchId, child: Text(b.name)))
+                                  .map(
+                                    (b) => DropdownMenuItem(
+                                      value: b.batchId,
+                                      child: Text(b.name),
+                                    ),
+                                  )
                                   .toList(),
-                              onChanged: (value) => setState(() => _batchId = value),
+                              onChanged: (value) =>
+                                  setState(() => _batchId = value),
                             ),
                           ),
-                          Expanded(child: _AssignmentsForBatch(batchId: _batchId!, isTeacherView: true)),
+                          Expanded(
+                            child: _AssignmentsForBatch(
+                              batchId: _batchId!,
+                              isTeacherView: true,
+                            ),
+                          ),
                         ],
                       );
                     },
@@ -79,7 +99,10 @@ class _AssignmentListScreenState extends ConsumerState<AssignmentListScreen> {
 }
 
 class _AssignmentsForBatch extends ConsumerWidget {
-  const _AssignmentsForBatch({required this.batchId, required this.isTeacherView});
+  const _AssignmentsForBatch({
+    required this.batchId,
+    required this.isTeacherView,
+  });
 
   final String batchId;
   final bool isTeacherView;
@@ -90,14 +113,20 @@ class _AssignmentsForBatch extends ConsumerWidget {
 
     return assignmentsAsync.when(
       loading: () => const LoadingView(),
-      error: (error, stackTrace) => ErrorView(message: 'Could not load assignments.\n$error'),
+      error: (error, stackTrace) =>
+          ErrorView(message: 'Could not load assignments.\n$error'),
       data: (items) {
-        if (items.isEmpty) return const EmptyView(message: 'No assignments yet.');
+        if (items.isEmpty) {
+          return const EmptyView(message: 'No assignments yet.');
+        }
         return ListView.separated(
           padding: const EdgeInsets.all(AppSpacing.md),
           itemCount: items.length,
           separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-          itemBuilder: (context, index) => _AssignmentTile(assignment: items[index], isTeacherView: isTeacherView),
+          itemBuilder: (context, index) => _AssignmentTile(
+            assignment: items[index],
+            isTeacherView: isTeacherView,
+          ),
         );
       },
     );
@@ -105,7 +134,10 @@ class _AssignmentsForBatch extends ConsumerWidget {
 }
 
 class _AssignmentTile extends ConsumerWidget {
-  const _AssignmentTile({required this.assignment, required this.isTeacherView});
+  const _AssignmentTile({
+    required this.assignment,
+    required this.isTeacherView,
+  });
 
   final Assignment assignment;
   final bool isTeacherView;
@@ -127,14 +159,26 @@ class _AssignmentTile extends ConsumerWidget {
                   try {
                     await ref
                         .read(assignmentControllerProvider)
-                        .setStatus(assignment, status: status, teacherRemark: assignment.teacherRemark);
+                        .setStatus(
+                          assignment,
+                          status: status,
+                          teacherRemark: assignment.teacherRemark,
+                        );
                   } on AssignmentFailure catch (failure) {
-                    messenger.showSnackBar(SnackBar(content: Text(failure.message)));
+                    messenger.showSnackBar(
+                      SnackBar(content: Text(failure.message)),
+                    );
                   }
                 },
                 itemBuilder: (context) => const [
-                  PopupMenuItem(value: AssignmentStatus.active, child: Text('Mark active')),
-                  PopupMenuItem(value: AssignmentStatus.closed, child: Text('Mark closed')),
+                  PopupMenuItem(
+                    value: AssignmentStatus.active,
+                    child: Text('Mark active'),
+                  ),
+                  PopupMenuItem(
+                    value: AssignmentStatus.closed,
+                    child: Text('Mark closed'),
+                  ),
                 ],
                 child: Chip(label: Text(assignment.status.label)),
               )

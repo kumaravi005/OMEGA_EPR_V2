@@ -11,9 +11,10 @@ class ReportLayoutTemplateFailure implements Exception {
   String toString() => message;
 }
 
-final reportLayoutTemplateControllerProvider = Provider<ReportLayoutTemplateController>(
-  (ref) => ReportLayoutTemplateController(ref),
-);
+final reportLayoutTemplateControllerProvider =
+    Provider<ReportLayoutTemplateController>(
+      (ref) => ReportLayoutTemplateController(ref),
+    );
 
 class ReportLayoutTemplateController {
   ReportLayoutTemplateController(this._ref);
@@ -29,13 +30,29 @@ class ReportLayoutTemplateController {
       final now = DateTime.now();
       return await _ref
           .read(reportLayoutTemplateRepositoryProvider)
-          .add(ReportLayoutTemplate(templateId: '', name: name.trim(), header: header, footer: footer, createdAt: now, updatedAt: now));
+          .add(
+            ReportLayoutTemplate(
+              templateId: '',
+              name: name.trim(),
+              header: header,
+              footer: footer,
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
     } catch (_) {
-      throw const ReportLayoutTemplateFailure('Could not save this template. Please try again.');
+      throw const ReportLayoutTemplateFailure(
+        'Could not save this template. Please try again.',
+      );
     }
   }
 
-  Future<void> update(ReportLayoutTemplate existing, {String? name, ReportHeaderConfig? header, ReportFooterConfig? footer}) async {
+  Future<void> update(
+    ReportLayoutTemplate existing, {
+    String? name,
+    ReportHeaderConfig? header,
+    ReportFooterConfig? footer,
+  }) async {
     try {
       await _ref
           .read(reportLayoutTemplateRepositoryProvider)
@@ -51,15 +68,21 @@ class ReportLayoutTemplateController {
             ),
           );
     } catch (_) {
-      throw const ReportLayoutTemplateFailure('Could not update this template. Please try again.');
+      throw const ReportLayoutTemplateFailure(
+        'Could not update this template. Please try again.',
+      );
     }
   }
 
   Future<void> delete(ReportLayoutTemplate template) async {
     try {
-      await _ref.read(reportLayoutTemplateRepositoryProvider).delete(template.templateId);
+      await _ref
+          .read(reportLayoutTemplateRepositoryProvider)
+          .delete(template.templateId);
     } catch (_) {
-      throw const ReportLayoutTemplateFailure('Could not delete this template. Please try again.');
+      throw const ReportLayoutTemplateFailure(
+        'Could not delete this template. Please try again.',
+      );
     }
   }
 }

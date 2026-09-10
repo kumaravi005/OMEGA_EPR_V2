@@ -30,7 +30,8 @@ class StudentFormScreen extends ConsumerWidget {
       body: SafeArea(
         child: batchesAsync.when(
           loading: () => const LoadingView(message: 'Loading batches...'),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load batches.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load batches.\n$error'),
           data: (batches) {
             if (studentUid == null) {
               return _StudentForm(existing: null, batches: batches);
@@ -38,10 +39,15 @@ class StudentFormScreen extends ConsumerWidget {
             final studentsAsync = ref.watch(allStudentsProvider);
             return studentsAsync.when(
               loading: () => const LoadingView(),
-              error: (error, stackTrace) => ErrorView(message: 'Could not load student.\n$error'),
+              error: (error, stackTrace) =>
+                  ErrorView(message: 'Could not load student.\n$error'),
               data: (students) {
-                final existing = students.where((s) => s.uid == studentUid).firstOrNull;
-                if (existing == null) return const ErrorView(message: 'Student not found.');
+                final existing = students
+                    .where((s) => s.uid == studentUid)
+                    .firstOrNull;
+                if (existing == null) {
+                  return const ErrorView(message: 'Student not found.');
+                }
                 return _StudentForm(existing: existing, batches: batches);
               },
             );
@@ -64,20 +70,40 @@ class _StudentForm extends ConsumerStatefulWidget {
 
 class _StudentFormState extends ConsumerState<_StudentForm> {
   final _formKey = GlobalKey<FormState>();
-  late final _accountIdController = TextEditingController(text: widget.existing?.accountId ?? '');
+  late final _accountIdController = TextEditingController(
+    text: widget.existing?.accountId ?? '',
+  );
   final _passwordController = TextEditingController();
-  late final _nameController = TextEditingController(text: widget.existing?.name ?? '');
-  late final _fatherNameController = TextEditingController(text: widget.existing?.fatherName ?? '');
-  late final _addressController = TextEditingController(text: widget.existing?.address ?? '');
-  late final _classController = TextEditingController(text: widget.existing?.className ?? '');
-  late final _boardController = TextEditingController(text: widget.existing?.board ?? '');
-  late final _sessionController = TextEditingController(text: widget.existing?.academicSession ?? '');
-  late final _primaryMobileController = TextEditingController(text: widget.existing?.primaryMobile ?? '');
-  late final _secondaryMobileController = TextEditingController(text: widget.existing?.secondaryMobile ?? '');
+  late final _nameController = TextEditingController(
+    text: widget.existing?.name ?? '',
+  );
+  late final _fatherNameController = TextEditingController(
+    text: widget.existing?.fatherName ?? '',
+  );
+  late final _addressController = TextEditingController(
+    text: widget.existing?.address ?? '',
+  );
+  late final _classController = TextEditingController(
+    text: widget.existing?.className ?? '',
+  );
+  late final _boardController = TextEditingController(
+    text: widget.existing?.board ?? '',
+  );
+  late final _sessionController = TextEditingController(
+    text: widget.existing?.academicSession ?? '',
+  );
+  late final _primaryMobileController = TextEditingController(
+    text: widget.existing?.primaryMobile ?? '',
+  );
+  late final _secondaryMobileController = TextEditingController(
+    text: widget.existing?.secondaryMobile ?? '',
+  );
   late final _finalFeeController = TextEditingController(
     text: widget.existing?.finalFee.toStringAsFixed(0) ?? '',
   );
-  late final _feeReasonController = TextEditingController(text: widget.existing?.feeReason ?? '');
+  late final _feeReasonController = TextEditingController(
+    text: widget.existing?.feeReason ?? '',
+  );
 
   DateTime? _dateOfBirth;
   Gender _gender = Gender.male;
@@ -98,7 +124,9 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
     _gender = widget.existing?.gender ?? Gender.male;
     _paymentPlan = widget.existing?.paymentPlan ?? PaymentPlan.monthly;
     _standardFee = widget.existing?.standardFee ?? 0;
-    _selectedBatchId = widget.existing?.batchId ?? (widget.batches.isNotEmpty ? widget.batches.first.batchId : null);
+    _selectedBatchId =
+        widget.existing?.batchId ??
+        (widget.batches.isNotEmpty ? widget.batches.first.batchId : null);
     if (!_isEditing) _recomputeStandardFee();
     _finalFeeController.addListener(_onFinalFeeChanged);
   }
@@ -107,9 +135,13 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
   /// payment plan - a batch has separate monthly/installment fees (see
   /// [Batch]), so switching either one recomputes it.
   void _recomputeStandardFee() {
-    final batch = widget.batches.where((b) => b.batchId == _selectedBatchId).firstOrNull;
+    final batch = widget.batches
+        .where((b) => b.batchId == _selectedBatchId)
+        .firstOrNull;
     if (batch == null) return;
-    _standardFee = _paymentPlan == PaymentPlan.installment ? batch.standardInstallmentFee : batch.standardMonthlyFee;
+    _standardFee = _paymentPlan == PaymentPlan.installment
+        ? batch.standardInstallmentFee
+        : batch.standardMonthlyFee;
     // Auto-populate the final fee to match the standard fee - admin can
     // still adjust it below (that's the discount workflow).
     _finalFeeController.text = _standardFee.toStringAsFixed(0);
@@ -176,7 +208,10 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
 
     final finalFee = double.parse(_finalFeeController.text);
     if (finalFee != _standardFee && _feeReasonController.text.trim().isEmpty) {
-      setState(() => _errorMessage = 'A reason is required when the final fee differs from the standard fee.');
+      setState(
+        () => _errorMessage =
+            'A reason is required when the final fee differs from the standard fee.',
+      );
       return;
     }
 
@@ -190,7 +225,9 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
       final secondaryMobile = _secondaryMobileController.text.trim().isEmpty
           ? null
           : _secondaryMobileController.text;
-      final feeReason = _feeReasonController.text.trim().isEmpty ? null : _feeReasonController.text;
+      final feeReason = _feeReasonController.text.trim().isEmpty
+          ? null
+          : _feeReasonController.text;
 
       if (_isEditing) {
         await controller.updateStudent(
@@ -243,10 +280,14 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
 
   @override
   Widget build(BuildContext context) {
-    final discount = _standardFee - (double.tryParse(_finalFeeController.text) ?? _standardFee);
+    final discount =
+        _standardFee -
+        (double.tryParse(_finalFeeController.text) ?? _standardFee);
 
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? 'Edit student' : 'Admit student')),
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Edit student' : 'Admit student'),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),
@@ -259,10 +300,18 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (_errorMessage != null) ...[
-                      Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                      Text(
+                        _errorMessage!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
                       const SizedBox(height: AppSpacing.md),
                     ],
-                    Text('Login credentials', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Login credentials',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _accountIdController,
@@ -279,26 +328,41 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
                         obscureText: _obscurePassword,
                         validator: _validatePassword,
                         suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                         ),
                       ),
                     ],
                     const SizedBox(height: AppSpacing.lg),
-                    Text('Personal details', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Personal details',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _nameController,
                       label: 'Name',
                       enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(value, message: 'Name is required'),
+                      validator: (value) => Validators.required(
+                        value,
+                        message: 'Name is required',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _fatherNameController,
                       label: "Father's name",
                       enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(value, message: "Father's name is required"),
+                      validator: (value) => Validators.required(
+                        value,
+                        message: "Father's name is required",
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     ListTile(
@@ -306,7 +370,9 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
                       title: Text(
                         _dateOfBirth == null
                             ? 'Date of birth'
-                            : 'Date of birth: ${_dateOfBirth!.toLocal()}'.split(' ').first,
+                            : 'Date of birth: ${_dateOfBirth!.toLocal()}'
+                                  .split(' ')
+                                  .first,
                       ),
                       trailing: const Icon(Icons.calendar_today_outlined),
                       onTap: _isSubmitting ? null : _pickDateOfBirth,
@@ -315,54 +381,88 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
                       initialValue: _gender,
                       decoration: const InputDecoration(labelText: 'Gender'),
                       items: Gender.values
-                          .map((gender) => DropdownMenuItem(value: gender, child: Text(_genderLabel(gender))))
+                          .map(
+                            (gender) => DropdownMenuItem(
+                              value: gender,
+                              child: Text(_genderLabel(gender)),
+                            ),
+                          )
                           .toList(),
-                      onChanged: _isSubmitting ? null : (value) => setState(() => _gender = value ?? _gender),
+                      onChanged: _isSubmitting
+                          ? null
+                          : (value) =>
+                                setState(() => _gender = value ?? _gender),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _addressController,
                       label: 'Address',
                       enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(value, message: 'Address is required'),
+                      validator: (value) => Validators.required(
+                        value,
+                        message: 'Address is required',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
-                    Text('Academic details', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Academic details',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _classController,
                       label: 'Class',
                       enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(value, message: 'Class is required'),
+                      validator: (value) => Validators.required(
+                        value,
+                        message: 'Class is required',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _boardController,
                       label: 'Board',
                       enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(value, message: 'Board is required'),
+                      validator: (value) => Validators.required(
+                        value,
+                        message: 'Board is required',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     if (widget.batches.isEmpty)
                       Text(
                         'No active batches yet. Create one under Batches first.',
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       )
                     else
                       DropdownButtonFormField<String>(
                         initialValue: _selectedBatchId,
                         decoration: const InputDecoration(labelText: 'Batch'),
                         items: widget.batches
-                            .map((batch) => DropdownMenuItem(value: batch.batchId, child: Text(batch.name)))
+                            .map(
+                              (batch) => DropdownMenuItem(
+                                value: batch.batchId,
+                                child: Text(batch.name),
+                              ),
+                            )
                             .toList(),
                         onChanged: _isSubmitting ? null : _onBatchSelected,
                       ),
                     const SizedBox(height: AppSpacing.sm),
                     DropdownButtonFormField<PaymentPlan>(
                       initialValue: _paymentPlan,
-                      decoration: const InputDecoration(labelText: 'Payment plan'),
+                      decoration: const InputDecoration(
+                        labelText: 'Payment plan',
+                      ),
                       items: PaymentPlan.values
-                          .map((plan) => DropdownMenuItem(value: plan, child: Text(plan.label)))
+                          .map(
+                            (plan) => DropdownMenuItem(
+                              value: plan,
+                              child: Text(plan.label),
+                            ),
+                          )
                           .toList(),
                       onChanged: _isSubmitting ? null : _onPaymentPlanSelected,
                     ),
@@ -372,17 +472,24 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
                       label: 'Academic session',
                       hintText: 'e.g. 2026-27',
                       enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(value, message: 'Academic session is required'),
+                      validator: (value) => Validators.required(
+                        value,
+                        message: 'Academic session is required',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
-                    Text('Contact', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Contact',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _primaryMobileController,
                       label: 'Primary mobile',
                       enabled: !_isSubmitting,
                       keyboardType: TextInputType.phone,
-                      validator: (value) => Validators.required(value, message: 'Primary mobile is required'),
+                      validator: (value) =>
+                          Validators.phone(value, label: 'Primary mobile'),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
@@ -390,6 +497,11 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
                       label: 'Secondary mobile (optional)',
                       enabled: !_isSubmitting,
                       keyboardType: TextInputType.phone,
+                      validator: (value) => Validators.phone(
+                        value,
+                        isRequired: false,
+                        label: 'Secondary mobile',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     Text('Fee', style: Theme.of(context).textTheme.titleLarge),
@@ -404,7 +516,9 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
                       controller: _finalFeeController,
                       label: 'Final agreed fee',
                       enabled: !_isSubmitting,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       validator: _validateAmount,
                     ),
                     const SizedBox(height: AppSpacing.sm),
@@ -417,14 +531,17 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _feeReasonController,
-                      label: 'Reason / remark (required if fee differs from standard)',
+                      label:
+                          'Reason / remark (required if fee differs from standard)',
                       enabled: !_isSubmitting,
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     AppButton(
                       label: _isEditing ? 'Save' : 'Admit student',
                       isLoading: _isSubmitting,
-                      onPressed: widget.batches.isEmpty && !_isEditing ? null : _submit,
+                      onPressed: widget.batches.isEmpty && !_isEditing
+                          ? null
+                          : _submit,
                     ),
                   ],
                 ),
@@ -437,7 +554,10 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
   }
 
   String? _validateAccountId(String? value) {
-    final requiredError = Validators.required(value, message: 'Account ID is required');
+    final requiredError = Validators.required(
+      value,
+      message: 'Account ID is required',
+    );
     if (requiredError != null) return requiredError;
     if (!AppConstants.accountIdPattern.hasMatch(value!.trim().toLowerCase())) {
       return '3-24 characters: lowercase letters, numbers, . _ or -';
@@ -446,7 +566,10 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
   }
 
   String? _validatePassword(String? value) {
-    final requiredError = Validators.required(value, message: 'Password is required');
+    final requiredError = Validators.required(
+      value,
+      message: 'Password is required',
+    );
     if (requiredError != null) return requiredError;
     if (value!.length < 8) return 'Password must be at least 8 characters';
     return null;

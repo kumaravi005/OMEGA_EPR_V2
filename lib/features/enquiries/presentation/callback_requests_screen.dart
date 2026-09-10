@@ -21,9 +21,12 @@ class CallbackRequestsScreen extends ConsumerWidget {
       body: SafeArea(
         child: requestsAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load requests.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load requests.\n$error'),
           data: (requests) {
-            if (requests.isEmpty) return const EmptyView(message: 'No callback requests yet.');
+            if (requests.isEmpty) {
+              return const EmptyView(message: 'No callback requests yet.');
+            }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: requests.length,
@@ -48,15 +51,25 @@ class _Tile extends ConsumerWidget {
       child: ListTile(
         title: Text(request.name),
         subtitle: Text(request.phone),
-        leading: IconButton(icon: const Icon(Icons.call_outlined), onPressed: () => callNumber(request.phone)),
+        leading: IconButton(
+          icon: const Icon(Icons.call_outlined),
+          onPressed: () => callNumber(request.phone),
+        ),
         trailing: DropdownButton<CallbackStatus>(
           value: request.status,
-          items: CallbackStatus.values.map((status) => DropdownMenuItem(value: status, child: Text(status.label))).toList(),
+          items: CallbackStatus.values
+              .map(
+                (status) =>
+                    DropdownMenuItem(value: status, child: Text(status.label)),
+              )
+              .toList(),
           onChanged: (status) async {
             if (status == null) return;
             final messenger = ScaffoldMessenger.of(context);
             try {
-              await ref.read(enquiryControllerProvider).updateCallbackStatus(request, status);
+              await ref
+                  .read(enquiryControllerProvider)
+                  .updateCallbackStatus(request, status);
             } on EnquiryFailure catch (failure) {
               messenger.showSnackBar(SnackBar(content: Text(failure.message)));
             }

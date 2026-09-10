@@ -4,7 +4,10 @@ import 'package:omega_epr_v2/features/student/data/payment.dart';
 import 'package:omega_epr_v2/features/student/data/student_profile.dart';
 import 'package:omega_epr_v2/features/student/data/student_repository.dart';
 
-StudentProfile _student({required double standardFee, required double finalFee}) {
+StudentProfile _student({
+  required double standardFee,
+  required double finalFee,
+}) {
   final now = DateTime(2026, 1, 1);
   return StudentProfile(
     uid: 'stu1',
@@ -32,15 +35,26 @@ StudentProfile _student({required double standardFee, required double finalFee})
 
 Payment _payment(double amount) {
   final now = DateTime(2026, 2, 1);
-  return Payment(paymentId: 'p1', amount: amount, date: now, mode: PaymentMode.cash, remark: null, createdAt: now, createdBy: 'admin1');
+  return Payment(
+    paymentId: 'p1',
+    amount: amount,
+    date: now,
+    mode: PaymentMode.cash,
+    remark: null,
+    createdAt: now,
+    createdBy: 'admin1',
+  );
 }
 
 void main() {
   group('fee calculations', () {
-    test('uses the final fee, not the standard fee, for due calculation with no payments', () {
-      final student = _student(standardFee: 9000, finalFee: 7500);
-      expect(due(student, []), 7500);
-    });
+    test(
+      'uses the final fee, not the standard fee, for due calculation with no payments',
+      () {
+        final student = _student(standardFee: 9000, finalFee: 7500);
+        expect(due(student, []), 7500);
+      },
+    );
 
     test('discount is standard fee minus final fee', () {
       final student = _student(standardFee: 9000, finalFee: 7500);

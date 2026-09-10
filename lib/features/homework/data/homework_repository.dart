@@ -4,7 +4,9 @@ import '../../../core/services/firebase_providers.dart';
 import '../../../data/repositories/firestore_repository.dart';
 import 'homework.dart';
 
-final homeworkRepositoryProvider = Provider<FirestoreRepository<Homework>>((ref) {
+final homeworkRepositoryProvider = Provider<FirestoreRepository<Homework>>((
+  ref,
+) {
   return FirestoreRepository<Homework>(
     firestore: ref.watch(firestoreProvider),
     collectionPath: FirestoreCollections.homework,
@@ -13,9 +15,16 @@ final homeworkRepositoryProvider = Provider<FirestoreRepository<Homework>>((ref)
   );
 });
 
-/// All homework for one batch, newest first.
-final batchHomeworkProvider = StreamProvider.family<List<Homework>, String>((ref, batchId) {
-  return ref.watch(homeworkRepositoryProvider).watchAll().map(
-    (items) => items.where((h) => h.batchId == batchId).toList()..sort((a, b) => b.date.compareTo(a.date)),
-  );
+/// All homework for one batch, newest first. Filtered server-side - a
+/// student's `list` rule branch depends on `batchId` per-document, which
+/// Firestore can only verify against a matching query (see
+/// FirestoreRepository.watchWhere).
+final batchHomeworkProvider = StreamProvider.family<List<Homework>, String>((
+  ref,
+  batchId,
+) {
+  return ref
+      .watch(homeworkRepositoryProvider)
+      .watchWhere((query) => query.where('batchId', isEqualTo: batchId))
+      .map((items) => items.toList()..sort((a, b) => b.date.compareTo(a.date)));
 });

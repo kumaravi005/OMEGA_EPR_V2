@@ -7,17 +7,22 @@ import '../../../core/widgets/app_text_field.dart';
 import '../application/enquiry_controller.dart';
 
 Future<void> showRequestCallbackDialog(BuildContext context) {
-  return showDialog<void>(context: context, builder: (context) => const _RequestCallbackDialog());
+  return showDialog<void>(
+    context: context,
+    builder: (context) => const _RequestCallbackDialog(),
+  );
 }
 
 class _RequestCallbackDialog extends ConsumerStatefulWidget {
   const _RequestCallbackDialog();
 
   @override
-  ConsumerState<_RequestCallbackDialog> createState() => _RequestCallbackDialogState();
+  ConsumerState<_RequestCallbackDialog> createState() =>
+      _RequestCallbackDialogState();
 }
 
-class _RequestCallbackDialogState extends ConsumerState<_RequestCallbackDialog> {
+class _RequestCallbackDialogState
+    extends ConsumerState<_RequestCallbackDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -47,7 +52,11 @@ class _RequestCallbackDialogState extends ConsumerState<_RequestCallbackDialog> 
     try {
       await ref
           .read(enquiryControllerProvider)
-          .submitCallbackRequest(name: _nameController.text, phone: _phoneController.text, message: _messageController.text);
+          .submitCallbackRequest(
+            name: _nameController.text,
+            phone: _phoneController.text,
+            message: _messageController.text,
+          );
       if (mounted) setState(() => _submitted = true);
     } on EnquiryFailure catch (failure) {
       setState(() => _errorMessage = failure.message);
@@ -62,7 +71,12 @@ class _RequestCallbackDialogState extends ConsumerState<_RequestCallbackDialog> 
       return AlertDialog(
         title: const Text('Thank you'),
         content: const Text("We'll call you back soon."),
-        actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
       );
     }
 
@@ -75,14 +89,18 @@ class _RequestCallbackDialogState extends ConsumerState<_RequestCallbackDialog> 
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_errorMessage != null) ...[
-              Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
             AppTextField(
               controller: _nameController,
               label: 'Name',
               enabled: !_isSubmitting,
-              validator: (value) => Validators.required(value, message: 'Name is required'),
+              validator: (value) =>
+                  Validators.required(value, message: 'Name is required'),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppTextField(
@@ -90,16 +108,27 @@ class _RequestCallbackDialogState extends ConsumerState<_RequestCallbackDialog> 
               label: 'Phone',
               enabled: !_isSubmitting,
               keyboardType: TextInputType.phone,
-              validator: (value) => Validators.required(value, message: 'Phone is required'),
+              validator: (value) => Validators.phone(value, label: 'Phone'),
             ),
             const SizedBox(height: AppSpacing.sm),
-            AppTextField(controller: _messageController, label: 'Message (optional)', enabled: !_isSubmitting),
+            AppTextField(
+              controller: _messageController,
+              label: 'Message (optional)',
+              enabled: !_isSubmitting,
+            ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        AppButton(label: 'Submit', isLoading: _isSubmitting, onPressed: _submit),
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        AppButton(
+          label: 'Submit',
+          isLoading: _isSubmitting,
+          onPressed: _submit,
+        ),
       ],
     );
   }

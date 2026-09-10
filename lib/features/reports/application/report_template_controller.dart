@@ -11,31 +11,50 @@ class ReportTemplateFailure implements Exception {
   String toString() => message;
 }
 
-final reportTemplateControllerProvider = Provider<ReportTemplateController>((ref) => ReportTemplateController(ref));
+final reportTemplateControllerProvider = Provider<ReportTemplateController>(
+  (ref) => ReportTemplateController(ref),
+);
 
 class ReportTemplateController {
   ReportTemplateController(this._ref);
 
   final Ref _ref;
 
-  Future<void> save({required String name, required ReportModule module, required Map<String, dynamic> config}) async {
+  Future<void> save({
+    required String name,
+    required ReportModule module,
+    required Map<String, dynamic> config,
+  }) async {
     try {
       final now = DateTime.now();
       await _ref
           .read(reportTemplateRepositoryProvider)
           .add(
-            ReportTemplate(templateId: '', name: name.trim(), module: module, config: config, createdAt: now, updatedAt: now),
+            ReportTemplate(
+              templateId: '',
+              name: name.trim(),
+              module: module,
+              config: config,
+              createdAt: now,
+              updatedAt: now,
+            ),
           );
     } catch (_) {
-      throw const ReportTemplateFailure('Could not save this template. Please try again.');
+      throw const ReportTemplateFailure(
+        'Could not save this template. Please try again.',
+      );
     }
   }
 
   Future<void> delete(ReportTemplate template) async {
     try {
-      await _ref.read(reportTemplateRepositoryProvider).delete(template.templateId);
+      await _ref
+          .read(reportTemplateRepositoryProvider)
+          .delete(template.templateId);
     } catch (_) {
-      throw const ReportTemplateFailure('Could not delete this template. Please try again.');
+      throw const ReportTemplateFailure(
+        'Could not delete this template. Please try again.',
+      );
     }
   }
 }

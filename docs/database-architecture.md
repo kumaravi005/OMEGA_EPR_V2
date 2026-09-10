@@ -571,19 +571,42 @@ isolated change (a field + an upload widget), not a rework.
 `firestore.rules` denies everything **except** the collections described
 above:
 
-- `users`, `teachers`, `students`: a signed-in user may always `get`
-  their own document; only an admin may `get` someone else's, `list` the
-  collection, `create`, or `update`. A teacher/student can read their own
-  record but can never write to it (including their own fee data) -
-  matching "teacher cannot modify fee data" and "student can only access
-  own account/data" exactly.
-- `students/{uid}/payments`: same read access as the parent student
-  document; only admin may `create` (never update/delete - append-only).
+- `users`, `teachers`: a signed-in user may always `get` their own
+  document; only an admin may `get` someone else's, `list` the
+  collection, `create`, or `update`. A teacher can read their own record
+  but never write to it.
+- `students`: `get`/`list` allow `isAdmin() || isTeacher() || isSelf(studentId)`
+  (Set 8 - a teacher genuinely needs the roster to enter marks/mark
+  attendance for a batch, same "any active teacher may work with any
+  batch" scope decision already made for homework/assignments/tests, not
+  a per-assignment restriction). Only admin may `create`/`update` - a
+  teacher (or the student) can read but never write, including fee
+  fields. **Known trade-off, flagged deliberately, not silently
+  accepted**: because `finalFee`/`standardFee`/`feeReason` live on the
+  same document, a teacher who can read a student's roster entry can
+  also read that student's fee figures - there's no field-level
+  redaction in Firestore rules (a rule is document-level allow/deny).
+  Splitting fee data into an admin-only subcollection would close this,
+  but wasn't done in Set 8 (the "no new business features" / "refactor
+  only where justified" boundary for this phase - a bigger data-model
+  change than fits "final hardening"). If this needs to be closed, do it
+  as its own change: revisit the roster problem this rule exists for
+  first, since removing `isTeacher()` outright would break mark entry
+  and attendance marking again (see "Firestore query-shape requirement"
+  below for why that broke once already).
+- `students/{uid}/payments`: `isAdmin() || isSelf(studentId)` only - a
+  teacher has **no** access to payment data at all, matching "teacher
+  cannot modify fees" (and, more strongly, cannot even read them). Only
+  admin may `create` (never update/delete - append-only).
 - `batches`: any signed-in account may read (it's a shared reference
   catalogue, not personal data); only admin may write.
-- `attendance`/`teacherAttendance`: admin-only to write; a student may
-  `get`/`list` only records that include their own uid (checked via the
-  `records` map's keys), a teacher their own attendance only.
+- `attendance`: admin-only to write; a student may `get`/`list` only
+  records for their **current** batch (`isStudentOfBatch(resource.data.batchId)`
+  - Set 8 changed this from a `records` map-membership check; see
+  "Firestore query-shape requirement" below for why), a teacher any
+  batch's, matching the homework/assignments/tests pattern.
+- `teacherAttendance`: admin-only to write; a teacher may `get`/`list`
+  only their own (`resource.data.teacherUid == request.auth.uid`).
 - `homework`/`assignments`/`tests`: admin or any active teacher may
   create/update; a student may read only their *current* batch's.
 - `testResults`: admin/teacher create and read all; a student may `get`
@@ -603,3 +626,89 @@ above:
 - Every other planned collection (`fees`, `subjects`, `academicSessions`,
   `auditLogs`, ...) stays fully closed until the phase that implements
   it, so access rules are never written against guessed requirements.
+
+## Firestore query-shape requirement (Set 8 - found and fixed)
+
+A `list` (collection query) security rule is evaluated against the
+**query itself**, not against results after the fact. If a rule's
+non-privileged branch depends on a document field (`resource.data.X`),
+Firestore can only allow the query when the query carries a matching
+`.where()` clause on that same field - it can't run an unconstrained
+scan and filter out the documents that fail the rule, because it can't
+prove in advance that *every possible* result would pass. An
+unconstrained `list` under such a rule is rejected outright with
+`permission-denied`, even for a caller who could legitimately see some
+of the collection.
+
+This project had exactly that bug, systemically, since the sets that
+introduced each collection: every "one batch's records/one teacher's
+own records/one student's own notifications" provider did
+`FirestoreRepository.watchAll()` (an unconstrained `collection.snapshots()`)
+and filtered the result **client-side** in Dart. That only worked for an
+admin caller (`isAdmin()` is a role-only check with no per-document
+dependency, so Firestore can prove it unconditionally) - it silently
+failed for the roles the screens were actually built for: a teacher's
+own attendance history, a student's attendance/homework/assignments/
+tests/notifications, and even the anonymous public site's
+gallery/banners/upcoming-batches/advertisements/announcements (whose
+`list` rule is `resource.data.active == true || isAdmin()` - a public
+visitor, not being an admin, hits the exact same wall). Every "find my
+own profile" lookup that `list`ed the whole `students` collection and
+filtered to the caller's own uid had the identical problem, since
+`students`' `list` rule was admin-only with no self-branch at all.
+
+**The fix**, applied everywhere this pattern occurred:
+
+- `FirestoreRepository.watchWhere(builder)` (`lib/data/repositories/firestore_repository.dart`) -
+  a query-constrained sibling to `watchAll()`. Every batch-scoped
+  provider (`batchAttendanceProvider`, `teacherOwnAttendanceProvider`,
+  `batchHomeworkProvider`, `batchAssignmentsProvider`,
+  `batchTestsProvider`) now calls this with a `.where('batchId'/'teacherUid', isEqualTo: ...)`
+  matching what the rule checks, instead of `watchAll()` + a client-side
+  `.where()` on the Dart list.
+- `ownStudentProfileProvider(uid)` (`features/student/data/student_repository.dart`) -
+  resolves the signed-in student's own record via `.watchById(uid)` (a
+  `get`, always allowed for `isSelf`), replacing every "list all
+  students, filter to my uid" call site across the student-facing
+  screens (dashboard, fees, attendance/homework/assignments/results).
+  `allStudentsProvider` itself is now documented admin/teacher-only.
+- `activeGalleryItemsProvider`/`activeBannersProvider`/
+  `activeUpcomingBatchesProvider`/`activeAdvertisementsProvider`/
+  `activeAnnouncementsProvider` (`features/public/data/public_content_repositories.dart`) -
+  `.where('active', isEqualTo: true)` variants for the public site;
+  the original `allXProvider`s stay unconstrained for the admin
+  management screens (where `isAdmin()` makes any query shape fine).
+- `myNotificationsProvider` (moved to `features/notifications/data/`,
+  since it now needs `currentUserAccountProvider` - `core/` can't import
+  `features/`): admin/teacher get an unconstrained scan; a student gets
+  **three** simple single-field queries (`batchId isNull`, `batchId ==`
+  their batch, `studentUid ==` them) merged client-side via
+  `package:async`'s `StreamGroup.merge`, deduplicated by event id. This
+  was deliberately built as three simple queries rather than one
+  `Filter.or(...)` composite query across two different fields - Cloud
+  Firestore often requires a manually-created composite index for that
+  shape, and a notification feed silently failing until someone
+  remembers to create an index in the Console isn't an acceptable
+  failure mode for this project.
+- `students/{studentId}`'s rule gained an `isTeacher()` branch (see the
+  security posture list above) so `enterMarksScreen`/`markStudentAttendanceScreen`-
+  style roster lookups (by a teacher, now also query-constrained the
+  same way admin's already were) actually work.
+- `attendance/{recordId}`'s student branch changed from
+  `resource.data.records.keys().hasAny([uid])` (a map-membership check
+  with no clean query equivalent) to `isStudentOfBatch(resource.data.batchId)`
+  (directly queryable via `.where('batchId', ==, ...)`, matching every
+  other batch-scoped collection). Trade-off: this now reflects the
+  student's **current** batch, not batch membership at the time
+  attendance was taken - a student moved to a different batch loses
+  access to the superseded batch's attendance history. Accepted:
+  correctness of "can this query even run" beats preserving access to a
+  batch the student is no longer in.
+
+**Lesson for any future collection with a per-user or per-batch access
+rule**: the provider that reads it must build the query with a
+`.where()` matching what the rule checks, not `watchAll()` plus a
+client-side filter - the latter looks correct in every manual admin
+test (since admin bypasses the whole problem) and only fails for the
+actual target user, which is exactly how this went unnoticed across
+several sets.

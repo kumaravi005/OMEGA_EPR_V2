@@ -12,7 +12,9 @@ class BatchFailure implements Exception {
   String toString() => message;
 }
 
-final batchControllerProvider = Provider<BatchController>((ref) => BatchController(ref));
+final batchControllerProvider = Provider<BatchController>(
+  (ref) => BatchController(ref),
+);
 
 class BatchController {
   BatchController(this._ref);
@@ -44,7 +46,12 @@ class BatchController {
     }
   }
 
-  Future<void> updateBatch(Batch existing, {required String name, required double standardMonthlyFee, required double standardInstallmentFee}) async {
+  Future<void> updateBatch(
+    Batch existing, {
+    required String name,
+    required double standardMonthlyFee,
+    required double standardInstallmentFee,
+  }) async {
     try {
       await _ref
           .read(batchRepositoryProvider)

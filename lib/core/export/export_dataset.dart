@@ -47,5 +47,6 @@ class ExportDataset {
   /// More than 6 columns stops fitting a portrait A4 page comfortably at
   /// a readable font size, so `auto` switches to landscape from there.
   bool get isLandscape =>
-      orientation == ReportOrientation.landscape || (orientation == ReportOrientation.auto && columns.length > 6);
+      orientation == ReportOrientation.landscape ||
+      (orientation == ReportOrientation.auto && columns.length > 6);
 }

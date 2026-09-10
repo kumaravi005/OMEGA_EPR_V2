@@ -18,10 +18,12 @@ class MarkStudentAttendanceScreen extends ConsumerStatefulWidget {
   const MarkStudentAttendanceScreen({super.key});
 
   @override
-  ConsumerState<MarkStudentAttendanceScreen> createState() => _MarkStudentAttendanceScreenState();
+  ConsumerState<MarkStudentAttendanceScreen> createState() =>
+      _MarkStudentAttendanceScreenState();
 }
 
-class _MarkStudentAttendanceScreenState extends ConsumerState<MarkStudentAttendanceScreen> {
+class _MarkStudentAttendanceScreenState
+    extends ConsumerState<MarkStudentAttendanceScreen> {
   String? _batchId;
   DateTime _date = DateTime.now();
   final Map<String, AttendanceStatus> _statuses = {};
@@ -39,7 +41,11 @@ class _MarkStudentAttendanceScreenState extends ConsumerState<MarkStudentAttenda
     if (picked != null) setState(() => _date = picked);
   }
 
-  void _prefillIfNeeded(String batchId, List<String> studentUids, StudentAttendanceRecord? existing) {
+  void _prefillIfNeeded(
+    String batchId,
+    List<String> studentUids,
+    StudentAttendanceRecord? existing,
+  ) {
     final key = '${batchId}_${dateKey(_date)}';
     if (_prefilledFor == key) return;
     _prefilledFor = key;
@@ -57,9 +63,15 @@ class _MarkStudentAttendanceScreenState extends ConsumerState<MarkStudentAttenda
     try {
       await ref
           .read(attendanceControllerProvider)
-          .markStudentAttendance(batchId: batchId, date: _date, records: Map.of(_statuses));
+          .markStudentAttendance(
+            batchId: batchId,
+            date: _date,
+            records: Map.of(_statuses),
+          );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Attendance saved.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Attendance saved.')));
     } on AttendanceFailure catch (failure) {
       setState(() => _errorMessage = failure.message);
     } finally {
@@ -76,9 +88,12 @@ class _MarkStudentAttendanceScreenState extends ConsumerState<MarkStudentAttenda
       body: SafeArea(
         child: batchesAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load batches.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load batches.\n$error'),
           data: (batches) {
-            if (batches.isEmpty) return const EmptyView(message: 'No active batches yet.');
+            if (batches.isEmpty) {
+              return const EmptyView(message: 'No active batches yet.');
+            }
             _batchId ??= batches.first.batchId;
             final batchId = _batchId!;
 
@@ -93,9 +108,16 @@ class _MarkStudentAttendanceScreenState extends ConsumerState<MarkStudentAttenda
                           initialValue: batchId,
                           decoration: const InputDecoration(labelText: 'Batch'),
                           items: batches
-                              .map((b) => DropdownMenuItem(value: b.batchId, child: Text(b.name)))
+                              .map(
+                                (b) => DropdownMenuItem(
+                                  value: b.batchId,
+                                  child: Text(b.name),
+                                ),
+                              )
                               .toList(),
-                          onChanged: _isSubmitting ? null : (value) => setState(() => _batchId = value),
+                          onChanged: _isSubmitting
+                              ? null
+                              : (value) => setState(() => _batchId = value),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
@@ -109,47 +131,87 @@ class _MarkStudentAttendanceScreenState extends ConsumerState<MarkStudentAttenda
                 ),
                 if (_errorMessage != null)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                    child: Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                    ),
+                    child: Text(
+                      _errorMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
                   ),
                 Expanded(
                   child: Consumer(
                     builder: (context, ref, _) {
                       final studentsAsync = ref.watch(allStudentsProvider);
-                      final existingAsync = ref.watch(batchAttendanceProvider(batchId));
+                      final existingAsync = ref.watch(
+                        batchAttendanceProvider(batchId),
+                      );
                       return studentsAsync.when(
                         loading: () => const LoadingView(),
-                        error: (error, stackTrace) => ErrorView(message: 'Could not load students.\n$error'),
+                        error: (error, stackTrace) => ErrorView(
+                          message: 'Could not load students.\n$error',
+                        ),
                         data: (allStudents) {
-                          final students = allStudents.where((s) => s.batchId == batchId && s.active).toList();
+                          final students = allStudents
+                              .where((s) => s.batchId == batchId && s.active)
+                              .toList();
                           if (students.isEmpty) {
-                            return const EmptyView(message: 'No students in this batch.');
+                            return const EmptyView(
+                              message: 'No students in this batch.',
+                            );
                           }
-                          final existing = existingAsync.valueOrNull?.where((r) => r.dateKey == dateKey(_date)).firstOrNull;
-                          _prefillIfNeeded(batchId, students.map((s) => s.uid).toList(), existing);
+                          final existing = existingAsync.valueOrNull
+                              ?.where((r) => r.dateKey == dateKey(_date))
+                              .firstOrNull;
+                          _prefillIfNeeded(
+                            batchId,
+                            students.map((s) => s.uid).toList(),
+                            existing,
+                          );
 
                           return ListView.separated(
                             padding: const EdgeInsets.all(AppSpacing.md),
                             itemCount: students.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.xs),
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: AppSpacing.xs),
                             itemBuilder: (context, index) {
                               final student = students[index];
-                              final status = _statuses[student.uid] ?? AttendanceStatus.present;
+                              final status =
+                                  _statuses[student.uid] ??
+                                  AttendanceStatus.present;
                               return Card(
                                 child: ListTile(
-                                  title: Text('${student.name} (${student.accountId})'),
+                                  title: Text(
+                                    '${student.name} (${student.accountId})',
+                                  ),
                                   trailing: ToggleButtons(
-                                    isSelected: [status == AttendanceStatus.present, status == AttendanceStatus.absent],
+                                    isSelected: [
+                                      status == AttendanceStatus.present,
+                                      status == AttendanceStatus.absent,
+                                    ],
                                     onPressed: _isSubmitting
                                         ? null
                                         : (i) => setState(
-                                            () => _statuses[student.uid] = i == 0
+                                            () =>
+                                                _statuses[student.uid] = i == 0
                                                 ? AttendanceStatus.present
                                                 : AttendanceStatus.absent,
                                           ),
                                     children: const [
-                                      Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('P')),
-                                      Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('A')),
+                                      Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                        ),
+                                        child: Text('P'),
+                                      ),
+                                      Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                        ),
+                                        child: Text('A'),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -163,7 +225,11 @@ class _MarkStudentAttendanceScreenState extends ConsumerState<MarkStudentAttenda
                 ),
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.md),
-                  child: AppButton(label: 'Save attendance', isLoading: _isSubmitting, onPressed: () => _submit(batchId)),
+                  child: AppButton(
+                    label: 'Save attendance',
+                    isLoading: _isSubmitting,
+                    onPressed: () => _submit(batchId),
+                  ),
                 ),
               ],
             );

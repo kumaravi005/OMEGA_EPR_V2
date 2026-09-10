@@ -14,7 +14,12 @@ import '../../data/report_template_repository.dart';
 /// currently holds; [onLoad] hands back a previously saved config map for
 /// the screen to apply to its own filters/columns/sort/format state.
 class TemplateBar extends ConsumerStatefulWidget {
-  const TemplateBar({super.key, required this.module, required this.currentConfig, required this.onLoad});
+  const TemplateBar({
+    super.key,
+    required this.module,
+    required this.currentConfig,
+    required this.onLoad,
+  });
 
   final ReportModule module;
   final Map<String, dynamic> Function() currentConfig;
@@ -42,14 +47,25 @@ class _TemplateBarState extends ConsumerState<TemplateBar> {
               if (templates.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                  child: Text('No saved templates yet.', style: Theme.of(context).textTheme.bodySmall),
+                  child: Text(
+                    'No saved templates yet.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 );
               }
               final selected = templates.contains(_selected) ? _selected : null;
               return DropdownButtonFormField<ReportTemplate>(
                 initialValue: selected,
-                decoration: const InputDecoration(labelText: 'Load a saved template'),
-                items: [for (final template in templates) DropdownMenuItem(value: template, child: Text(template.name))],
+                decoration: const InputDecoration(
+                  labelText: 'Load a saved template',
+                ),
+                items: [
+                  for (final template in templates)
+                    DropdownMenuItem(
+                      value: template,
+                      child: Text(template.name),
+                    ),
+                ],
                 onChanged: (template) {
                   setState(() => _selected = template);
                   if (template != null) widget.onLoad(template.config);
@@ -65,7 +81,11 @@ class _TemplateBarState extends ConsumerState<TemplateBar> {
             tooltip: 'Delete this template',
             onPressed: () => _delete(context, _selected!),
           ),
-        AppButton(label: 'Save as template', variant: AppButtonVariant.secondary, onPressed: () => _save(context)),
+        AppButton(
+          label: 'Save as template',
+          variant: AppButtonVariant.secondary,
+          onPressed: () => _save(context),
+        ),
       ],
     );
   }
@@ -76,9 +96,16 @@ class _TemplateBarState extends ConsumerState<TemplateBar> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Save export template'),
-        content: AppTextField(controller: controller, label: 'Template name', hintText: 'e.g. Basic Student List'),
+        content: AppTextField(
+          controller: controller,
+          label: 'Template name',
+          hintText: 'e.g. Basic Student List',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(controller.text.trim()),
             child: const Text('Save'),
@@ -89,12 +116,24 @@ class _TemplateBarState extends ConsumerState<TemplateBar> {
     if (name == null || name.isEmpty || !context.mounted) return;
 
     try {
-      await ref.read(reportTemplateControllerProvider).save(name: name, module: widget.module, config: widget.currentConfig());
+      await ref
+          .read(reportTemplateControllerProvider)
+          .save(
+            name: name,
+            module: widget.module,
+            config: widget.currentConfig(),
+          );
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved "$name".')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Saved "$name".')));
       }
     } on ReportTemplateFailure catch (error) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
     }
   }
 
@@ -105,8 +144,14 @@ class _TemplateBarState extends ConsumerState<TemplateBar> {
         title: const Text('Delete template?'),
         content: Text('"${template.name}" will be removed.'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -116,7 +161,11 @@ class _TemplateBarState extends ConsumerState<TemplateBar> {
       await ref.read(reportTemplateControllerProvider).delete(template);
       setState(() => _selected = null);
     } on ReportTemplateFailure catch (error) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
     }
   }
 }

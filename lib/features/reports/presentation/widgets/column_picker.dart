@@ -14,7 +14,12 @@ class ColumnOption {
 /// order [options] lists them - shared by every export screen so "admin
 /// decides which columns appear" is implemented once.
 class ColumnPicker extends StatelessWidget {
-  const ColumnPicker({super.key, required this.options, required this.selectedKeys, required this.onChanged});
+  const ColumnPicker({
+    super.key,
+    required this.options,
+    required this.selectedKeys,
+    required this.onChanged,
+  });
 
   final List<ColumnOption> options;
   final Set<String> selectedKeys;

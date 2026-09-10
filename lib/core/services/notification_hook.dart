@@ -10,7 +10,7 @@ enum NotificationEventType {
   test,
   result,
   feePayment,
-  announcement;
+  announcement,
 }
 
 /// Writes a record of a notification-worthy event to Firestore.
@@ -43,15 +43,18 @@ Future<void> recordNotificationEvent(
 }) async {
   try {
     final now = Timestamp.now();
-    await ref.read(firestoreProvider).collection(FirestoreCollections.notifications).add({
-      'type': type.name,
-      'batchId': batchId,
-      'studentUid': studentUid,
-      'title': title,
-      'body': body,
-      'relatedId': relatedId,
-      'createdAt': now,
-    });
+    await ref
+        .read(firestoreProvider)
+        .collection(FirestoreCollections.notifications)
+        .add({
+          'type': type.name,
+          'batchId': batchId,
+          'studentUid': studentUid,
+          'title': title,
+          'body': body,
+          'relatedId': relatedId,
+          'createdAt': now,
+        });
   } catch (_) {
     // Best-effort - see the doc comment above.
   }

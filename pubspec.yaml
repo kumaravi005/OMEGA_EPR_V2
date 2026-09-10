@@ -42,8 +42,6 @@ dependencies:
   firebase_core: ^4.14.0
   firebase_auth: ^6.6.1
   cloud_firestore: ^6.9.0
-  firebase_storage: ^13.5.0
-  firebase_messaging: ^16.6.0
   firebase_crashlytics: ^5.3.0
 
   # Routing
@@ -68,6 +66,18 @@ dependencies:
   # same as gallery/banner images - see docs/database-architecture.md)
   # for embedding into a generated PDF's header.
   http: ^1.2.0
+
+  # StreamGroup.merge - combines two independent Firestore query streams
+  # into one for a student's notification feed (see
+  # features/notifications/data/my_notifications_provider.dart), instead
+  # of a single OR query that may need a manually-created composite index.
+  async: ^2.11.0
+
+  # A direct "is this device online" signal (Set 8's "show connection
+  # state") - Firestore's own `snapshot.metadata.isFromCache` is a false-
+  # positive-prone proxy (it's briefly true on every fresh load even
+  # while online), not a real connectivity check.
+  connectivity_plus: ^6.1.0
 
 dev_dependencies:
   flutter_test:

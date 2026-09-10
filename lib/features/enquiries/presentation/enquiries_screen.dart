@@ -24,14 +24,18 @@ class EnquiriesScreen extends ConsumerWidget {
       body: SafeArea(
         child: enquiriesAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load enquiries.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load enquiries.\n$error'),
           data: (enquiries) {
-            if (enquiries.isEmpty) return const EmptyView(message: 'No enquiries yet.');
+            if (enquiries.isEmpty) {
+              return const EmptyView(message: 'No enquiries yet.');
+            }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: enquiries.length,
               separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-              itemBuilder: (context, index) => _EnquiryTile(enquiry: enquiries[index]),
+              itemBuilder: (context, index) =>
+                  _EnquiryTile(enquiry: enquiries[index]),
             );
           },
         ),
@@ -57,7 +61,8 @@ class _EnquiryTile extends ConsumerWidget {
             if (enquiry.className != null || enquiry.board != null)
               Text('${enquiry.className ?? ''} ${enquiry.board ?? ''}'.trim()),
             Text(enquiry.primaryPhone),
-            if (enquiry.message != null && enquiry.message!.isNotEmpty) Text(enquiry.message!),
+            if (enquiry.message != null && enquiry.message!.isNotEmpty)
+              Text(enquiry.message!),
             const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
@@ -75,15 +80,24 @@ class _EnquiryTile extends ConsumerWidget {
                 DropdownButton<EnquiryStatus>(
                   value: enquiry.status,
                   items: EnquiryStatus.values
-                      .map((status) => DropdownMenuItem(value: status, child: Text(status.label)))
+                      .map(
+                        (status) => DropdownMenuItem(
+                          value: status,
+                          child: Text(status.label),
+                        ),
+                      )
                       .toList(),
                   onChanged: (status) async {
                     if (status == null) return;
                     final messenger = ScaffoldMessenger.of(context);
                     try {
-                      await ref.read(enquiryControllerProvider).updateStatus(enquiry, status);
+                      await ref
+                          .read(enquiryControllerProvider)
+                          .updateStatus(enquiry, status);
                     } on EnquiryFailure catch (failure) {
-                      messenger.showSnackBar(SnackBar(content: Text(failure.message)));
+                      messenger.showSnackBar(
+                        SnackBar(content: Text(failure.message)),
+                      );
                     }
                   },
                 ),

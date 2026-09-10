@@ -43,9 +43,10 @@ All from the Firebase console, left sidebar → **Build**:
 | Storage | Build → Storage | **Get started** → **Production mode** → same region as Firestore |
 | Crashlytics | Build → Crashlytics | **Enable Crashlytics** (Android/iOS only — there is no web SDK for Crashlytics) |
 
-Cloud Messaging needs no separate "enable" step — it activates once you
-register a platform in step 2. Uploading an APNs key for iOS push is only
-needed once notification *features* are built, not for this foundation.
+The `firebase_messaging` package was removed in Set 8 (zero real call
+sites anywhere in the app — there is no push-notification *sending*
+feature, see docs/architecture.md's "What's deliberately not here yet"),
+so there's nothing Cloud Messaging-specific to enable here.
 
 **Storage requires the Blaze (pay-as-you-go) plan.** Since late 2024,
 Firebase blocks creating a new Storage bucket on the free Spark plan —
@@ -177,6 +178,36 @@ numbers/`.`/`_`/`-`) and a password (8+ characters) before you start.
    admin/teacher/student accounts from there - see
    docs/database-architecture.md for exactly how that works.
 
+## Deploying an update (Set 8)
+
+Two independent things get deployed - do both whenever a change touches
+`firestore.rules`, and always rebuild before distributing a new app
+build:
+
+```bash
+# 1. Firestore rules - whenever firestore.rules changes
+firebase deploy --only firestore:rules
+
+# 2. The app itself - production builds
+flutter build web --release      # output: build/web/ - host as static files
+flutter build apk --release      # output: build/app/outputs/flutter-apk/app-release.apk
+```
+
+There is no CI/CD pipeline in this project - deployment is these two
+manual commands, run by whoever has `firebase login` access to the
+project. Rules changes take effect within seconds of deploying; an app
+rebuild only affects users the next time they load the web app or
+install the new APK (nothing auto-updates a running session).
+
+**Before every rules deploy**, run `firebase deploy --only firestore:rules`
+first against your own account for a quick sanity check - the CLI
+refuses to release rules that fail to compile, so a syntax mistake is
+caught before it reaches production, but a *logic* mistake (the wrong
+role check, a missing `.where()` clause the client needs - see
+docs/database-architecture.md's "Firestore query-shape requirement")
+is not caught by the compiler and needs an actual signed-in test per
+role to catch.
+
 ## Not set up yet, by design
 
 - **Cloud Functions / the Blaze plan**: deliberately avoided. The project
@@ -186,13 +217,19 @@ numbers/`.`/`_`/`-`) and a password (8+ characters) before you start.
   Functions"). Nothing in this project needs Blaze.
 - **Cloud Storage**: deferred until it's actually needed, since enabling
   it requires upgrading the project to the Blaze plan (see the note in
-  step 3). `firebase_storage` is still present as a dependency and
-  `storage.rules` still exists — there's just no bucket to deploy it to
-  yet.
+  step 3). The `firebase_storage` package was removed in Set 8 (it had
+  no real call sites - every image field in this app is a plain pasted
+  URL, not an upload); `storage.rules` still exists and denies
+  everything, but there's no bucket to deploy it to yet either way. Only
+  install the package again when a feature actually needs it.
 - **Firebase App Check**: deferred to a later security-hardening phase.
   It requires reCAPTCHA/Play Integrity/DeviceCheck registration per
   platform, which only makes sense once there are real endpoints beyond
   the default-deny rules to protect.
-- **Push notification sending**: Cloud Messaging is registered as a
-  dependency/foundation only; composing and sending notifications is a
-  future feature.
+- **Push notification sending**: `firebase_messaging` was removed in Set
+  8 for the same reason as Storage above - no feature calls it.
+  In-app notification *records* exist (see docs/database-architecture.md's
+  "Public content, enquiries, callback requests and notifications") and
+  are read back by a shared feed; nothing pushes them to a device yet.
+  Re-adding the dependency is a one-line pubspec change if/when that's
+  built.

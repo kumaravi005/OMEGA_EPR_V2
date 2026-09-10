@@ -411,6 +411,87 @@ PdfReportBuilder / ExcelReportBuilder / DocxReportBuilder   <- same Set 6 builde
   Set 5 - Storage still isn't enabled (see docs/firebase-setup.md). No
   new decision here, just the established pattern applied again.
 
+## Set 8: integration, security and production hardening
+
+No new business features - this set verified and fixed cross-cutting
+correctness/quality issues across Sets 1-7.
+
+- **The Firestore query-shape bug** (the headline finding) - see
+  docs/database-architecture.md's "Firestore query-shape requirement"
+  section for the full explanation and every provider/rule it touched.
+  In short: several `list` queries scanned a whole collection and
+  filtered client-side, which Firestore only permits for a caller whose
+  rule branch is role-only (admin) - it silently failed for the actual
+  target user (a teacher's own attendance, a student's attendance/
+  homework/assignments/tests/notifications/own-profile lookups, and the
+  public site's content for anonymous visitors). Fixed by adding
+  `FirestoreRepository.watchWhere()` and using it everywhere a rule's
+  non-privileged branch depends on a document field.
+- **Connectivity** (`core/services/connectivity_provider.dart`,
+  `core/widgets/offline_banner.dart`): a slim banner shown app-wide
+  whenever the device has no network interface at all (via
+  `connectivity_plus`, not a Firestore-cache heuristic - `snapshot.metadata.isFromCache`
+  is briefly true on every fresh load even while online, so it isn't a
+  reliable signal on its own). Firestore's own offline persistence
+  already queues writes and replays them, and refreshes reads,
+  automatically on reconnect - this banner is purely informational, not
+  a custom sync layer (deliberately not "an unnecessarily complicated
+  offline architecture").
+- **User-facing error messages** (`core/utils/error_formatting.dart`):
+  `ErrorView` now runs its `message` through `friendlyErrorText()`
+  before display, which rewrites a Firebase-style `[plugin/code] detail`
+  tag anywhere in the text into plain language (falling back to a
+  generic "Something went wrong" for an unrecognized code). This was a
+  one-file fix for the ~40 screens that already did
+  `ErrorView(message: 'Could not load X.\n$error')` - they never needed
+  to change, since the raw exception is translated centrally rather than
+  at each call site.
+- **Phone number validation** (`Validators.phone` in
+  `core/utils/validators.dart`): every phone/mobile field across the app
+  (student, teacher, admission enquiry, callback request, institute
+  contact phone) previously only checked "not empty" (or nothing at all
+  for optional fields) - now format-checked (10-12 digits after
+  stripping spaces/dashes/`+91`/leading `0`), client-side, before it
+  ever reaches Firestore's own minimum-length rule check.
+- **Dependency cleanup**: `firebase_storage` and `firebase_messaging`
+  were declared but had zero real call sites anywhere in `lib/`
+  (`firebase_storage` only backed one unused provider; `firebase_messaging`
+  wasn't referenced at all) - removed, along with their transitive
+  packages. `async` and `connectivity_plus` were added, each for a
+  specific, documented reason above (not speculative).
+
+## Admin configuration reference (Set 8)
+
+Everything below is changeable by an admin from inside the running app -
+no source change, redeploy, or developer involvement needed for normal
+operation:
+
+| Configurable via the app | Screen |
+|---|---|
+| Batches + their standard monthly/installment fee | Admin → Batches |
+| Teachers (profile, class/subject assignments) | Admin → Teachers |
+| Login accounts (create, deactivate, reset a stuck session) | Admin → Login accounts |
+| Students (admission, fee/discount, batch) | Admin → Students |
+| Gallery images | Admin → Gallery |
+| Banners (+ optional display window) | Admin → Banners |
+| Upcoming batch listings | Admin → Upcoming batches |
+| Advertisements (+ popup, + active window) | Admin → Advertisements |
+| Announcements | Admin → Announcements |
+| Institute profile (name, tagline, about, contact, address) | Admin → Institute profile |
+| Report/export letterhead: logo (position/size), header text, footer/signature/page-number/date | Admin → Report templates |
+| Saved export column/filter presets | Any export screen's "Save as template" |
+| Admission enquiries / callback requests (status only) | Admin → Enquiries / Callback requests |
+
+**Two items from the original Set 1 plan were never built as their own
+configurable entities, by design, not oversight**: "academic session"
+and "subject" are free-text fields typed per student/homework/test
+record, not a managed catalogue with its own admin screen (unlike
+`batches`, which is a real collection). Building a dedicated CRUD module
+for either would be a **new business feature**, out of scope for a
+hardening phase - if this turns out to matter operationally (e.g.
+sessions/subjects need to be constrained to a fixed list rather than
+free text), that's its own future set, not a Set 8 fix.
+
 ## What's deliberately not here yet
 
 - Teacher/student **photos**, and every public-content image

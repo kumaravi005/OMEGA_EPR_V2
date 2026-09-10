@@ -23,7 +23,9 @@ class NotificationEvent implements FirestoreDocument {
   factory NotificationEvent.fromMap(String id, Map<String, dynamic> map) {
     return NotificationEvent(
       eventId: id,
-      type: NotificationEventType.values.firstWhere((t) => t.name == map['type']),
+      type: NotificationEventType.values.firstWhere(
+        (t) => t.name == map['type'],
+      ),
       batchId: map['batchId'] as String?,
       studentUid: map['studentUid'] as String?,
       title: map['title'] as String,
@@ -46,24 +48,24 @@ class NotificationEvent implements FirestoreDocument {
   String get id => eventId;
 
   @override
-  Map<String, dynamic> toMap() => throw UnsupportedError('Notifications are written via recordNotificationEvent only.');
+  Map<String, dynamic> toMap() => throw UnsupportedError(
+    'Notifications are written via recordNotificationEvent only.',
+  );
 }
 
-final notificationRepositoryProvider = Provider<FirestoreRepository<NotificationEvent>>((ref) {
-  return FirestoreRepository<NotificationEvent>(
-    firestore: ref.watch(firestoreProvider),
-    collectionPath: FirestoreCollections.notifications,
-    fromFirestore: NotificationEvent.fromMap,
-    toFirestore: (event) => event.toMap(),
-  );
-});
+final notificationRepositoryProvider =
+    Provider<FirestoreRepository<NotificationEvent>>((ref) {
+      return FirestoreRepository<NotificationEvent>(
+        firestore: ref.watch(firestoreProvider),
+        collectionPath: FirestoreCollections.notifications,
+        fromFirestore: NotificationEvent.fromMap,
+        toFirestore: (event) => event.toMap(),
+      );
+    });
 
-/// Every notification the caller is allowed to see, newest first -
-/// firestore.rules filters this down to admin/teacher (everything) or a
-/// student (their own batch/broadcast/personal events only).
-final myNotificationsProvider = StreamProvider<List<NotificationEvent>>((ref) {
-  return ref
-      .watch(notificationRepositoryProvider)
-      .watchAll()
-      .map((events) => events.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
-});
+// The read-side `myNotificationsProvider` (role-aware: admin/teacher get
+// an unconstrained scan, a student gets a query scoped to their own
+// batch/broadcast/personal events) lives in
+// features/notifications/data/my_notifications_provider.dart, not here -
+// it needs `currentUserAccountProvider` and a student's own batchId,
+// which `core/` never imports (see docs/development-rules.md).

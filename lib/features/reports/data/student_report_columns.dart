@@ -7,7 +7,12 @@ import '../presentation/widgets/column_picker.dart';
 /// and the fee-dues export, which differ only in filters/defaults, not in
 /// what a "student row" contains.
 class StudentReportRow {
-  const StudentReportRow({required this.student, required this.batchName, required this.paid, required this.due});
+  const StudentReportRow({
+    required this.student,
+    required this.batchName,
+    required this.paid,
+    required this.due,
+  });
 
   final StudentProfile student;
   final String batchName;
@@ -46,7 +51,14 @@ abstract final class StudentReportColumns {
     'due',
   };
 
-  static const defaultFeeDuesKeys = {'name', 'fatherName', 'className', 'primaryMobile', 'secondaryMobile', 'due'};
+  static const defaultFeeDuesKeys = {
+    'name',
+    'fatherName',
+    'className',
+    'primaryMobile',
+    'secondaryMobile',
+    'due',
+  };
 
   /// [orderedKeys] in catalogue order (not selection order), so the
   /// printed column order is always predictable regardless of the order
@@ -87,7 +99,9 @@ abstract final class StudentReportColumns {
         return 'Rs. ${data.paid.toStringAsFixed(0)}';
       case 'due':
         if (data.due > 0) return 'Due Rs. ${data.due.toStringAsFixed(0)}';
-        if (data.due < 0) return 'Advance Rs. ${(-data.due).toStringAsFixed(0)}';
+        if (data.due < 0) {
+          return 'Advance Rs. ${(-data.due).toStringAsFixed(0)}';
+        }
         return 'Paid in full';
       default:
         return '';

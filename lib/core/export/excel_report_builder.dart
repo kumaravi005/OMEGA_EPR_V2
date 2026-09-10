@@ -24,9 +24,15 @@ class ExcelReportBuilder {
     final sheet = workbook[sheetName];
 
     final brandingStyle = CellStyle(bold: true, fontSize: 13);
-    final brandingSubStyle = CellStyle(fontColorHex: ExcelColor.grey700, fontSize: 9);
+    final brandingSubStyle = CellStyle(
+      fontColorHex: ExcelColor.grey700,
+      fontSize: 9,
+    );
     final titleStyle = CellStyle(bold: true, fontSize: 14);
-    final subtitleStyle = CellStyle(fontColorHex: ExcelColor.grey700, fontSize: 10);
+    final subtitleStyle = CellStyle(
+      fontColorHex: ExcelColor.grey700,
+      fontSize: 10,
+    );
     final headerStyle = CellStyle(
       bold: true,
       fontColorHex: ExcelColor.white,
@@ -45,28 +51,62 @@ class ExcelReportBuilder {
         if (text == null) continue;
         final rowIndex = sheet.maxRows;
         sheet.appendRow([TextCellValue(text)]);
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex)).cellStyle = style;
+        sheet
+                .cell(
+                  CellIndex.indexByColumnRow(
+                    columnIndex: 0,
+                    rowIndex: rowIndex,
+                  ),
+                )
+                .cellStyle =
+            style;
       }
       sheet.appendRow([TextCellValue('')]);
     }
 
     final titleRowIndex = sheet.maxRows;
     sheet.appendRow([TextCellValue(dataset.title)]);
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: titleRowIndex)).cellStyle = titleStyle;
+    sheet
+            .cell(
+              CellIndex.indexByColumnRow(
+                columnIndex: 0,
+                rowIndex: titleRowIndex,
+              ),
+            )
+            .cellStyle =
+        titleStyle;
 
     if (dataset.subtitle != null && dataset.subtitle!.isNotEmpty) {
       final subtitleRowIndex = sheet.maxRows;
       sheet.appendRow([TextCellValue(dataset.subtitle!)]);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: subtitleRowIndex)).cellStyle = subtitleStyle;
+      sheet
+              .cell(
+                CellIndex.indexByColumnRow(
+                  columnIndex: 0,
+                  rowIndex: subtitleRowIndex,
+                ),
+              )
+              .cellStyle =
+          subtitleStyle;
     }
     // A real (non-empty) blank row: an all-null appendRow is a no-op for
     // row count, since nothing is actually written to any cell.
     sheet.appendRow([TextCellValue('')]);
 
     final headerRowIndex = sheet.maxRows;
-    sheet.appendRow([for (final column in dataset.columns) TextCellValue(column)]);
+    sheet.appendRow([
+      for (final column in dataset.columns) TextCellValue(column),
+    ]);
     for (var c = 0; c < dataset.columns.length; c++) {
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: headerRowIndex)).cellStyle = headerStyle;
+      sheet
+              .cell(
+                CellIndex.indexByColumnRow(
+                  columnIndex: c,
+                  rowIndex: headerRowIndex,
+                ),
+              )
+              .cellStyle =
+          headerStyle;
     }
 
     for (final row in dataset.rows) {

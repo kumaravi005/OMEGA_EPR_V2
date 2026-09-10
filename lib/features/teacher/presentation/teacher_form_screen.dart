@@ -23,7 +23,9 @@ class TeacherFormScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (teacherUid == null) {
-      return const Scaffold(body: SafeArea(child: _TeacherForm(existing: null)));
+      return const Scaffold(
+        body: SafeArea(child: _TeacherForm(existing: null)),
+      );
     }
 
     final teachersAsync = ref.watch(allTeachersProvider);
@@ -31,9 +33,12 @@ class TeacherFormScreen extends ConsumerWidget {
       body: SafeArea(
         child: teachersAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load teacher.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load teacher.\n$error'),
           data: (teachers) {
-            final existing = teachers.where((t) => t.uid == teacherUid).firstOrNull;
+            final existing = teachers
+                .where((t) => t.uid == teacherUid)
+                .firstOrNull;
             if (existing == null) {
               return const ErrorView(message: 'Teacher not found.');
             }
@@ -70,13 +75,25 @@ class _TeacherForm extends ConsumerStatefulWidget {
 
 class _TeacherFormState extends ConsumerState<_TeacherForm> {
   final _formKey = GlobalKey<FormState>();
-  late final _accountIdController = TextEditingController(text: widget.existing?.accountId ?? '');
+  late final _accountIdController = TextEditingController(
+    text: widget.existing?.accountId ?? '',
+  );
   final _passwordController = TextEditingController();
-  late final _nameController = TextEditingController(text: widget.existing?.name ?? '');
-  late final _qualificationController = TextEditingController(text: widget.existing?.qualification ?? '');
-  late final _addressController = TextEditingController(text: widget.existing?.address ?? '');
-  late final _primaryMobileController = TextEditingController(text: widget.existing?.primaryMobile ?? '');
-  late final _secondaryMobileController = TextEditingController(text: widget.existing?.secondaryMobile ?? '');
+  late final _nameController = TextEditingController(
+    text: widget.existing?.name ?? '',
+  );
+  late final _qualificationController = TextEditingController(
+    text: widget.existing?.qualification ?? '',
+  );
+  late final _addressController = TextEditingController(
+    text: widget.existing?.address ?? '',
+  );
+  late final _primaryMobileController = TextEditingController(
+    text: widget.existing?.primaryMobile ?? '',
+  );
+  late final _secondaryMobileController = TextEditingController(
+    text: widget.existing?.secondaryMobile ?? '',
+  );
 
   DateTime? _dateOfBirth;
   Gender _gender = Gender.male;
@@ -93,8 +110,14 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
     super.initState();
     _dateOfBirth = widget.existing?.dateOfBirth;
     _gender = widget.existing?.gender ?? Gender.male;
-    for (final assignment in widget.existing?.assignments ?? const <ClassSubjectAssignment>[]) {
-      _assignmentRows.add(_AssignmentRowControllers(className: assignment.className, subject: assignment.subject));
+    for (final assignment
+        in widget.existing?.assignments ?? const <ClassSubjectAssignment>[]) {
+      _assignmentRows.add(
+        _AssignmentRowControllers(
+          className: assignment.className,
+          subject: assignment.subject,
+        ),
+      );
     }
   }
 
@@ -211,10 +234,18 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (_errorMessage != null) ...[
-                      Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                      Text(
+                        _errorMessage!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
                       const SizedBox(height: AppSpacing.md),
                     ],
-                    Text('Login credentials', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Login credentials',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _accountIdController,
@@ -231,19 +262,31 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
                         obscureText: _obscurePassword,
                         validator: _validatePassword,
                         suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                         ),
                       ),
                     ],
                     const SizedBox(height: AppSpacing.lg),
-                    Text('Personal details', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Personal details',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _nameController,
                       label: 'Name',
                       enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(value, message: 'Name is required'),
+                      validator: (value) => Validators.required(
+                        value,
+                        message: 'Name is required',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     ListTile(
@@ -251,7 +294,9 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
                       title: Text(
                         _dateOfBirth == null
                             ? 'Date of birth'
-                            : 'Date of birth: ${_dateOfBirth!.toLocal()}'.split(' ').first,
+                            : 'Date of birth: ${_dateOfBirth!.toLocal()}'
+                                  .split(' ')
+                                  .first,
                       ),
                       trailing: const Icon(Icons.calendar_today_outlined),
                       onTap: _isSubmitting ? null : _pickDateOfBirth,
@@ -260,33 +305,51 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
                       initialValue: _gender,
                       decoration: const InputDecoration(labelText: 'Gender'),
                       items: Gender.values
-                          .map((gender) => DropdownMenuItem(value: gender, child: Text(_genderLabel(gender))))
+                          .map(
+                            (gender) => DropdownMenuItem(
+                              value: gender,
+                              child: Text(_genderLabel(gender)),
+                            ),
+                          )
                           .toList(),
-                      onChanged: _isSubmitting ? null : (value) => setState(() => _gender = value ?? _gender),
+                      onChanged: _isSubmitting
+                          ? null
+                          : (value) =>
+                                setState(() => _gender = value ?? _gender),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _qualificationController,
                       label: 'Qualification',
                       enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(value, message: 'Qualification is required'),
+                      validator: (value) => Validators.required(
+                        value,
+                        message: 'Qualification is required',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _addressController,
                       label: 'Address',
                       enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(value, message: 'Address is required'),
+                      validator: (value) => Validators.required(
+                        value,
+                        message: 'Address is required',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
-                    Text('Contact', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Contact',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
                       controller: _primaryMobileController,
                       label: 'Primary mobile',
                       enabled: !_isSubmitting,
                       keyboardType: TextInputType.phone,
-                      validator: (value) => Validators.required(value, message: 'Primary mobile is required'),
+                      validator: (value) =>
+                          Validators.phone(value, label: 'Primary mobile'),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
@@ -294,12 +357,20 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
                       label: 'Secondary mobile (optional)',
                       enabled: !_isSubmitting,
                       keyboardType: TextInputType.phone,
+                      validator: (value) => Validators.phone(
+                        value,
+                        isRequired: false,
+                        label: 'Secondary mobile',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     Row(
                       children: [
                         Expanded(
-                          child: Text('Class / subject assignments', style: Theme.of(context).textTheme.titleLarge),
+                          child: Text(
+                            'Class / subject assignments',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
                         ),
                         IconButton(
                           icon: const Icon(Icons.add_circle_outline),
@@ -314,7 +385,8 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
                           children: [
                             Expanded(
                               child: AppTextField(
-                                controller: _assignmentRows[i].classNameController,
+                                controller:
+                                    _assignmentRows[i].classNameController,
                                 label: 'Class',
                                 enabled: !_isSubmitting,
                               ),
@@ -322,20 +394,27 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
                             const SizedBox(width: AppSpacing.sm),
                             Expanded(
                               child: AppTextField(
-                                controller: _assignmentRows[i].subjectController,
+                                controller:
+                                    _assignmentRows[i].subjectController,
                                 label: 'Subject',
                                 enabled: !_isSubmitting,
                               ),
                             ),
                             IconButton(
                               icon: const Icon(Icons.remove_circle_outline),
-                              onPressed: _isSubmitting ? null : () => _removeAssignmentRow(i),
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : () => _removeAssignmentRow(i),
                             ),
                           ],
                         ),
                       ),
                     const SizedBox(height: AppSpacing.lg),
-                    AppButton(label: 'Save', isLoading: _isSubmitting, onPressed: _submit),
+                    AppButton(
+                      label: 'Save',
+                      isLoading: _isSubmitting,
+                      onPressed: _submit,
+                    ),
                   ],
                 ),
               ),
@@ -347,7 +426,10 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
   }
 
   String? _validateAccountId(String? value) {
-    final requiredError = Validators.required(value, message: 'Account ID is required');
+    final requiredError = Validators.required(
+      value,
+      message: 'Account ID is required',
+    );
     if (requiredError != null) return requiredError;
     if (!AppConstants.accountIdPattern.hasMatch(value!.trim().toLowerCase())) {
       return '3-24 characters: lowercase letters, numbers, . _ or -';
@@ -356,7 +438,10 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
   }
 
   String? _validatePassword(String? value) {
-    final requiredError = Validators.required(value, message: 'Password is required');
+    final requiredError = Validators.required(
+      value,
+      message: 'Password is required',
+    );
     if (requiredError != null) return requiredError;
     if (value!.length < 8) return 'Password must be at least 8 characters';
     return null;

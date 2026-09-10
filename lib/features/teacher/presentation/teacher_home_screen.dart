@@ -19,7 +19,9 @@ class TeacherHomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Teacher${account != null ? ' - ${account.displayName}' : ''}'),
+        title: Text(
+          'Teacher${account != null ? ' - ${account.displayName}' : ''}',
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),

@@ -36,7 +36,8 @@ class _TestListScreenState extends ConsumerState<TestListScreen> {
       appBar: AppBar(title: const Text('Tests')),
       floatingActionButton: _batchId != null
           ? FloatingActionButton.extended(
-              onPressed: () => showCreateTestDialog(context, batchId: _batchId!),
+              onPressed: () =>
+                  showCreateTestDialog(context, batchId: _batchId!),
               icon: const Icon(Icons.add),
               label: const Text('New test'),
             )
@@ -44,9 +45,12 @@ class _TestListScreenState extends ConsumerState<TestListScreen> {
       body: SafeArea(
         child: batchesAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load batches.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load batches.\n$error'),
           data: (batches) {
-            if (batches.isEmpty) return const EmptyView(message: 'No active batches yet.');
+            if (batches.isEmpty) {
+              return const EmptyView(message: 'No active batches yet.');
+            }
             _batchId ??= batches.first.batchId;
             return Column(
               children: [
@@ -55,11 +59,23 @@ class _TestListScreenState extends ConsumerState<TestListScreen> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _batchId,
                     decoration: const InputDecoration(labelText: 'Batch'),
-                    items: batches.map((b) => DropdownMenuItem(value: b.batchId, child: Text(b.name))).toList(),
+                    items: batches
+                        .map(
+                          (b) => DropdownMenuItem(
+                            value: b.batchId,
+                            child: Text(b.name),
+                          ),
+                        )
+                        .toList(),
                     onChanged: (value) => setState(() => _batchId = value),
                   ),
                 ),
-                Expanded(child: _TestsForBatch(batchId: _batchId!, basePath: widget.basePath)),
+                Expanded(
+                  child: _TestsForBatch(
+                    batchId: _batchId!,
+                    basePath: widget.basePath,
+                  ),
+                ),
               ],
             );
           },
@@ -81,14 +97,16 @@ class _TestsForBatch extends ConsumerWidget {
 
     return testsAsync.when(
       loading: () => const LoadingView(),
-      error: (error, stackTrace) => ErrorView(message: 'Could not load tests.\n$error'),
+      error: (error, stackTrace) =>
+          ErrorView(message: 'Could not load tests.\n$error'),
       data: (tests) {
         if (tests.isEmpty) return const EmptyView(message: 'No tests yet.');
         return ListView.separated(
           padding: const EdgeInsets.all(AppSpacing.md),
           itemCount: tests.length,
           separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-          itemBuilder: (context, index) => _TestTile(test: tests[index], basePath: basePath),
+          itemBuilder: (context, index) =>
+              _TestTile(test: tests[index], basePath: basePath),
         );
       },
     );
@@ -106,8 +124,12 @@ class _TestTile extends StatelessWidget {
     return Card(
       child: ListTile(
         title: Text('${test.title} (${test.subject})'),
-        subtitle: Text('${test.chapterTopic} - ${dateKey(test.date)} - ${test.totalMarks.toStringAsFixed(0)} marks'),
-        trailing: Chip(label: Text(test.resultPublished ? 'Published' : 'Draft')),
+        subtitle: Text(
+          '${test.chapterTopic} - ${dateKey(test.date)} - ${test.totalMarks.toStringAsFixed(0)} marks',
+        ),
+        trailing: Chip(
+          label: Text(test.resultPublished ? 'Published' : 'Draft'),
+        ),
         onTap: () => context.push('$basePath/${test.testId}'),
       ),
     );

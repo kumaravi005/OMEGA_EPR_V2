@@ -39,7 +39,10 @@ class StudentAttendanceRecord implements FirestoreDocument {
       batchId: map['batchId'] as String,
       dateKey: map['dateKey'] as String,
       date: (map['date'] as Timestamp).toDate(),
-      records: rawRecords.map((uid, status) => MapEntry(uid, AttendanceStatus.fromValue(status as String))),
+      records: rawRecords.map(
+        (uid, status) =>
+            MapEntry(uid, AttendanceStatus.fromValue(status as String)),
+      ),
       markedBy: map['markedBy'] as String,
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       updatedAt: (map['updatedAt'] as Timestamp).toDate(),
@@ -57,9 +60,11 @@ class StudentAttendanceRecord implements FirestoreDocument {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  int get presentCount => records.values.where((s) => s == AttendanceStatus.present).length;
+  int get presentCount =>
+      records.values.where((s) => s == AttendanceStatus.present).length;
 
-  int get absentCount => records.values.where((s) => s == AttendanceStatus.absent).length;
+  int get absentCount =>
+      records.values.where((s) => s == AttendanceStatus.absent).length;
 
   @override
   String get id => recordId;

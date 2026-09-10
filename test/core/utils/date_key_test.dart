@@ -9,7 +9,10 @@ void main() {
     });
 
     test('is stable regardless of time-of-day component', () {
-      expect(dateKey(DateTime(2026, 9, 5, 23, 59)), dateKey(DateTime(2026, 9, 5, 0, 1)));
+      expect(
+        dateKey(DateTime(2026, 9, 5, 23, 59)),
+        dateKey(DateTime(2026, 9, 5, 0, 1)),
+      );
     });
   });
 

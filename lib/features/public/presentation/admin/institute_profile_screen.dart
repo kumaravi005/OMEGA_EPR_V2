@@ -24,7 +24,8 @@ class InstituteProfileScreen extends ConsumerWidget {
       body: SafeArea(
         child: profileAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load the profile.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load the profile.\n$error'),
           data: (profile) => _ProfileForm(
             name: profile?.name ?? '',
             tagline: profile?.tagline ?? '',
@@ -65,8 +66,12 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
   late final _nameController = TextEditingController(text: widget.name);
   late final _taglineController = TextEditingController(text: widget.tagline);
   late final _aboutController = TextEditingController(text: widget.about);
-  late final _contactPhoneController = TextEditingController(text: widget.contactPhone);
-  late final _contactEmailController = TextEditingController(text: widget.contactEmail);
+  late final _contactPhoneController = TextEditingController(
+    text: widget.contactPhone,
+  );
+  late final _contactEmailController = TextEditingController(
+    text: widget.contactEmail,
+  );
   late final _addressController = TextEditingController(text: widget.address);
 
   bool _isSubmitting = false;
@@ -127,36 +132,72 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (_errorMessage != null) ...[
-                    Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                    Text(
+                      _errorMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                   ],
                   if (_successMessage != null) ...[
-                    Text(_successMessage!, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+                    Text(
+                      _successMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                   ],
                   AppTextField(
                     controller: _nameController,
                     label: 'Institute name',
                     enabled: !_isSubmitting,
-                    validator: (value) => Validators.required(value, message: 'Name is required'),
+                    validator: (value) =>
+                        Validators.required(value, message: 'Name is required'),
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  AppTextField(controller: _taglineController, label: 'Tagline (optional)', enabled: !_isSubmitting),
+                  AppTextField(
+                    controller: _taglineController,
+                    label: 'Tagline (optional)',
+                    enabled: !_isSubmitting,
+                  ),
                   const SizedBox(height: AppSpacing.sm),
-                  AppTextField(controller: _aboutController, label: 'About (optional)', enabled: !_isSubmitting),
+                  AppTextField(
+                    controller: _aboutController,
+                    label: 'About (optional)',
+                    enabled: !_isSubmitting,
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   AppTextField(
                     controller: _contactPhoneController,
                     label: 'Contact phone (optional)',
                     enabled: !_isSubmitting,
                     keyboardType: TextInputType.phone,
+                    validator: (value) => Validators.phone(
+                      value,
+                      isRequired: false,
+                      label: 'Contact phone',
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  AppTextField(controller: _contactEmailController, label: 'Contact email (optional)', enabled: !_isSubmitting),
+                  AppTextField(
+                    controller: _contactEmailController,
+                    label: 'Contact email (optional)',
+                    enabled: !_isSubmitting,
+                  ),
                   const SizedBox(height: AppSpacing.sm),
-                  AppTextField(controller: _addressController, label: 'Address (optional)', enabled: !_isSubmitting),
+                  AppTextField(
+                    controller: _addressController,
+                    label: 'Address (optional)',
+                    enabled: !_isSubmitting,
+                  ),
                   const SizedBox(height: AppSpacing.lg),
-                  AppButton(label: 'Save', isLoading: _isSubmitting, onPressed: _submit),
+                  AppButton(
+                    label: 'Save',
+                    isLoading: _isSubmitting,
+                    onPressed: _submit,
+                  ),
                 ],
               ),
             ),

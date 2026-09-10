@@ -7,10 +7,15 @@ import '../../../core/widgets/app_text_field.dart';
 import '../application/payment_controller.dart';
 import '../data/payment.dart';
 
-Future<void> showAddPaymentDialog(BuildContext context, {required String studentUid, required String batchId}) {
+Future<void> showAddPaymentDialog(
+  BuildContext context, {
+  required String studentUid,
+  required String batchId,
+}) {
   return showDialog<void>(
     context: context,
-    builder: (context) => _AddPaymentDialog(studentUid: studentUid, batchId: batchId),
+    builder: (context) =>
+        _AddPaymentDialog(studentUid: studentUid, batchId: batchId),
   );
 }
 
@@ -69,7 +74,9 @@ class _AddPaymentDialogState extends ConsumerState<_AddPaymentDialog> {
             amount: double.parse(_amountController.text),
             date: _date,
             mode: _mode,
-            remark: _remarkController.text.trim().isEmpty ? null : _remarkController.text,
+            remark: _remarkController.text.trim().isEmpty
+                ? null
+                : _remarkController.text,
           );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -91,14 +98,19 @@ class _AddPaymentDialogState extends ConsumerState<_AddPaymentDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_errorMessage != null) ...[
-              Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
             AppTextField(
               controller: _amountController,
               label: 'Amount',
               enabled: !_isSubmitting,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               validator: _validateAmount,
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -112,24 +124,39 @@ class _AddPaymentDialogState extends ConsumerState<_AddPaymentDialog> {
               initialValue: _mode,
               decoration: const InputDecoration(labelText: 'Payment mode'),
               items: PaymentMode.values
-                  .map((mode) => DropdownMenuItem(value: mode, child: Text(mode.label)))
+                  .map(
+                    (mode) =>
+                        DropdownMenuItem(value: mode, child: Text(mode.label)),
+                  )
                   .toList(),
-              onChanged: _isSubmitting ? null : (value) => setState(() => _mode = value ?? _mode),
+              onChanged: _isSubmitting
+                  ? null
+                  : (value) => setState(() => _mode = value ?? _mode),
             ),
             const SizedBox(height: AppSpacing.sm),
-            AppTextField(controller: _remarkController, label: 'Remark (optional)', enabled: !_isSubmitting),
+            AppTextField(
+              controller: _remarkController,
+              label: 'Remark (optional)',
+              enabled: !_isSubmitting,
+            ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
         AppButton(label: 'Save', isLoading: _isSubmitting, onPressed: _submit),
       ],
     );
   }
 
   String? _validateAmount(String? value) {
-    final requiredError = Validators.required(value, message: 'Amount is required');
+    final requiredError = Validators.required(
+      value,
+      message: 'Amount is required',
+    );
     if (requiredError != null) return requiredError;
     final parsed = double.tryParse(value!);
     if (parsed == null || parsed <= 0) return 'Enter a valid amount';

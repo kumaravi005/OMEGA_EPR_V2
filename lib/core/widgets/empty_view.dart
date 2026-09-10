@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 /// Standard "nothing to show" placeholder for lists/sections.
 class EmptyView extends StatelessWidget {
-  const EmptyView({super.key, required this.message, this.icon = Icons.inbox_outlined});
+  const EmptyView({
+    super.key,
+    required this.message,
+    this.icon = Icons.inbox_outlined,
+  });
 
   final String message;
   final IconData icon;
@@ -17,7 +21,11 @@ class EmptyView extends StatelessWidget {
           children: [
             Icon(icon, color: Theme.of(context).colorScheme.outline, size: 40),
             const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ],
         ),
       ),

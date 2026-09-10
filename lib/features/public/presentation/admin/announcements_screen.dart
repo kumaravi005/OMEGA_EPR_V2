@@ -28,9 +28,12 @@ class AnnouncementsScreen extends ConsumerWidget {
       body: SafeArea(
         child: itemsAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load announcements.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load announcements.\n$error'),
           data: (items) {
-            if (items.isEmpty) return const EmptyView(message: 'No announcements yet.');
+            if (items.isEmpty) {
+              return const EmptyView(message: 'No announcements yet.');
+            }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: items.length,
@@ -61,7 +64,9 @@ class _Tile extends ConsumerWidget {
           onChanged: (value) async {
             final messenger = ScaffoldMessenger.of(context);
             try {
-              await ref.read(publicContentControllerProvider).setAnnouncementActive(item, value);
+              await ref
+                  .read(publicContentControllerProvider)
+                  .setAnnouncementActive(item, value);
             } on PublicContentFailure catch (failure) {
               messenger.showSnackBar(SnackBar(content: Text(failure.message)));
             }
@@ -73,7 +78,10 @@ class _Tile extends ConsumerWidget {
 }
 
 void _showForm(BuildContext context, {Announcement? existing}) {
-  showDialog<void>(context: context, builder: (context) => _FormDialog(existing: existing));
+  showDialog<void>(
+    context: context,
+    builder: (context) => _FormDialog(existing: existing),
+  );
 }
 
 class _FormDialog extends ConsumerStatefulWidget {
@@ -87,8 +95,12 @@ class _FormDialog extends ConsumerStatefulWidget {
 
 class _FormDialogState extends ConsumerState<_FormDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final _titleController = TextEditingController(text: widget.existing?.title ?? '');
-  late final _bodyController = TextEditingController(text: widget.existing?.body ?? '');
+  late final _titleController = TextEditingController(
+    text: widget.existing?.title ?? '',
+  );
+  late final _bodyController = TextEditingController(
+    text: widget.existing?.body ?? '',
+  );
   late bool _active = widget.existing?.active ?? true;
 
   bool _isSubmitting = false;
@@ -113,7 +125,12 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
     try {
       await ref
           .read(publicContentControllerProvider)
-          .saveAnnouncement(existing: widget.existing, title: _titleController.text, body: _bodyController.text, active: _active);
+          .saveAnnouncement(
+            existing: widget.existing,
+            title: _titleController.text,
+            body: _bodyController.text,
+            active: _active,
+          );
       if (!mounted) return;
       Navigator.of(context).pop();
     } on PublicContentFailure catch (failure) {
@@ -126,7 +143,9 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.existing == null ? 'New announcement' : 'Edit announcement'),
+      title: Text(
+        widget.existing == null ? 'New announcement' : 'Edit announcement',
+      ),
       content: Form(
         key: _formKey,
         child: Column(
@@ -134,33 +153,43 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_errorMessage != null) ...[
-              Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
             AppTextField(
               controller: _titleController,
               label: 'Title',
               enabled: !_isSubmitting,
-              validator: (value) => Validators.required(value, message: 'Title is required'),
+              validator: (value) =>
+                  Validators.required(value, message: 'Title is required'),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppTextField(
               controller: _bodyController,
               label: 'Message',
               enabled: !_isSubmitting,
-              validator: (value) => Validators.required(value, message: 'Message is required'),
+              validator: (value) =>
+                  Validators.required(value, message: 'Message is required'),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Active'),
               value: _active,
-              onChanged: _isSubmitting ? null : (value) => setState(() => _active = value),
+              onChanged: _isSubmitting
+                  ? null
+                  : (value) => setState(() => _active = value),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
         AppButton(label: 'Save', isLoading: _isSubmitting, onPressed: _submit),
       ],
     );

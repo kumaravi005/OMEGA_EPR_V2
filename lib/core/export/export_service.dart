@@ -36,7 +36,11 @@ class ExportService {
   /// staff for manual calling). Excel/DOCX are handed to the platform
   /// share sheet (a download on web, the share sheet on Android), since
   /// neither format has anything print-preview-shaped to open.
-  Future<void> export(ExportDataset dataset, ExportFormat format, {String? fileName}) async {
+  Future<void> export(
+    ExportDataset dataset,
+    ExportFormat format, {
+    String? fileName,
+  }) async {
     final name = fileName ?? _slugify(dataset.title);
     final bytes = await buildBytes(dataset, format);
 
@@ -44,22 +48,33 @@ class ExportService {
       await Printing.layoutPdf(
         onLayout: (_) async => bytes,
         name: '$name.${format.fileExtension}',
-        format: dataset.isLandscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4,
+        format: dataset.isLandscape
+            ? PdfPageFormat.a4.landscape
+            : PdfPageFormat.a4,
       );
       return;
     }
 
     await Share.shareXFiles(
-      [XFile.fromData(bytes, name: '$name.${format.fileExtension}', mimeType: _mimeType(format))],
+      [
+        XFile.fromData(
+          bytes,
+          name: '$name.${format.fileExtension}',
+          mimeType: _mimeType(format),
+        ),
+      ],
       fileNameOverrides: ['$name.${format.fileExtension}'],
     );
   }
 
   String _mimeType(ExportFormat format) => switch (format) {
     ExportFormat.pdf => 'application/pdf',
-    ExportFormat.excel => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ExportFormat.docx => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ExportFormat.excel =>
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ExportFormat.docx =>
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   };
 
-  String _slugify(String title) => title.trim().replaceAll(RegExp(r'\s+'), '_').toLowerCase();
+  String _slugify(String title) =>
+      title.trim().replaceAll(RegExp(r'\s+'), '_').toLowerCase();
 }

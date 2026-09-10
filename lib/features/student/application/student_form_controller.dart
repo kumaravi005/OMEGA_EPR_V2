@@ -18,7 +18,9 @@ class StudentFormFailure implements Exception {
   String toString() => message;
 }
 
-final studentFormControllerProvider = Provider<StudentFormController>((ref) => StudentFormController(ref));
+final studentFormControllerProvider = Provider<StudentFormController>(
+  (ref) => StudentFormController(ref),
+);
 
 class StudentFormController {
   StudentFormController(this._ref);
@@ -51,56 +53,58 @@ class StudentFormController {
     final email = '$normalizedId@${AppConstants.accountEmailDomain}';
 
     try {
-      await _ref.read(accountProvisioningServiceProvider).createAccount(
-        email: email,
-        password: password,
-        writeProfile: (uid) async {
-          final now = DateTime.now();
-          await _ref
-              .read(userAccountRepositoryProvider)
-              .set(
-                uid,
-                UserAccount(
-                  uid: uid,
-                  accountId: normalizedId,
-                  role: UserRole.student,
-                  displayName: name.trim(),
-                  active: true,
-                  createdAt: now,
-                  updatedAt: now,
-                  lastLoginAt: null,
-                  session: null,
-                ),
-              );
-          await _ref
-              .read(studentRepositoryProvider)
-              .set(
-                uid,
-                StudentProfile(
-                  uid: uid,
-                  accountId: normalizedId,
-                  name: name.trim(),
-                  fatherName: fatherName.trim(),
-                  dateOfBirth: dateOfBirth,
-                  gender: gender,
-                  address: address.trim(),
-                  className: className.trim(),
-                  board: board.trim(),
-                  batchId: batchId,
-                  academicSession: academicSession.trim(),
-                  primaryMobile: primaryMobile.trim(),
-                  secondaryMobile: secondaryMobile?.trim(),
-                  standardFee: standardFee,
-                  finalFee: finalFee,
-                  feeReason: feeReason?.trim(),
-                  paymentPlan: paymentPlan,
-                  active: true,
-                  createdAt: now,
-                  updatedAt: now,
-                ),
-              );
-        },
-      );
+      await _ref
+          .read(accountProvisioningServiceProvider)
+          .createAccount(
+            email: email,
+            password: password,
+            writeProfile: (uid) async {
+              final now = DateTime.now();
+              await _ref
+                  .read(userAccountRepositoryProvider)
+                  .set(
+                    uid,
+                    UserAccount(
+                      uid: uid,
+                      accountId: normalizedId,
+                      role: UserRole.student,
+                      displayName: name.trim(),
+                      active: true,
+                      createdAt: now,
+                      updatedAt: now,
+                      lastLoginAt: null,
+                      session: null,
+                    ),
+                  );
+              await _ref
+                  .read(studentRepositoryProvider)
+                  .set(
+                    uid,
+                    StudentProfile(
+                      uid: uid,
+                      accountId: normalizedId,
+                      name: name.trim(),
+                      fatherName: fatherName.trim(),
+                      dateOfBirth: dateOfBirth,
+                      gender: gender,
+                      address: address.trim(),
+                      className: className.trim(),
+                      board: board.trim(),
+                      batchId: batchId,
+                      academicSession: academicSession.trim(),
+                      primaryMobile: primaryMobile.trim(),
+                      secondaryMobile: secondaryMobile?.trim(),
+                      standardFee: standardFee,
+                      finalFee: finalFee,
+                      feeReason: feeReason?.trim(),
+                      paymentPlan: paymentPlan,
+                      active: true,
+                      createdAt: now,
+                      updatedAt: now,
+                    ),
+                  );
+            },
+          );
     } catch (error) {
       throw StudentFormFailure(mapAccountCreationError(error));
     }
@@ -155,12 +159,14 @@ class StudentFormController {
               updatedAt: DateTime.now(),
             ),
           );
-      await _ref.read(userAccountRepositoryProvider).updateFields(existing.uid, {
-        'displayName': name.trim(),
-        'updatedAt': DateTime.now(),
-      });
+      await _ref.read(userAccountRepositoryProvider).updateFields(
+        existing.uid,
+        {'displayName': name.trim(), 'updatedAt': DateTime.now()},
+      );
     } catch (_) {
-      throw const StudentFormFailure('Could not save changes. Please try again.');
+      throw const StudentFormFailure(
+        'Could not save changes. Please try again.',
+      );
     }
   }
 }

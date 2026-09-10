@@ -13,7 +13,8 @@ class CreateAccountScreen extends ConsumerStatefulWidget {
   const CreateAccountScreen({super.key});
 
   @override
-  ConsumerState<CreateAccountScreen> createState() => _CreateAccountScreenState();
+  ConsumerState<CreateAccountScreen> createState() =>
+      _CreateAccountScreenState();
 }
 
 class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
@@ -36,7 +37,10 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   }
 
   String? _validateAccountId(String? value) {
-    final requiredError = Validators.required(value, message: 'Account ID is required');
+    final requiredError = Validators.required(
+      value,
+      message: 'Account ID is required',
+    );
     if (requiredError != null) return requiredError;
     if (!AppConstants.accountIdPattern.hasMatch(value!.trim().toLowerCase())) {
       return '3-24 characters: lowercase letters, numbers, . _ or -';
@@ -45,7 +49,10 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   }
 
   String? _validatePassword(String? value) {
-    final requiredError = Validators.required(value, message: 'Password is required');
+    final requiredError = Validators.required(
+      value,
+      message: 'Password is required',
+    );
     if (requiredError != null) return requiredError;
     if (value!.length < 8) return 'Password must be at least 8 characters';
     return null;
@@ -71,9 +78,13 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             role: _role,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Account "${_accountIdController.text.trim()}" created.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Account "${_accountIdController.text.trim()}" created.',
+          ),
+        ),
+      );
       Navigator.of(context).pop();
     } on AdminActionFailure catch (failure) {
       if (!mounted) return;
@@ -102,9 +113,10 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                       if (_errorMessage != null) ...[
                         Text(
                           _errorMessage!,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.error),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
                         ),
                         const SizedBox(height: AppSpacing.md),
                       ],
@@ -112,16 +124,26 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                         initialValue: _role,
                         decoration: const InputDecoration(labelText: 'Role'),
                         items: UserRole.values
-                            .map((role) => DropdownMenuItem(value: role, child: Text(_roleLabel(role))))
+                            .map(
+                              (role) => DropdownMenuItem(
+                                value: role,
+                                child: Text(_roleLabel(role)),
+                              ),
+                            )
                             .toList(),
-                        onChanged: _isSubmitting ? null : (value) => setState(() => _role = value ?? _role),
+                        onChanged: _isSubmitting
+                            ? null
+                            : (value) => setState(() => _role = value ?? _role),
                       ),
                       const SizedBox(height: AppSpacing.md),
                       AppTextField(
                         controller: _displayNameController,
                         label: 'Display name',
                         enabled: !_isSubmitting,
-                        validator: (value) => Validators.required(value, message: 'Display name is required'),
+                        validator: (value) => Validators.required(
+                          value,
+                          message: 'Display name is required',
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.md),
                       AppTextField(
@@ -139,13 +161,25 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                         obscureText: _obscurePassword,
                         validator: _validatePassword,
                         suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                          tooltip: _obscurePassword ? 'Show password' : 'Hide password',
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          tooltip: _obscurePassword
+                              ? 'Show password'
+                              : 'Hide password',
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.lg),
-                      AppButton(label: 'Create account', isLoading: _isSubmitting, onPressed: _submit),
+                      AppButton(
+                        label: 'Create account',
+                        isLoading: _isSubmitting,
+                        onPressed: _submit,
+                      ),
                     ],
                   ),
                 ),

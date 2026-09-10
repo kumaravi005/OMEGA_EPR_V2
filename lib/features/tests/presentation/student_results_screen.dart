@@ -27,14 +27,24 @@ class StudentResultsScreen extends ConsumerWidget {
             ? const LoadingView()
             : Consumer(
                 builder: (context, ref, _) {
-                  final studentsAsync = ref.watch(allStudentsProvider);
-                  return studentsAsync.when(
+                  final selfAsync = ref.watch(
+                    ownStudentProfileProvider(account.uid),
+                  );
+                  return selfAsync.when(
                     loading: () => const LoadingView(),
-                    error: (error, stackTrace) => ErrorView(message: 'Could not load your profile.\n$error'),
-                    data: (students) {
-                      final self = students.where((s) => s.uid == account.uid).firstOrNull;
-                      if (self == null) return const ErrorView(message: 'Student profile not found.');
-                      return _Results(studentUid: self.uid, batchId: self.batchId);
+                    error: (error, stackTrace) => ErrorView(
+                      message: 'Could not load your profile.\n$error',
+                    ),
+                    data: (self) {
+                      if (self == null) {
+                        return const ErrorView(
+                          message: 'Student profile not found.',
+                        );
+                      }
+                      return _Results(
+                        studentUid: self.uid,
+                        batchId: self.batchId,
+                      );
                     },
                   );
                 },
@@ -56,7 +66,8 @@ class _Results extends ConsumerWidget {
 
     return testsAsync.when(
       loading: () => const LoadingView(),
-      error: (error, stackTrace) => ErrorView(message: 'Could not load tests.\n$error'),
+      error: (error, stackTrace) =>
+          ErrorView(message: 'Could not load tests.\n$error'),
       data: (tests) {
         if (tests.isEmpty) return const EmptyView(message: 'No tests yet.');
         return ListView.separated(
@@ -74,7 +85,10 @@ class _Results extends ConsumerWidget {
                     : Consumer(
                         builder: (context, ref, _) {
                           final resultAsync = ref.watch(
-                            ownTestResultProvider((testId: test.testId, studentUid: studentUid)),
+                            ownTestResultProvider((
+                              testId: test.testId,
+                              studentUid: studentUid,
+                            )),
                           );
                           return resultAsync.when(
                             loading: () => const SizedBox(
@@ -82,9 +96,12 @@ class _Results extends ConsumerWidget {
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             ),
-                            error: (error, stackTrace) => const Icon(Icons.error_outline),
+                            error: (error, stackTrace) =>
+                                const Icon(Icons.error_outline),
                             data: (result) {
-                              if (result == null) return const Chip(label: Text('Not entered'));
+                              if (result == null) {
+                                return const Chip(label: Text('Not entered'));
+                              }
                               return Chip(
                                 label: Text(
                                   '${result.obtainedMarks.toStringAsFixed(0)}/${result.totalMarks.toStringAsFixed(0)} '

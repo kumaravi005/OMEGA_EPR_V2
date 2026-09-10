@@ -3,25 +3,28 @@ import 'package:omega_epr_v2/features/report_templates/data/report_layout_templa
 
 void main() {
   group('ReportLayoutTemplate.toBranding', () {
-    test('hides an element from the baked branding when its show flag is off, even if text is set', () {
-      final template = ReportLayoutTemplate(
-        templateId: 't1',
-        name: 'Letterhead',
-        header: const ReportHeaderConfig(
-          instituteName: 'Omega Education Centre',
-          showInstituteName: true,
-          tagline: 'Excellence in learning',
-          showTagline: false, // typed but hidden
-        ),
-        footer: const ReportFooterConfig(),
-        createdAt: DateTime(2026, 1, 1),
-        updatedAt: DateTime(2026, 1, 1),
-      );
+    test(
+      'hides an element from the baked branding when its show flag is off, even if text is set',
+      () {
+        final template = ReportLayoutTemplate(
+          templateId: 't1',
+          name: 'Letterhead',
+          header: const ReportHeaderConfig(
+            instituteName: 'Omega Education Centre',
+            showInstituteName: true,
+            tagline: 'Excellence in learning',
+            showTagline: false, // typed but hidden
+          ),
+          footer: const ReportFooterConfig(),
+          createdAt: DateTime(2026, 1, 1),
+          updatedAt: DateTime(2026, 1, 1),
+        );
 
-      final branding = template.toBranding();
-      expect(branding.header.instituteName, 'Omega Education Centre');
-      expect(branding.header.tagline, isNull);
-    });
+        final branding = template.toBranding();
+        expect(branding.header.instituteName, 'Omega Education Centre');
+        expect(branding.header.tagline, isNull);
+      },
+    );
 
     test('treats an empty string as hidden even when the show flag is on', () {
       final template = ReportLayoutTemplate(
@@ -61,8 +64,15 @@ void main() {
       final original = ReportLayoutTemplate(
         templateId: 't1',
         name: 'Letterhead',
-        header: const ReportHeaderConfig(instituteName: 'Omega', showTagline: false, logoXFraction: 0.4),
-        footer: const ReportFooterConfig(showSignature: true, signatureLabel: 'Principal'),
+        header: const ReportHeaderConfig(
+          instituteName: 'Omega',
+          showTagline: false,
+          logoXFraction: 0.4,
+        ),
+        footer: const ReportFooterConfig(
+          showSignature: true,
+          signatureLabel: 'Principal',
+        ),
         createdAt: DateTime(2026, 1, 1),
         updatedAt: DateTime(2026, 1, 2),
       );

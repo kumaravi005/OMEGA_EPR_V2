@@ -28,7 +28,12 @@ class _FeeDuesScreenState extends ConsumerState<FeeDuesScreen> {
   @override
   void initState() {
     super.initState();
-    for (final c in [_sessionController, _classController, _boardController, _studentController]) {
+    for (final c in [
+      _sessionController,
+      _classController,
+      _boardController,
+      _studentController,
+    ]) {
       c.addListener(() => setState(() {}));
     }
   }
@@ -43,13 +48,15 @@ class _FeeDuesScreenState extends ConsumerState<FeeDuesScreen> {
   }
 
   bool _matches(StudentProfile student) {
-    bool contains(String value, String query) => query.isEmpty || value.toLowerCase().contains(query.toLowerCase());
+    bool contains(String value, String query) =>
+        query.isEmpty || value.toLowerCase().contains(query.toLowerCase());
 
     return contains(student.academicSession, _sessionController.text) &&
         contains(student.className, _classController.text) &&
         contains(student.board, _boardController.text) &&
         (_batchId == null || student.batchId == _batchId) &&
-        (contains(student.name, _studentController.text) || contains(student.accountId, _studentController.text));
+        (contains(student.name, _studentController.text) ||
+            contains(student.accountId, _studentController.text));
   }
 
   @override
@@ -68,17 +75,37 @@ class _FeeDuesScreenState extends ConsumerState<FeeDuesScreen> {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: AppTextField(controller: _sessionController, label: 'Session')),
+                      Expanded(
+                        child: AppTextField(
+                          controller: _sessionController,
+                          label: 'Session',
+                        ),
+                      ),
                       const SizedBox(width: AppSpacing.sm),
-                      Expanded(child: AppTextField(controller: _classController, label: 'Class')),
+                      Expanded(
+                        child: AppTextField(
+                          controller: _classController,
+                          label: 'Class',
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Row(
                     children: [
-                      Expanded(child: AppTextField(controller: _boardController, label: 'Board')),
+                      Expanded(
+                        child: AppTextField(
+                          controller: _boardController,
+                          label: 'Board',
+                        ),
+                      ),
                       const SizedBox(width: AppSpacing.sm),
-                      Expanded(child: AppTextField(controller: _studentController, label: 'Student name/ID')),
+                      Expanded(
+                        child: AppTextField(
+                          controller: _studentController,
+                          label: 'Student name/ID',
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.sm),
@@ -87,11 +114,19 @@ class _FeeDuesScreenState extends ConsumerState<FeeDuesScreen> {
                     error: (error, stackTrace) => const SizedBox.shrink(),
                     data: (batches) => DropdownButtonFormField<String?>(
                       initialValue: _batchId,
-                      decoration: const InputDecoration(labelText: 'Batch (all)'),
+                      decoration: const InputDecoration(
+                        labelText: 'Batch (all)',
+                      ),
                       items: [
-                        const DropdownMenuItem<String?>(value: null, child: Text('All batches')),
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('All batches'),
+                        ),
                         for (final batch in batches)
-                          DropdownMenuItem<String?>(value: batch.batchId, child: Text(batch.name)),
+                          DropdownMenuItem<String?>(
+                            value: batch.batchId,
+                            child: Text(batch.name),
+                          ),
                       ],
                       onChanged: (value) => setState(() => _batchId = value),
                     ),
@@ -103,17 +138,22 @@ class _FeeDuesScreenState extends ConsumerState<FeeDuesScreen> {
             Expanded(
               child: studentsAsync.when(
                 loading: () => const LoadingView(),
-                error: (error, stackTrace) => ErrorView(message: 'Could not load students.\n$error'),
+                error: (error, stackTrace) =>
+                    ErrorView(message: 'Could not load students.\n$error'),
                 data: (students) {
                   final filtered = students.where(_matches).toList();
                   if (filtered.isEmpty) {
-                    return const EmptyView(message: 'No students match these filters.');
+                    return const EmptyView(
+                      message: 'No students match these filters.',
+                    );
                   }
                   return ListView.separated(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     itemCount: filtered.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-                    itemBuilder: (context, index) => _DueRow(student: filtered[index]),
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: AppSpacing.sm),
+                    itemBuilder: (context, index) =>
+                        _DueRow(student: filtered[index]),
                   );
                 },
               ),
@@ -137,9 +177,15 @@ class _DueRow extends ConsumerWidget {
     return Card(
       child: ListTile(
         title: Text('${student.name} (${student.accountId})'),
-        subtitle: Text('${student.className} - ${student.board} - ${student.academicSession}'),
+        subtitle: Text(
+          '${student.className} - ${student.board} - ${student.academicSession}',
+        ),
         trailing: paymentsAsync.when(
-          loading: () => const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          loading: () => const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
           error: (error, stackTrace) => const Icon(Icons.error_outline),
           data: (payments) {
             final paid = totalPaid(payments);
@@ -148,11 +194,16 @@ class _DueRow extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('Paid ₹${paid.toStringAsFixed(0)}', style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  'Paid ₹${paid.toStringAsFixed(0)}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 Text(
                   dueLabel(remaining),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: remaining > 0 ? Theme.of(context).colorScheme.error : null,
+                    color: remaining > 0
+                        ? Theme.of(context).colorScheme.error
+                        : null,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

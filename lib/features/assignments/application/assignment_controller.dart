@@ -14,7 +14,9 @@ class AssignmentFailure implements Exception {
   String toString() => message;
 }
 
-final assignmentControllerProvider = Provider<AssignmentController>((ref) => AssignmentController(ref));
+final assignmentControllerProvider = Provider<AssignmentController>(
+  (ref) => AssignmentController(ref),
+);
 
 class AssignmentController {
   AssignmentController(this._ref);
@@ -61,19 +63,29 @@ class AssignmentController {
         relatedId: id,
       );
     } catch (_) {
-      throw const AssignmentFailure('Could not create assignment. Please try again.');
+      throw const AssignmentFailure(
+        'Could not create assignment. Please try again.',
+      );
     }
   }
 
-  Future<void> setStatus(Assignment existing, {required AssignmentStatus status, required String? teacherRemark}) async {
+  Future<void> setStatus(
+    Assignment existing, {
+    required AssignmentStatus status,
+    required String? teacherRemark,
+  }) async {
     try {
-      await _ref.read(assignmentRepositoryProvider).updateFields(existing.assignmentId, {
-        'status': status.name,
-        'teacherRemark': teacherRemark?.trim(),
-        'updatedAt': Timestamp.now(),
-      });
+      await _ref
+          .read(assignmentRepositoryProvider)
+          .updateFields(existing.assignmentId, {
+            'status': status.name,
+            'teacherRemark': teacherRemark?.trim(),
+            'updatedAt': Timestamp.now(),
+          });
     } catch (_) {
-      throw const AssignmentFailure('Could not update assignment. Please try again.');
+      throw const AssignmentFailure(
+        'Could not update assignment. Please try again.',
+      );
     }
   }
 }

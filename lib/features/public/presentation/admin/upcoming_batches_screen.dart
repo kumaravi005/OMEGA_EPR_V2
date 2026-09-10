@@ -29,9 +29,14 @@ class UpcomingBatchesScreen extends ConsumerWidget {
       body: SafeArea(
         child: batchesAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load listings.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load listings.\n$error'),
           data: (batches) {
-            if (batches.isEmpty) return const EmptyView(message: 'No upcoming batch listings yet.');
+            if (batches.isEmpty) {
+              return const EmptyView(
+                message: 'No upcoming batch listings yet.',
+              );
+            }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: batches.length,
@@ -55,7 +60,9 @@ class _Tile extends ConsumerWidget {
     return Card(
       child: ListTile(
         title: Text('${batch.title} - ${batch.className}'),
-        subtitle: Text('Starts ${dateKey(batch.startDate)} - ${batch.timing}\n${batch.admissionStatus}'),
+        subtitle: Text(
+          'Starts ${dateKey(batch.startDate)} - ${batch.timing}\n${batch.admissionStatus}',
+        ),
         isThreeLine: true,
         onTap: () => _showForm(context, existing: batch),
         trailing: Switch(
@@ -63,7 +70,9 @@ class _Tile extends ConsumerWidget {
           onChanged: (value) async {
             final messenger = ScaffoldMessenger.of(context);
             try {
-              await ref.read(publicContentControllerProvider).setUpcomingBatchActive(batch, value);
+              await ref
+                  .read(publicContentControllerProvider)
+                  .setUpcomingBatchActive(batch, value);
             } on PublicContentFailure catch (failure) {
               messenger.showSnackBar(SnackBar(content: Text(failure.message)));
             }
@@ -75,7 +84,10 @@ class _Tile extends ConsumerWidget {
 }
 
 void _showForm(BuildContext context, {UpcomingBatch? existing}) {
-  showDialog<void>(context: context, builder: (context) => _FormDialog(existing: existing));
+  showDialog<void>(
+    context: context,
+    builder: (context) => _FormDialog(existing: existing),
+  );
 }
 
 class _FormDialog extends ConsumerStatefulWidget {
@@ -89,14 +101,30 @@ class _FormDialog extends ConsumerStatefulWidget {
 
 class _FormDialogState extends ConsumerState<_FormDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final _posterUrlController = TextEditingController(text: widget.existing?.posterUrl ?? '');
-  late final _titleController = TextEditingController(text: widget.existing?.title ?? '');
-  late final _classController = TextEditingController(text: widget.existing?.className ?? '');
-  late final _boardController = TextEditingController(text: widget.existing?.board ?? '');
-  late final _sessionController = TextEditingController(text: widget.existing?.academicSession ?? '');
-  late final _timingController = TextEditingController(text: widget.existing?.timing ?? '');
-  late final _descriptionController = TextEditingController(text: widget.existing?.description ?? '');
-  late final _admissionStatusController = TextEditingController(text: widget.existing?.admissionStatus ?? 'Admission open');
+  late final _posterUrlController = TextEditingController(
+    text: widget.existing?.posterUrl ?? '',
+  );
+  late final _titleController = TextEditingController(
+    text: widget.existing?.title ?? '',
+  );
+  late final _classController = TextEditingController(
+    text: widget.existing?.className ?? '',
+  );
+  late final _boardController = TextEditingController(
+    text: widget.existing?.board ?? '',
+  );
+  late final _sessionController = TextEditingController(
+    text: widget.existing?.academicSession ?? '',
+  );
+  late final _timingController = TextEditingController(
+    text: widget.existing?.timing ?? '',
+  );
+  late final _descriptionController = TextEditingController(
+    text: widget.existing?.description ?? '',
+  );
+  late final _admissionStatusController = TextEditingController(
+    text: widget.existing?.admissionStatus ?? 'Admission open',
+  );
   late bool _active = widget.existing?.active ?? true;
   DateTime _startDate = DateTime.now();
 
@@ -169,7 +197,9 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.existing == null ? 'New upcoming batch' : 'Edit upcoming batch'),
+      title: Text(
+        widget.existing == null ? 'New upcoming batch' : 'Edit upcoming batch',
+      ),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -178,30 +208,40 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_errorMessage != null) ...[
-                Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                Text(
+                  _errorMessage!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
                 const SizedBox(height: AppSpacing.sm),
               ],
-              AppTextField(controller: _posterUrlController, label: 'Poster image URL (optional)', enabled: !_isSubmitting),
+              AppTextField(
+                controller: _posterUrlController,
+                label: 'Poster image URL (optional)',
+                enabled: !_isSubmitting,
+              ),
               const SizedBox(height: AppSpacing.sm),
               AppTextField(
                 controller: _titleController,
                 label: 'Title',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Title is required'),
+                validator: (value) =>
+                    Validators.required(value, message: 'Title is required'),
               ),
               const SizedBox(height: AppSpacing.sm),
               AppTextField(
                 controller: _classController,
                 label: 'Class',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Class is required'),
+                validator: (value) =>
+                    Validators.required(value, message: 'Class is required'),
               ),
               const SizedBox(height: AppSpacing.sm),
               AppTextField(
                 controller: _boardController,
                 label: 'Board',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Board is required'),
+                validator: (value) =>
+                    Validators.required(value, message: 'Board is required'),
               ),
               const SizedBox(height: AppSpacing.sm),
               AppTextField(
@@ -209,7 +249,10 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
                 label: 'Academic session',
                 hintText: 'e.g. 2026-27',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Academic session is required'),
+                validator: (value) => Validators.required(
+                  value,
+                  message: 'Academic session is required',
+                ),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -222,30 +265,43 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
                 label: 'Timing',
                 hintText: 'e.g. Mon-Fri, 5-7 PM',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Timing is required'),
+                validator: (value) =>
+                    Validators.required(value, message: 'Timing is required'),
               ),
               const SizedBox(height: AppSpacing.sm),
-              AppTextField(controller: _descriptionController, label: 'Description (optional)', enabled: !_isSubmitting),
+              AppTextField(
+                controller: _descriptionController,
+                label: 'Description (optional)',
+                enabled: !_isSubmitting,
+              ),
               const SizedBox(height: AppSpacing.sm),
               AppTextField(
                 controller: _admissionStatusController,
                 label: 'Admission status',
                 hintText: 'e.g. Admission open, Few seats left',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Admission status is required'),
+                validator: (value) => Validators.required(
+                  value,
+                  message: 'Admission status is required',
+                ),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Active'),
                 value: _active,
-                onChanged: _isSubmitting ? null : (value) => setState(() => _active = value),
+                onChanged: _isSubmitting
+                    ? null
+                    : (value) => setState(() => _active = value),
               ),
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
         AppButton(label: 'Save', isLoading: _isSubmitting, onPressed: _submit),
       ],
     );

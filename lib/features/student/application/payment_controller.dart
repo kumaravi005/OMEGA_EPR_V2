@@ -13,7 +13,9 @@ class PaymentFailure implements Exception {
   String toString() => message;
 }
 
-final paymentControllerProvider = Provider<PaymentController>((ref) => PaymentController(ref));
+final paymentControllerProvider = Provider<PaymentController>(
+  (ref) => PaymentController(ref),
+);
 
 class PaymentController {
   PaymentController(this._ref);
@@ -30,7 +32,9 @@ class PaymentController {
   }) async {
     final admin = _ref.read(currentUserAccountProvider).valueOrNull;
     if (admin == null) {
-      throw const PaymentFailure('Could not record the payment. Please sign in again.');
+      throw const PaymentFailure(
+        'Could not record the payment. Please sign in again.',
+      );
     }
 
     try {
@@ -47,9 +51,17 @@ class PaymentController {
               createdBy: admin.uid,
             ),
           );
-      await recordFeePaymentNotification(_ref, studentUid: studentUid, batchId: batchId, amount: amount, relatedId: id);
+      await recordFeePaymentNotification(
+        _ref,
+        studentUid: studentUid,
+        batchId: batchId,
+        amount: amount,
+        relatedId: id,
+      );
     } catch (_) {
-      throw const PaymentFailure('Could not record the payment. Please try again.');
+      throw const PaymentFailure(
+        'Could not record the payment. Please try again.',
+      );
     }
   }
 }

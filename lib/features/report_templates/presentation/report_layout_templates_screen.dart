@@ -30,16 +30,21 @@ class ReportLayoutTemplatesScreen extends ConsumerWidget {
       body: SafeArea(
         child: templatesAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load report templates.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load report templates.\n$error'),
           data: (templates) {
             if (templates.isEmpty) {
-              return const EmptyView(message: 'No report templates yet. Tap + to design one.');
+              return const EmptyView(
+                message: 'No report templates yet. Tap + to design one.',
+              );
             }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: templates.length,
-              separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.sm),
-              itemBuilder: (context, index) => _TemplateTile(template: templates[index]),
+              separatorBuilder: (context, index) =>
+                  const SizedBox(height: AppSpacing.sm),
+              itemBuilder: (context, index) =>
+                  _TemplateTile(template: templates[index]),
             );
           },
         ),
@@ -60,7 +65,9 @@ class _TemplateTile extends ConsumerWidget {
         leading: const Icon(Icons.description_outlined),
         title: Text(template.name),
         subtitle: Text(_summary()),
-        onTap: () => context.push('${AppRoutes.adminReportTemplates}/${template.templateId}/edit'),
+        onTap: () => context.push(
+          '${AppRoutes.adminReportTemplates}/${template.templateId}/edit',
+        ),
         trailing: IconButton(
           icon: const Icon(Icons.delete_outline),
           tooltip: 'Delete',
@@ -72,7 +79,9 @@ class _TemplateTile extends ConsumerWidget {
 
   String _summary() {
     final parts = <String>[
-      if (template.header.logoUrl != null && template.header.logoUrl!.isNotEmpty) 'Logo',
+      if (template.header.logoUrl != null &&
+          template.header.logoUrl!.isNotEmpty)
+        'Logo',
       if (template.footer.showSignature) 'Signature',
       if (template.footer.showPageNumber) 'Page numbers',
     ];
@@ -84,10 +93,18 @@ class _TemplateTile extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete template?'),
-        content: Text('"${template.name}" will be removed. Reports already generated with it are unaffected.'),
+        content: Text(
+          '"${template.name}" will be removed. Reports already generated with it are unaffected.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -96,7 +113,11 @@ class _TemplateTile extends ConsumerWidget {
     try {
       await ref.read(reportLayoutTemplateControllerProvider).delete(template);
     } on ReportLayoutTemplateFailure catch (error) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
     }
   }
 }

@@ -27,14 +27,24 @@ class StudentAttendanceHistoryScreen extends ConsumerWidget {
             ? const LoadingView()
             : Consumer(
                 builder: (context, ref, _) {
-                  final studentsAsync = ref.watch(allStudentsProvider);
-                  return studentsAsync.when(
+                  final selfAsync = ref.watch(
+                    ownStudentProfileProvider(account.uid),
+                  );
+                  return selfAsync.when(
                     loading: () => const LoadingView(),
-                    error: (error, stackTrace) => ErrorView(message: 'Could not load your profile.\n$error'),
-                    data: (students) {
-                      final self = students.where((s) => s.uid == account.uid).firstOrNull;
-                      if (self == null) return const ErrorView(message: 'Student profile not found.');
-                      return _History(studentUid: self.uid, batchId: self.batchId);
+                    error: (error, stackTrace) => ErrorView(
+                      message: 'Could not load your profile.\n$error',
+                    ),
+                    data: (self) {
+                      if (self == null) {
+                        return const ErrorView(
+                          message: 'Student profile not found.',
+                        );
+                      }
+                      return _History(
+                        studentUid: self.uid,
+                        batchId: self.batchId,
+                      );
                     },
                   );
                 },
@@ -56,12 +66,19 @@ class _History extends ConsumerWidget {
 
     return recordsAsync.when(
       loading: () => const LoadingView(),
-      error: (error, stackTrace) => ErrorView(message: 'Could not load attendance.\n$error'),
+      error: (error, stackTrace) =>
+          ErrorView(message: 'Could not load attendance.\n$error'),
       data: (records) {
-        final mine = records.where((r) => r.records.containsKey(studentUid)).toList();
-        if (mine.isEmpty) return const EmptyView(message: 'No attendance recorded yet.');
+        final mine = records
+            .where((r) => r.records.containsKey(studentUid))
+            .toList();
+        if (mine.isEmpty) {
+          return const EmptyView(message: 'No attendance recorded yet.');
+        }
 
-        final present = mine.where((r) => r.records[studentUid] == AttendanceStatus.present).length;
+        final present = mine
+            .where((r) => r.records[studentUid] == AttendanceStatus.present)
+            .length;
         final absent = mine.length - present;
         final percentage = mine.isEmpty ? 0.0 : (present / mine.length) * 100;
 
@@ -74,7 +91,10 @@ class _History extends ConsumerWidget {
                 children: [
                   _Stat(label: 'Present', value: '$present'),
                   _Stat(label: 'Absent', value: '$absent'),
-                  _Stat(label: 'Attendance %', value: '${percentage.toStringAsFixed(1)}%'),
+                  _Stat(
+                    label: 'Attendance %',
+                    value: '${percentage.toStringAsFixed(1)}%',
+                  ),
                 ],
               ),
             ),
@@ -86,7 +106,8 @@ class _History extends ConsumerWidget {
                   trailing: Text(
                     record.records[studentUid]!.label,
                     style: TextStyle(
-                      color: record.records[studentUid] == AttendanceStatus.present
+                      color:
+                          record.records[studentUid] == AttendanceStatus.present
                           ? Theme.of(context).colorScheme.primary
                           : Theme.of(context).colorScheme.error,
                       fontWeight: FontWeight.w600,

@@ -29,9 +29,12 @@ class AdvertisementsScreen extends ConsumerWidget {
       body: SafeArea(
         child: adsAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load advertisements.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load advertisements.\n$error'),
           data: (ads) {
-            if (ads.isEmpty) return const EmptyView(message: 'No advertisements yet.');
+            if (ads.isEmpty) {
+              return const EmptyView(message: 'No advertisements yet.');
+            }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: ads.length,
@@ -55,14 +58,20 @@ class _Tile extends ConsumerWidget {
     return Card(
       child: ListTile(
         title: Text(ad.title),
-        subtitle: Text(ad.isLive(DateTime.now()) ? 'Live now - eligible for the popup' : 'Not currently live'),
+        subtitle: Text(
+          ad.isLive(DateTime.now())
+              ? 'Live now - eligible for the popup'
+              : 'Not currently live',
+        ),
         onTap: () => _showForm(context, existing: ad),
         trailing: Switch(
           value: ad.active,
           onChanged: (value) async {
             final messenger = ScaffoldMessenger.of(context);
             try {
-              await ref.read(publicContentControllerProvider).setAdvertisementActive(ad, value);
+              await ref
+                  .read(publicContentControllerProvider)
+                  .setAdvertisementActive(ad, value);
             } on PublicContentFailure catch (failure) {
               messenger.showSnackBar(SnackBar(content: Text(failure.message)));
             }
@@ -74,7 +83,10 @@ class _Tile extends ConsumerWidget {
 }
 
 void _showForm(BuildContext context, {Advertisement? existing}) {
-  showDialog<void>(context: context, builder: (context) => _FormDialog(existing: existing));
+  showDialog<void>(
+    context: context,
+    builder: (context) => _FormDialog(existing: existing),
+  );
 }
 
 class _FormDialog extends ConsumerStatefulWidget {
@@ -88,11 +100,21 @@ class _FormDialog extends ConsumerStatefulWidget {
 
 class _FormDialogState extends ConsumerState<_FormDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final _posterUrlController = TextEditingController(text: widget.existing?.posterUrl ?? '');
-  late final _titleController = TextEditingController(text: widget.existing?.title ?? '');
-  late final _descriptionController = TextEditingController(text: widget.existing?.description ?? '');
-  late final _buttonTextController = TextEditingController(text: widget.existing?.buttonText ?? '');
-  late final _buttonUrlController = TextEditingController(text: widget.existing?.buttonUrl ?? '');
+  late final _posterUrlController = TextEditingController(
+    text: widget.existing?.posterUrl ?? '',
+  );
+  late final _titleController = TextEditingController(
+    text: widget.existing?.title ?? '',
+  );
+  late final _descriptionController = TextEditingController(
+    text: widget.existing?.description ?? '',
+  );
+  late final _buttonTextController = TextEditingController(
+    text: widget.existing?.buttonText ?? '',
+  );
+  late final _buttonUrlController = TextEditingController(
+    text: widget.existing?.buttonUrl ?? '',
+  );
   late bool _active = widget.existing?.active ?? true;
   DateTime? _startDate;
   DateTime? _endDate;
@@ -119,7 +141,12 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
 
   Future<void> _pickDate({required bool isStart}) async {
     final now = DateTime.now();
-    final picked = await showDatePicker(context: context, initialDate: now, firstDate: DateTime(now.year - 1), lastDate: DateTime(now.year + 2));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 2),
+    );
     if (picked == null) return;
     setState(() => isStart ? _startDate = picked : _endDate = picked);
   }
@@ -159,7 +186,9 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.existing == null ? 'New advertisement' : 'Edit advertisement'),
+      title: Text(
+        widget.existing == null ? 'New advertisement' : 'Edit advertisement',
+      ),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -168,37 +197,64 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_errorMessage != null) ...[
-                Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                Text(
+                  _errorMessage!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
                 const SizedBox(height: AppSpacing.sm),
               ],
               AppTextField(
                 controller: _posterUrlController,
                 label: 'Poster image URL',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Poster image URL is required'),
+                validator: (value) => Validators.required(
+                  value,
+                  message: 'Poster image URL is required',
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
               AppTextField(
                 controller: _titleController,
                 label: 'Title',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Title is required'),
+                validator: (value) =>
+                    Validators.required(value, message: 'Title is required'),
               ),
               const SizedBox(height: AppSpacing.sm),
-              AppTextField(controller: _descriptionController, label: 'Description (optional)', enabled: !_isSubmitting),
+              AppTextField(
+                controller: _descriptionController,
+                label: 'Description (optional)',
+                enabled: !_isSubmitting,
+              ),
               const SizedBox(height: AppSpacing.sm),
-              AppTextField(controller: _buttonTextController, label: 'Button text (optional)', enabled: !_isSubmitting),
+              AppTextField(
+                controller: _buttonTextController,
+                label: 'Button text (optional)',
+                enabled: !_isSubmitting,
+              ),
               const SizedBox(height: AppSpacing.sm),
-              AppTextField(controller: _buttonUrlController, label: 'Button link URL (optional)', enabled: !_isSubmitting),
+              AppTextField(
+                controller: _buttonUrlController,
+                label: 'Button link URL (optional)',
+                enabled: !_isSubmitting,
+              ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(_startDate == null ? 'Active from (optional)' : 'From ${dateKey(_startDate!)}'),
+                title: Text(
+                  _startDate == null
+                      ? 'Active from (optional)'
+                      : 'From ${dateKey(_startDate!)}',
+                ),
                 trailing: const Icon(Icons.calendar_today_outlined),
                 onTap: _isSubmitting ? null : () => _pickDate(isStart: true),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(_endDate == null ? 'Active until (optional)' : 'Until ${dateKey(_endDate!)}'),
+                title: Text(
+                  _endDate == null
+                      ? 'Active until (optional)'
+                      : 'Until ${dateKey(_endDate!)}',
+                ),
                 trailing: const Icon(Icons.calendar_today_outlined),
                 onTap: _isSubmitting ? null : () => _pickDate(isStart: false),
               ),
@@ -206,14 +262,19 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Active'),
                 value: _active,
-                onChanged: _isSubmitting ? null : (value) => setState(() => _active = value),
+                onChanged: _isSubmitting
+                    ? null
+                    : (value) => setState(() => _active = value),
               ),
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
         AppButton(label: 'Save', isLoading: _isSubmitting, onPressed: _submit),
       ],
     );

@@ -18,7 +18,9 @@ class TeacherFormFailure implements Exception {
   String toString() => message;
 }
 
-final teacherFormControllerProvider = Provider<TeacherFormController>((ref) => TeacherFormController(ref));
+final teacherFormControllerProvider = Provider<TeacherFormController>(
+  (ref) => TeacherFormController(ref),
+);
 
 class TeacherFormController {
   TeacherFormController(this._ref);
@@ -45,48 +47,50 @@ class TeacherFormController {
     final email = '$normalizedId@${AppConstants.accountEmailDomain}';
 
     try {
-      await _ref.read(accountProvisioningServiceProvider).createAccount(
-        email: email,
-        password: password,
-        writeProfile: (uid) async {
-          final now = DateTime.now();
-          await _ref
-              .read(userAccountRepositoryProvider)
-              .set(
-                uid,
-                UserAccount(
-                  uid: uid,
-                  accountId: normalizedId,
-                  role: UserRole.teacher,
-                  displayName: name.trim(),
-                  active: true,
-                  createdAt: now,
-                  updatedAt: now,
-                  lastLoginAt: null,
-                  session: null,
-                ),
-              );
-          await _ref
-              .read(teacherRepositoryProvider)
-              .set(
-                uid,
-                TeacherProfile(
-                  uid: uid,
-                  accountId: normalizedId,
-                  name: name.trim(),
-                  dateOfBirth: dateOfBirth,
-                  gender: gender,
-                  qualification: qualification.trim(),
-                  address: address.trim(),
-                  primaryMobile: primaryMobile.trim(),
-                  secondaryMobile: secondaryMobile?.trim(),
-                  assignments: assignments,
-                  createdAt: now,
-                  updatedAt: now,
-                ),
-              );
-        },
-      );
+      await _ref
+          .read(accountProvisioningServiceProvider)
+          .createAccount(
+            email: email,
+            password: password,
+            writeProfile: (uid) async {
+              final now = DateTime.now();
+              await _ref
+                  .read(userAccountRepositoryProvider)
+                  .set(
+                    uid,
+                    UserAccount(
+                      uid: uid,
+                      accountId: normalizedId,
+                      role: UserRole.teacher,
+                      displayName: name.trim(),
+                      active: true,
+                      createdAt: now,
+                      updatedAt: now,
+                      lastLoginAt: null,
+                      session: null,
+                    ),
+                  );
+              await _ref
+                  .read(teacherRepositoryProvider)
+                  .set(
+                    uid,
+                    TeacherProfile(
+                      uid: uid,
+                      accountId: normalizedId,
+                      name: name.trim(),
+                      dateOfBirth: dateOfBirth,
+                      gender: gender,
+                      qualification: qualification.trim(),
+                      address: address.trim(),
+                      primaryMobile: primaryMobile.trim(),
+                      secondaryMobile: secondaryMobile?.trim(),
+                      assignments: assignments,
+                      createdAt: now,
+                      updatedAt: now,
+                    ),
+                  );
+            },
+          );
     } catch (error) {
       throw TeacherFormFailure(mapAccountCreationError(error));
     }
@@ -127,12 +131,14 @@ class TeacherFormController {
             ),
           );
       // Keep the login account's display name in sync with the profile.
-      await _ref.read(userAccountRepositoryProvider).updateFields(existing.uid, {
-        'displayName': name.trim(),
-        'updatedAt': DateTime.now(),
-      });
+      await _ref.read(userAccountRepositoryProvider).updateFields(
+        existing.uid,
+        {'displayName': name.trim(), 'updatedAt': DateTime.now()},
+      );
     } catch (_) {
-      throw const TeacherFormFailure('Could not save changes. Please try again.');
+      throw const TeacherFormFailure(
+        'Could not save changes. Please try again.',
+      );
     }
   }
 }

@@ -14,5 +14,7 @@ abstract final class AppConstants {
   static const accountEmailDomain = 'omegaerp.local';
 
   /// Same pattern enforced server-side in `functions/src/index.ts`.
-  static final accountIdPattern = RegExp(r'^[a-z0-9][a-z0-9._-]{1,22}[a-z0-9]$');
+  static final accountIdPattern = RegExp(
+    r'^[a-z0-9][a-z0-9._-]{1,22}[a-z0-9]$',
+  );
 }

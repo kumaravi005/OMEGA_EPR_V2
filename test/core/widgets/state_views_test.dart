@@ -7,18 +7,27 @@ import 'package:omega_epr_v2/core/widgets/loading_view.dart';
 void main() {
   Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
-  testWidgets('LoadingView shows a spinner and optional message', (tester) async {
+  testWidgets('LoadingView shows a spinner and optional message', (
+    tester,
+  ) async {
     await tester.pumpWidget(wrap(const LoadingView(message: 'Loading data')));
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('Loading data'), findsOneWidget);
   });
 
-  testWidgets('ErrorView shows the message and a retry button when provided', (tester) async {
+  testWidgets('ErrorView shows the message and a retry button when provided', (
+    tester,
+  ) async {
     var retried = false;
 
     await tester.pumpWidget(
-      wrap(ErrorView(message: 'Something went wrong', onRetry: () => retried = true)),
+      wrap(
+        ErrorView(
+          message: 'Something went wrong',
+          onRetry: () => retried = true,
+        ),
+      ),
     );
 
     expect(find.text('Something went wrong'), findsOneWidget);

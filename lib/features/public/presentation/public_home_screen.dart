@@ -24,7 +24,8 @@ class PublicHomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(instituteProfileProvider);
-    final instituteName = profileAsync.valueOrNull?.name ?? AppConstants.appName;
+    final instituteName =
+        profileAsync.valueOrNull?.name ?? AppConstants.appName;
 
     return Scaffold(
       appBar: AppBar(
@@ -45,7 +46,10 @@ class PublicHomeScreen extends ConsumerWidget {
                 child: ListView(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   children: [
-                    _HeroSection(instituteName: instituteName, tagline: profileAsync.valueOrNull?.tagline),
+                    _HeroSection(
+                      instituteName: instituteName,
+                      tagline: profileAsync.valueOrNull?.tagline,
+                    ),
                     const SizedBox(height: AppSpacing.lg),
                     const _BannersSection(),
                     const _UpcomingBatchesSection(),
@@ -109,10 +113,18 @@ class _HeroSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(instituteName, style: Theme.of(context).textTheme.headlineLarge, textAlign: TextAlign.center),
+        Text(
+          instituteName,
+          style: Theme.of(context).textTheme.headlineLarge,
+          textAlign: TextAlign.center,
+        ),
         if (tagline != null && tagline!.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.xs),
-          Text(tagline!, style: Theme.of(context).textTheme.bodyLarge, textAlign: TextAlign.center),
+          Text(
+            tagline!,
+            style: Theme.of(context).textTheme.bodyLarge,
+            textAlign: TextAlign.center,
+          ),
         ],
       ],
     );
@@ -124,8 +136,12 @@ class _BannersSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bannersAsync = ref.watch(allBannersProvider);
-    final live = bannersAsync.valueOrNull?.where((b) => b.isLive(DateTime.now())).toList() ?? const [];
+    final bannersAsync = ref.watch(activeBannersProvider);
+    final live =
+        bannersAsync.valueOrNull
+            ?.where((b) => b.isLive(DateTime.now()))
+            .toList() ??
+        const [];
     if (live.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
@@ -144,12 +160,22 @@ class _BannersSection extends ConsumerWidget {
                         banner.imageUrl,
                         fit: BoxFit.cover,
                         width: double.infinity,
-                        errorBuilder: (_, _, _) => const Center(child: Icon(Icons.broken_image_outlined)),
+                        errorBuilder: (_, _, _) => const Center(
+                          child: Icon(Icons.broken_image_outlined),
+                        ),
                       ),
                     ),
                   ),
-                  Text(banner.title, style: Theme.of(context).textTheme.titleLarge),
-                  if (banner.description != null) Text(banner.description!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    banner.title,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  if (banner.description != null)
+                    Text(
+                      banner.description!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                 ],
               ),
             ),
@@ -164,8 +190,9 @@ class _UpcomingBatchesSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final batchesAsync = ref.watch(allUpcomingBatchesProvider);
-    final active = batchesAsync.valueOrNull?.where((b) => b.active).toList() ?? const [];
+    final batchesAsync = ref.watch(activeUpcomingBatchesProvider);
+    final active =
+        batchesAsync.valueOrNull?.where((b) => b.active).toList() ?? const [];
     if (active.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -179,7 +206,10 @@ class _UpcomingBatchesSection extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('${batch.title} - ${batch.className} (${batch.board})', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    '${batch.title} - ${batch.className} (${batch.board})',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   Text('Starts ${dateKey(batch.startDate)} - ${batch.timing}'),
                   if (batch.description != null) Text(batch.description!),
                   const SizedBox(height: AppSpacing.xs),
@@ -198,8 +228,9 @@ class _GallerySection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final itemsAsync = ref.watch(allGalleryItemsProvider);
-    final active = itemsAsync.valueOrNull?.where((i) => i.active).toList() ?? const [];
+    final itemsAsync = ref.watch(activeGalleryItemsProvider);
+    final active =
+        itemsAsync.valueOrNull?.where((i) => i.active).toList() ?? const [];
     if (active.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -222,7 +253,10 @@ class _GallerySection extends ConsumerWidget {
               child: Image.network(
                 item.imageUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black12, child: Icon(Icons.broken_image_outlined)),
+                errorBuilder: (_, _, _) => const ColoredBox(
+                  color: Colors.black12,
+                  child: Icon(Icons.broken_image_outlined),
+                ),
               ),
             );
           },
@@ -237,8 +271,9 @@ class _AnnouncementsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final itemsAsync = ref.watch(allAnnouncementsProvider);
-    final active = itemsAsync.valueOrNull?.where((a) => a.active).toList() ?? const [];
+    final itemsAsync = ref.watch(activeAnnouncementsProvider);
+    final active =
+        itemsAsync.valueOrNull?.where((a) => a.active).toList() ?? const [];
     if (active.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -252,7 +287,10 @@ class _AnnouncementsSection extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.title, style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    item.title,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   Text(item.body),
                 ],
               ),
@@ -273,7 +311,10 @@ class _AboutSection extends StatelessWidget {
     if (about == null || about!.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [const _SectionTitle('About us'), AppCard(child: Text(about!))],
+      children: [
+        const _SectionTitle('About us'),
+        AppCard(child: Text(about!)),
+      ],
     );
   }
 }
@@ -288,7 +329,9 @@ class _ContactSection extends StatelessWidget {
     final phone = profile?.contactPhone;
     final email = profile?.contactEmail;
     final address = profile?.address;
-    if (phone == null && email == null && address == null) return const SizedBox.shrink();
+    if (phone == null && email == null && address == null) {
+      return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -306,7 +349,11 @@ class _ContactSection extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: AppButton(label: 'Call', icon: Icons.call_outlined, onPressed: () => callNumber(phone)),
+                      child: AppButton(
+                        label: 'Call',
+                        icon: Icons.call_outlined,
+                        onPressed: () => callNumber(phone),
+                      ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(

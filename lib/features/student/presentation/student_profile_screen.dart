@@ -30,17 +30,23 @@ class StudentProfileScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.edit_outlined),
             tooltip: 'Edit',
-            onPressed: () => context.push('${AppRoutes.adminStudents}/$studentUid/edit'),
+            onPressed: () =>
+                context.push('${AppRoutes.adminStudents}/$studentUid/edit'),
           ),
         ],
       ),
       body: SafeArea(
         child: studentsAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load student.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load student.\n$error'),
           data: (students) {
-            final student = students.where((s) => s.uid == studentUid).firstOrNull;
-            if (student == null) return const ErrorView(message: 'Student not found.');
+            final student = students
+                .where((s) => s.uid == studentUid)
+                .firstOrNull;
+            if (student == null) {
+              return const ErrorView(message: 'Student not found.');
+            }
             return _ProfileBody(student: student);
           },
         ),
@@ -64,12 +70,17 @@ class _ProfileBody extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
-            Text(student.name, style: Theme.of(context).textTheme.headlineMedium),
+            Text(
+              student.name,
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
             Text(
               student.active ? 'Active' : 'Inactive',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: student.active ? null : Theme.of(context).colorScheme.error),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: student.active
+                    ? null
+                    : Theme.of(context).colorScheme.error,
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             Row(
@@ -97,11 +108,20 @@ class _ProfileBody extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Personal details', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    'Personal details',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   _InfoRow(label: "Father's name", value: student.fatherName),
-                  _InfoRow(label: 'Date of birth', value: '${student.dateOfBirth.toLocal()}'.split(' ').first),
-                  _InfoRow(label: 'Gender', value: _genderLabel(student.gender.name)),
+                  _InfoRow(
+                    label: 'Date of birth',
+                    value: '${student.dateOfBirth.toLocal()}'.split(' ').first,
+                  ),
+                  _InfoRow(
+                    label: 'Gender',
+                    value: _genderLabel(student.gender.name),
+                  ),
                   _InfoRow(label: 'Address', value: student.address),
                 ],
               ),
@@ -111,11 +131,17 @@ class _ProfileBody extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Academic details', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    'Academic details',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   _InfoRow(label: 'Class', value: student.className),
                   _InfoRow(label: 'Board', value: student.board),
-                  _InfoRow(label: 'Academic session', value: student.academicSession),
+                  _InfoRow(
+                    label: 'Academic session',
+                    value: student.academicSession,
+                  ),
                 ],
               ),
             ),
@@ -124,26 +150,48 @@ class _ProfileBody extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Contact', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    'Contact',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   const SizedBox(height: AppSpacing.sm),
-                  _InfoRow(label: 'Primary mobile', value: student.primaryMobile),
-                  if (student.secondaryMobile != null && student.secondaryMobile!.isNotEmpty)
-                    _InfoRow(label: 'Secondary mobile', value: student.secondaryMobile!),
+                  _InfoRow(
+                    label: 'Primary mobile',
+                    value: student.primaryMobile,
+                  ),
+                  if (student.secondaryMobile != null &&
+                      student.secondaryMobile!.isNotEmpty)
+                    _InfoRow(
+                      label: 'Secondary mobile',
+                      value: student.secondaryMobile!,
+                    ),
                 ],
               ),
             ),
             const SizedBox(height: AppSpacing.md),
             paymentsAsync.when(
               loading: () => const AppCard(child: LoadingView()),
-              error: (error, stackTrace) => AppCard(child: ErrorView(message: 'Could not load payments.\n$error')),
-              data: (payments) => _FeeSummaryCard(student: student, payments: payments),
+              error: (error, stackTrace) => AppCard(
+                child: ErrorView(message: 'Could not load payments.\n$error'),
+              ),
+              data: (payments) =>
+                  _FeeSummaryCard(student: student, payments: payments),
             ),
             const SizedBox(height: AppSpacing.md),
             Row(
               children: [
-                Expanded(child: Text('Payment history', style: Theme.of(context).textTheme.titleLarge)),
+                Expanded(
+                  child: Text(
+                    'Payment history',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
                 TextButton.icon(
-                  onPressed: () => showAddPaymentDialog(context, studentUid: student.uid, batchId: student.batchId),
+                  onPressed: () => showAddPaymentDialog(
+                    context,
+                    studentUid: student.uid,
+                    batchId: student.batchId,
+                  ),
                   icon: const Icon(Icons.add),
                   label: const Text('Record payment'),
                 ),
@@ -159,7 +207,12 @@ class _ProfileBody extends ConsumerWidget {
                     child: EmptyView(message: 'No payments recorded yet.'),
                   );
                 }
-                return Column(children: [for (final payment in payments) _PaymentTile(payment: payment)]);
+                return Column(
+                  children: [
+                    for (final payment in payments)
+                      _PaymentTile(payment: payment),
+                  ],
+                );
               },
             ),
           ],
@@ -197,10 +250,19 @@ class _FeeSummaryCard extends StatelessWidget {
         children: [
           Text('Fee summary', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: AppSpacing.sm),
-          _InfoRow(label: 'Standard fee', value: '₹${student.standardFee.toStringAsFixed(0)}'),
-          _InfoRow(label: 'Final agreed fee', value: '₹${student.finalFee.toStringAsFixed(0)}'),
+          _InfoRow(
+            label: 'Standard fee',
+            value: '₹${student.standardFee.toStringAsFixed(0)}',
+          ),
+          _InfoRow(
+            label: 'Final agreed fee',
+            value: '₹${student.finalFee.toStringAsFixed(0)}',
+          ),
           if (student.discount != 0)
-            _InfoRow(label: 'Discount / adjustment', value: '₹${student.discount.toStringAsFixed(0)}'),
+            _InfoRow(
+              label: 'Discount / adjustment',
+              value: '₹${student.discount.toStringAsFixed(0)}',
+            ),
           if (student.feeReason != null && student.feeReason!.isNotEmpty)
             _InfoRow(label: 'Reason', value: student.feeReason!),
           _InfoRow(label: 'Payment plan', value: student.paymentPlan.label),
@@ -209,7 +271,9 @@ class _FeeSummaryCard extends StatelessWidget {
           _InfoRow(
             label: remaining < 0 ? 'Advance' : 'Due',
             value: '₹${remaining.abs().toStringAsFixed(0)}',
-            valueColor: remaining > 0 ? Theme.of(context).colorScheme.error : null,
+            valueColor: remaining > 0
+                ? Theme.of(context).colorScheme.error
+                : null,
           ),
         ],
       ),
@@ -226,9 +290,12 @@ class _PaymentTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        title: Text('₹${payment.amount.toStringAsFixed(0)} - ${payment.mode.label}'),
+        title: Text(
+          '₹${payment.amount.toStringAsFixed(0)} - ${payment.mode.label}',
+        ),
         subtitle: Text(
-          '${payment.date.toLocal()}'.split(' ').first + (payment.remark != null ? ' - ${payment.remark}' : ''),
+          '${payment.date.toLocal()}'.split(' ').first +
+              (payment.remark != null ? ' - ${payment.remark}' : ''),
         ),
       ),
     );
@@ -249,11 +316,16 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 140, child: Text(label, style: Theme.of(context).textTheme.bodySmall)),
+          SizedBox(
+            width: 140,
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ),
           Expanded(
             child: Text(
               value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: valueColor),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: valueColor),
             ),
           ),
         ],

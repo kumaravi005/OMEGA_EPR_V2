@@ -5,44 +5,72 @@ import '../../../data/repositories/firestore_repository.dart';
 import 'payment.dart';
 import 'student_profile.dart';
 
-final studentRepositoryProvider = Provider<FirestoreRepository<StudentProfile>>((ref) {
-  return FirestoreRepository<StudentProfile>(
-    firestore: ref.watch(firestoreProvider),
-    collectionPath: FirestoreCollections.students,
-    fromFirestore: StudentProfile.fromMap,
-    toFirestore: (student) => student.toMap(),
-  );
-});
+final studentRepositoryProvider = Provider<FirestoreRepository<StudentProfile>>(
+  (ref) {
+    return FirestoreRepository<StudentProfile>(
+      firestore: ref.watch(firestoreProvider),
+      collectionPath: FirestoreCollections.students,
+      fromFirestore: StudentProfile.fromMap,
+      toFirestore: (student) => student.toMap(),
+    );
+  },
+);
 
+/// Admin/teacher only - the full roster (`students` `list` requires
+/// `isAdmin() || isTeacher()`, see firestore.rules). Never use this to
+/// find a signed-in STUDENT's own record - use [ownStudentProfileProvider]
+/// instead, since a student has no `list` permission on this collection
+/// at all, only `get` on their own document.
 final allStudentsProvider = StreamProvider<List<StudentProfile>>((ref) {
   return ref
       .watch(studentRepositoryProvider)
       .watchAll()
-      .map((students) => students.toList()..sort((a, b) => a.name.compareTo(b.name)));
+      .map(
+        (students) =>
+            students.toList()..sort((a, b) => a.name.compareTo(b.name)),
+      );
 });
+
+/// The signed-in student's own profile, resolved via a `get` (always
+/// allowed for a student reading their own document) rather than
+/// `list`ing the whole collection and filtering client-side - the latter
+/// fails outright for an actual student account (see [allStudentsProvider]).
+final ownStudentProfileProvider =
+    StreamProvider.family<StudentProfile?, String>((ref, uid) {
+      return ref.watch(studentRepositoryProvider).watchById(uid);
+    });
 
 /// One student's payment history, at `students/{uid}/payments`.
-final paymentRepositoryProvider = Provider.family<FirestoreRepository<Payment>, String>((ref, studentUid) {
-  return FirestoreRepository<Payment>(
-    firestore: ref.watch(firestoreProvider),
-    collectionPath: '${FirestoreCollections.students}/$studentUid/payments',
-    fromFirestore: Payment.fromMap,
-    toFirestore: (payment) => payment.toMap(),
-  );
-});
+final paymentRepositoryProvider =
+    Provider.family<FirestoreRepository<Payment>, String>((ref, studentUid) {
+      return FirestoreRepository<Payment>(
+        firestore: ref.watch(firestoreProvider),
+        collectionPath: '${FirestoreCollections.students}/$studentUid/payments',
+        fromFirestore: Payment.fromMap,
+        toFirestore: (payment) => payment.toMap(),
+      );
+    });
 
-final studentPaymentsProvider = StreamProvider.family<List<Payment>, String>((ref, studentUid) {
+final studentPaymentsProvider = StreamProvider.family<List<Payment>, String>((
+  ref,
+  studentUid,
+) {
   return ref
       .watch(paymentRepositoryProvider(studentUid))
       .watchAll()
-      .map((payments) => payments.toList()..sort((a, b) => b.date.compareTo(a.date)));
+      .map(
+        (payments) =>
+            payments.toList()..sort((a, b) => b.date.compareTo(a.date)),
+      );
 });
 
-double totalPaid(List<Payment> payments) => payments.fold(0, (sum, payment) => sum + payment.amount);
+double totalPaid(List<Payment> payments) =>
+    payments.fold(0, (sum, payment) => sum + payment.amount);
 
 /// Positive = still owed, negative = paid more than the final fee (an
 /// advance). Use [dueLabel] to render this correctly either way.
-double due(StudentProfile student, List<Payment> payments) => student.finalFee - totalPaid(payments);
+double due(StudentProfile student, List<Payment> payments) =>
+    student.finalFee - totalPaid(payments);
 
 /// "Due ₹500" when [due] is owed, "Advance ₹200" when overpaid, "Paid in
 /// full" when exactly settled.

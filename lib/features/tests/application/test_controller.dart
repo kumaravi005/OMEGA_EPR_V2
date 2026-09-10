@@ -15,7 +15,9 @@ class TestActionFailure implements Exception {
   String toString() => message;
 }
 
-final testControllerProvider = Provider<TestController>((ref) => TestController(ref));
+final testControllerProvider = Provider<TestController>(
+  (ref) => TestController(ref),
+);
 
 class TestController {
   TestController(this._ref);
@@ -32,7 +34,9 @@ class TestController {
     required TestType testType,
     required String? description,
   }) async {
-    if (totalMarks <= 0) throw const TestActionFailure('Total marks must be greater than zero.');
+    if (totalMarks <= 0) {
+      throw const TestActionFailure('Total marks must be greater than zero.');
+    }
     final teacher = _ref.read(currentUserAccountProvider).valueOrNull;
     if (teacher == null) throw const TestActionFailure('Please sign in again.');
 
@@ -66,7 +70,9 @@ class TestController {
         relatedId: id,
       );
     } catch (_) {
-      throw const TestActionFailure('Could not create the test. Please try again.');
+      throw const TestActionFailure(
+        'Could not create the test. Please try again.',
+      );
     }
   }
 
@@ -78,9 +84,13 @@ class TestController {
     required double obtainedMarks,
     required String? remark,
   }) async {
-    if (obtainedMarks < 0) throw const TestActionFailure('Obtained marks cannot be negative.');
+    if (obtainedMarks < 0) {
+      throw const TestActionFailure('Obtained marks cannot be negative.');
+    }
     if (obtainedMarks > test.totalMarks) {
-      throw const TestActionFailure('Obtained marks cannot exceed the total marks.');
+      throw const TestActionFailure(
+        'Obtained marks cannot exceed the total marks.',
+      );
     }
 
     final teacher = _ref.read(currentUserAccountProvider).valueOrNull;
@@ -88,7 +98,9 @@ class TestController {
 
     final id = TestResult.idFor(testId: test.testId, studentUid: studentUid);
     try {
-      final existing = await _ref.read(testResultRepositoryProvider).getById(id);
+      final existing = await _ref
+          .read(testResultRepositoryProvider)
+          .getById(id);
       final now = DateTime.now();
       await _ref
           .read(testResultRepositoryProvider)
@@ -108,7 +120,9 @@ class TestController {
             ),
           );
     } catch (_) {
-      throw const TestActionFailure('Could not save the mark. Please try again.');
+      throw const TestActionFailure(
+        'Could not save the mark. Please try again.',
+      );
     }
   }
 
@@ -129,7 +143,9 @@ class TestController {
         relatedId: test.testId,
       );
     } catch (_) {
-      throw const TestActionFailure('Could not publish the result. Please try again.');
+      throw const TestActionFailure(
+        'Could not publish the result. Please try again.',
+      );
     }
   }
 }

@@ -27,7 +27,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _consumeSessionMessage());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _consumeSessionMessage(),
+    );
   }
 
   @override
@@ -57,7 +59,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       await ref
           .read(authControllerProvider)
-          .login(accountId: _accountIdController.text, password: _passwordController.text);
+          .login(
+            accountId: _accountIdController.text,
+            password: _passwordController.text,
+          );
     } on AuthFailure catch (failure) {
       if (!mounted) return;
       setState(() => _errorMessage = failure.message);
@@ -67,7 +72,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   String? _validateAccountId(String? value) {
-    final requiredError = Validators.required(value, message: 'Account ID is required');
+    final requiredError = Validators.required(
+      value,
+      message: 'Account ID is required',
+    );
     if (requiredError != null) return requiredError;
     if (!AppConstants.accountIdPattern.hasMatch(value!.trim().toLowerCase())) {
       return 'Enter a valid Account ID';
@@ -109,9 +117,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           if (_errorMessage != null) ...[
                             Text(
                               _errorMessage!,
-                              style: Theme.of(
-                                context,
-                              ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.error),
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -129,17 +138,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             label: 'Password',
                             enabled: !_isSubmitting,
                             obscureText: _obscurePassword,
-                            validator: (value) => Validators.required(value, message: 'Password is required'),
+                            validator: (value) => Validators.required(
+                              value,
+                              message: 'Password is required',
+                            ),
                             textInputAction: TextInputAction.done,
                             autofillHints: const [AutofillHints.password],
                             suffixIcon: IconButton(
-                              icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                              tooltip: _obscurePassword ? 'Show password' : 'Hide password',
-                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                              tooltip: _obscurePassword
+                                  ? 'Show password'
+                                  : 'Hide password',
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
                             ),
                           ),
                           const SizedBox(height: AppSpacing.lg),
-                          AppButton(label: 'Sign in', isLoading: _isSubmitting, onPressed: _submit),
+                          AppButton(
+                            label: 'Sign in',
+                            isLoading: _isSubmitting,
+                            onPressed: _submit,
+                          ),
                         ],
                       ),
                     ),

@@ -43,11 +43,8 @@ service cloud.firestore {
         && callerAccount().active == true;
     }
 
-    // For "student may read their batch's homework/assignments/tests"
-    // checks (Set 4) - based on the student's CURRENT batch, unlike
-    // attendance's own records map which reflects batch membership at the
-    // time attendance was taken (see selfSessionUpdateIsValid's sibling
-    // rules below for why that distinction matters).
+    // For "student may read their batch's homework/assignments/tests/
+    // attendance" checks - based on the student's CURRENT batch.
     function callerStudentDoc() {
       return get(/databases/$(database)/documents/students/$(request.auth.uid)).data;
     }
@@ -238,8 +235,13 @@ service cloud.firestore {
     }
 
     match /students/{studentId} {
-      allow get: if isAdmin() || isSelf(studentId);
-      allow list: if isAdmin();
+      // A teacher needs the roster (e.g. to enter marks / mark
+      // attendance for a batch) - same "any active teacher may work
+      // with any batch" scope decision already made for homework/
+      // assignments/tests (see docs/database-architecture.md), not a
+      // per-assignment restriction.
+      allow get: if isAdmin() || isTeacher() || isSelf(studentId);
+      allow list: if isAdmin() || isTeacher();
       allow create: if isAdmin() && newStudentIsValid(studentId);
       allow update: if isAdmin() && studentUpdateIsValid();
       allow delete: if false;
@@ -317,9 +319,20 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(attendanceFields());
     }
 
+    // Student branch is scoped by the record's `batchId` (queryable via
+    // `.where('batchId', ==, ...)`, which Firestore's `list` rule
+    // evaluation requires - it can't verify an unconstrained scan
+    // against a per-document map-membership check like
+    // `records.keys().hasAny([uid])`, since nothing in such a query
+    // provably guarantees every possible result matches). This uses the
+    // student's CURRENT batch (like homework/assignments/tests), not
+    // batch membership at the time attendance was taken - a student
+    // moved to a different batch loses access to the old batch's
+    // history. Accepted trade-off: correctness of "can this query even
+    // run" beats preserving access to a superseded batch's records.
     match /attendance/{recordId} {
-      allow get: if isAdmin() || isTeacher() || (isSignedIn() && resource.data.records.keys().hasAny([request.auth.uid]));
-      allow list: if isAdmin() || isTeacher() || (isSignedIn() && resource.data.records.keys().hasAny([request.auth.uid]));
+      allow get: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
+      allow list: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
       allow create: if isAdmin() && newAttendanceIsValid(recordId);
       allow update: if isAdmin() && attendanceUpdateIsValid();
       allow delete: if false;

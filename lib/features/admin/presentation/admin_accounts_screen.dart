@@ -40,16 +40,20 @@ class AdminAccountsScreen extends ConsumerWidget {
       body: SafeArea(
         child: accountsAsync.when(
           loading: () => const LoadingView(message: 'Loading accounts...'),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load accounts.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load accounts.\n$error'),
           data: (accounts) {
             if (accounts.isEmpty) {
-              return const EmptyView(message: 'No accounts yet. Create the first one below.');
+              return const EmptyView(
+                message: 'No accounts yet. Create the first one below.',
+              );
             }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: accounts.length,
               separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-              itemBuilder: (context, index) => _AccountTile(account: accounts[index]),
+              itemBuilder: (context, index) =>
+                  _AccountTile(account: accounts[index]),
             );
           },
         ),
@@ -81,14 +85,22 @@ class _AccountTile extends ConsumerWidget {
               value: _AccountAction.toggleActive,
               child: Text(account.active ? 'Deactivate' : 'Activate'),
             ),
-            if (hasSession) const PopupMenuItem(value: _AccountAction.resetSession, child: Text('Reset session')),
+            if (hasSession)
+              const PopupMenuItem(
+                value: _AccountAction.resetSession,
+                child: Text('Reset session'),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _handleAction(BuildContext context, WidgetRef ref, _AccountAction action) async {
+  Future<void> _handleAction(
+    BuildContext context,
+    WidgetRef ref,
+    _AccountAction action,
+  ) async {
     final controller = ref.read(adminAccountControllerProvider);
     final messenger = ScaffoldMessenger.of(context);
     try {

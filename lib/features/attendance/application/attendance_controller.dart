@@ -14,7 +14,9 @@ class AttendanceFailure implements Exception {
   String toString() => message;
 }
 
-final attendanceControllerProvider = Provider<AttendanceController>((ref) => AttendanceController(ref));
+final attendanceControllerProvider = Provider<AttendanceController>(
+  (ref) => AttendanceController(ref),
+);
 
 class AttendanceController {
   AttendanceController(this._ref);
@@ -36,7 +38,9 @@ class AttendanceController {
     final now = DateTime.now();
 
     try {
-      final existing = await _ref.read(studentAttendanceRepositoryProvider).getById('${batchId}_$key');
+      final existing = await _ref
+          .read(studentAttendanceRepositoryProvider)
+          .getById('${batchId}_$key');
       await _ref
           .read(studentAttendanceRepositoryProvider)
           .set(
@@ -53,7 +57,9 @@ class AttendanceController {
             ),
           );
     } catch (_) {
-      throw const AttendanceFailure('Could not save attendance. Please try again.');
+      throw const AttendanceFailure(
+        'Could not save attendance. Please try again.',
+      );
     }
   }
 
@@ -70,7 +76,9 @@ class AttendanceController {
     final now = DateTime.now();
 
     try {
-      final existing = await _ref.read(teacherAttendanceRepositoryProvider).getById('${teacherUid}_$key');
+      final existing = await _ref
+          .read(teacherAttendanceRepositoryProvider)
+          .getById('${teacherUid}_$key');
       await _ref
           .read(teacherAttendanceRepositoryProvider)
           .set(
@@ -87,7 +95,9 @@ class AttendanceController {
             ),
           );
     } catch (_) {
-      throw const AttendanceFailure('Could not save attendance. Please try again.');
+      throw const AttendanceFailure(
+        'Could not save attendance. Please try again.',
+      );
     }
   }
 }

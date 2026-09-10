@@ -26,16 +26,20 @@ class TeacherListScreen extends ConsumerWidget {
       body: SafeArea(
         child: teachersAsync.when(
           loading: () => const LoadingView(message: 'Loading teachers...'),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load teachers.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load teachers.\n$error'),
           data: (teachers) {
             if (teachers.isEmpty) {
-              return const EmptyView(message: 'No teachers yet. Create one below.');
+              return const EmptyView(
+                message: 'No teachers yet. Create one below.',
+              );
             }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: teachers.length,
               separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-              itemBuilder: (context, index) => _TeacherTile(teacher: teachers[index]),
+              itemBuilder: (context, index) =>
+                  _TeacherTile(teacher: teachers[index]),
             );
           },
         ),
@@ -53,14 +57,21 @@ class _TeacherTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final assignmentSummary = teacher.assignments.isEmpty
         ? 'No class/subject assignments yet'
-        : teacher.assignments.map((a) => '${a.className} - ${a.subject}').join(', ');
+        : teacher.assignments
+              .map((a) => '${a.className} - ${a.subject}')
+              .join(', ');
 
     return Card(
       child: ListTile(
         title: Text('${teacher.name} (${teacher.accountId})'),
-        subtitle: Text('${teacher.qualification}\n$assignmentSummary', maxLines: 2, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          '${teacher.qualification}\n$assignmentSummary',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
         isThreeLine: true,
-        onTap: () => context.push('${AppRoutes.adminTeachers}/${teacher.uid}/edit'),
+        onTap: () =>
+            context.push('${AppRoutes.adminTeachers}/${teacher.uid}/edit'),
       ),
     );
   }

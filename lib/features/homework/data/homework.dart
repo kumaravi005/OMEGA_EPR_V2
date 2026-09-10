@@ -12,7 +12,8 @@ enum CompletionStatus {
     );
   }
 
-  String get label => this == CompletionStatus.completed ? 'Completed' : 'Pending';
+  String get label =>
+      this == CompletionStatus.completed ? 'Completed' : 'Pending';
 }
 
 /// One homework entry for a batch/subject - never per-student (a batch's
@@ -40,7 +41,9 @@ class Homework implements FirestoreDocument {
       date: (map['date'] as Timestamp).toDate(),
       description: map['description'] as String,
       dueDate: (map['dueDate'] as Timestamp).toDate(),
-      completionStatus: CompletionStatus.fromValue(map['completionStatus'] as String),
+      completionStatus: CompletionStatus.fromValue(
+        map['completionStatus'] as String,
+      ),
       remark: map['remark'] as String?,
       createdBy: map['createdBy'] as String,
       createdAt: (map['createdAt'] as Timestamp).toDate(),

@@ -38,7 +38,8 @@ class _HomeworkListScreenState extends ConsumerState<HomeworkListScreen> {
       appBar: AppBar(title: const Text('Homework')),
       floatingActionButton: _isTeacherView && _batchId != null
           ? FloatingActionButton.extended(
-              onPressed: () => showCreateHomeworkDialog(context, batchId: _batchId!),
+              onPressed: () =>
+                  showCreateHomeworkDialog(context, batchId: _batchId!),
               icon: const Icon(Icons.add),
               label: const Text('New homework'),
             )
@@ -51,9 +52,14 @@ class _HomeworkListScreenState extends ConsumerState<HomeworkListScreen> {
                   final batchesAsync = ref.watch(activeBatchesProvider);
                   return batchesAsync.when(
                     loading: () => const LoadingView(),
-                    error: (error, stackTrace) => ErrorView(message: 'Could not load batches.\n$error'),
+                    error: (error, stackTrace) =>
+                        ErrorView(message: 'Could not load batches.\n$error'),
                     data: (batches) {
-                      if (batches.isEmpty) return const EmptyView(message: 'No active batches yet.');
+                      if (batches.isEmpty) {
+                        return const EmptyView(
+                          message: 'No active batches yet.',
+                        );
+                      }
                       _batchId ??= batches.first.batchId;
                       return Column(
                         children: [
@@ -61,14 +67,27 @@ class _HomeworkListScreenState extends ConsumerState<HomeworkListScreen> {
                             padding: const EdgeInsets.all(AppSpacing.md),
                             child: DropdownButtonFormField<String>(
                               initialValue: _batchId,
-                              decoration: const InputDecoration(labelText: 'Batch'),
+                              decoration: const InputDecoration(
+                                labelText: 'Batch',
+                              ),
                               items: batches
-                                  .map((b) => DropdownMenuItem(value: b.batchId, child: Text(b.name)))
+                                  .map(
+                                    (b) => DropdownMenuItem(
+                                      value: b.batchId,
+                                      child: Text(b.name),
+                                    ),
+                                  )
                                   .toList(),
-                              onChanged: (value) => setState(() => _batchId = value),
+                              onChanged: (value) =>
+                                  setState(() => _batchId = value),
                             ),
                           ),
-                          Expanded(child: _HomeworkForBatch(batchId: _batchId!, isTeacherView: true)),
+                          Expanded(
+                            child: _HomeworkForBatch(
+                              batchId: _batchId!,
+                              isTeacherView: true,
+                            ),
+                          ),
                         ],
                       );
                     },
@@ -92,14 +111,18 @@ class _HomeworkForBatch extends ConsumerWidget {
 
     return homeworkAsync.when(
       loading: () => const LoadingView(),
-      error: (error, stackTrace) => ErrorView(message: 'Could not load homework.\n$error'),
+      error: (error, stackTrace) =>
+          ErrorView(message: 'Could not load homework.\n$error'),
       data: (items) {
         if (items.isEmpty) return const EmptyView(message: 'No homework yet.');
         return ListView.separated(
           padding: const EdgeInsets.all(AppSpacing.md),
           itemCount: items.length,
           separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-          itemBuilder: (context, index) => _HomeworkTile(homework: items[index], isTeacherView: isTeacherView),
+          itemBuilder: (context, index) => _HomeworkTile(
+            homework: items[index],
+            isTeacherView: isTeacherView,
+          ),
         );
       },
     );
@@ -117,21 +140,37 @@ class _HomeworkTile extends ConsumerWidget {
     return Card(
       child: ListTile(
         title: Text(homework.subject),
-        subtitle: Text('${homework.description}\nDue ${dateKey(homework.dueDate)}'),
+        subtitle: Text(
+          '${homework.description}\nDue ${dateKey(homework.dueDate)}',
+        ),
         isThreeLine: true,
         trailing: isTeacherView
             ? PopupMenuButton<CompletionStatus>(
                 onSelected: (status) async {
                   final messenger = ScaffoldMessenger.of(context);
                   try {
-                    await ref.read(homeworkControllerProvider).setCompletion(homework, status: status, remark: homework.remark);
+                    await ref
+                        .read(homeworkControllerProvider)
+                        .setCompletion(
+                          homework,
+                          status: status,
+                          remark: homework.remark,
+                        );
                   } on HomeworkFailure catch (failure) {
-                    messenger.showSnackBar(SnackBar(content: Text(failure.message)));
+                    messenger.showSnackBar(
+                      SnackBar(content: Text(failure.message)),
+                    );
                   }
                 },
                 itemBuilder: (context) => const [
-                  PopupMenuItem(value: CompletionStatus.pending, child: Text('Mark pending')),
-                  PopupMenuItem(value: CompletionStatus.completed, child: Text('Mark completed')),
+                  PopupMenuItem(
+                    value: CompletionStatus.pending,
+                    child: Text('Mark pending'),
+                  ),
+                  PopupMenuItem(
+                    value: CompletionStatus.completed,
+                    child: Text('Mark completed'),
+                  ),
                 ],
                 child: Chip(label: Text(homework.completionStatus.label)),
               )

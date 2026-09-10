@@ -30,13 +30,19 @@ void main() {
       batchId: 'batch1',
       dateKey: '2026-09-10',
       date: now,
-      records: const {'stu1': AttendanceStatus.present, 'stu2': AttendanceStatus.absent},
+      records: const {
+        'stu1': AttendanceStatus.present,
+        'stu2': AttendanceStatus.absent,
+      },
       markedBy: 'admin1',
       createdAt: now,
       updatedAt: now,
     );
 
-    final restored = StudentAttendanceRecord.fromMap(record.recordId, record.toMap());
+    final restored = StudentAttendanceRecord.fromMap(
+      record.recordId,
+      record.toMap(),
+    );
 
     expect(restored.records['stu1'], AttendanceStatus.present);
     expect(restored.records['stu2'], AttendanceStatus.absent);

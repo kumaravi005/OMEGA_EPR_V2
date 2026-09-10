@@ -11,7 +11,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     await CrashlyticsService.initialize();
   } catch (error, stackTrace) {
     // Expected until real Firebase project values are added — see
@@ -26,10 +28,14 @@ Future<void> main() async {
   // stuck before runApp is even called.
   final container = ProviderContainer();
   try {
-    await container.read(sharedPreferencesProvider.future).timeout(const Duration(seconds: 5));
+    await container
+        .read(sharedPreferencesProvider.future)
+        .timeout(const Duration(seconds: 5));
   } catch (error, stackTrace) {
     AppLogger.error('SharedPreferences preload failed', error, stackTrace);
   }
 
-  runApp(UncontrolledProviderScope(container: container, child: const OmegaApp()));
+  runApp(
+    UncontrolledProviderScope(container: container, child: const OmegaApp()),
+  );
 }

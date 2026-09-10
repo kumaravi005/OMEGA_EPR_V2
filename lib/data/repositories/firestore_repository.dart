@@ -35,12 +35,39 @@ class FirestoreRepository<T> {
 
   Future<List<T>> getAll() async {
     final snapshot = await _dataSource.fetchAll();
-    return snapshot.docs.map((doc) => _fromFirestore(doc.id, doc.data())).toList();
+    return snapshot.docs
+        .map((doc) => _fromFirestore(doc.id, doc.data()))
+        .toList();
   }
 
   Stream<List<T>> watchAll() {
     return _dataSource.watchAll().map(
-      (snapshot) => snapshot.docs.map((doc) => _fromFirestore(doc.id, doc.data())).toList(),
+      (snapshot) => snapshot.docs
+          .map((doc) => _fromFirestore(doc.id, doc.data()))
+          .toList(),
+    );
+  }
+
+  /// Like [watchAll], but scoped by [builder] (`.where(...)`) before
+  /// Firestore evaluates the collection's `list` security rule.
+  ///
+  /// Needed whenever a rule's non-privileged branch depends on document
+  /// fields (e.g. "only rows where teacherUid == me", "only rows where
+  /// active == true"): Firestore can only verify such a rule against a
+  /// query that is itself constrained to match it. An unconstrained scan
+  /// filtered client-side afterward is rejected outright with
+  /// `permission-denied` for that rule branch - even for a caller who
+  /// could legitimately see some of the matching documents - so the
+  /// query itself has to carry the same condition the rule checks (see
+  /// docs/database-architecture.md).
+  Stream<List<T>> watchWhere(
+    Query<Map<String, dynamic>> Function(Query<Map<String, dynamic>> query)
+    builder,
+  ) {
+    return builder(_dataSource.raw).snapshots().map(
+      (snapshot) => snapshot.docs
+          .map((doc) => _fromFirestore(doc.id, doc.data()))
+          .toList(),
     );
   }
 

@@ -7,8 +7,14 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../application/homework_controller.dart';
 
-Future<void> showCreateHomeworkDialog(BuildContext context, {required String batchId}) {
-  return showDialog<void>(context: context, builder: (context) => _CreateHomeworkDialog(batchId: batchId));
+Future<void> showCreateHomeworkDialog(
+  BuildContext context, {
+  required String batchId,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (context) => _CreateHomeworkDialog(batchId: batchId),
+  );
 }
 
 class _CreateHomeworkDialog extends ConsumerStatefulWidget {
@@ -17,7 +23,8 @@ class _CreateHomeworkDialog extends ConsumerStatefulWidget {
   final String batchId;
 
   @override
-  ConsumerState<_CreateHomeworkDialog> createState() => _CreateHomeworkDialogState();
+  ConsumerState<_CreateHomeworkDialog> createState() =>
+      _CreateHomeworkDialogState();
 }
 
 class _CreateHomeworkDialogState extends ConsumerState<_CreateHomeworkDialog> {
@@ -51,6 +58,11 @@ class _CreateHomeworkDialogState extends ConsumerState<_CreateHomeworkDialog> {
   Future<void> _submit() async {
     final form = _formKey.currentState;
     if (form == null || !form.validate()) return;
+
+    if (_dueDate.isBefore(_date)) {
+      setState(() => _errorMessage = 'Due date cannot be before the homework date.');
+      return;
+    }
 
     setState(() {
       _isSubmitting = true;
@@ -87,21 +99,28 @@ class _CreateHomeworkDialogState extends ConsumerState<_CreateHomeworkDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_errorMessage != null) ...[
-              Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
             AppTextField(
               controller: _subjectController,
               label: 'Subject',
               enabled: !_isSubmitting,
-              validator: (value) => Validators.required(value, message: 'Subject is required'),
+              validator: (value) =>
+                  Validators.required(value, message: 'Subject is required'),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppTextField(
               controller: _descriptionController,
               label: 'Description',
               enabled: !_isSubmitting,
-              validator: (value) => Validators.required(value, message: 'Description is required'),
+              validator: (value) => Validators.required(
+                value,
+                message: 'Description is required',
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
             ListTile(
@@ -120,8 +139,15 @@ class _CreateHomeworkDialogState extends ConsumerState<_CreateHomeworkDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        AppButton(label: 'Create', isLoading: _isSubmitting, onPressed: _submit),
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        AppButton(
+          label: 'Create',
+          isLoading: _isSubmitting,
+          onPressed: _submit,
+        ),
       ],
     );
   }

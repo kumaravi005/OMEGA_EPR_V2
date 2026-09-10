@@ -47,10 +47,15 @@ class DocxReportBuilder {
 
   String _buildDocumentXml(ExportDataset dataset) {
     final builder = XmlBuilder();
-    builder.processing('xml', 'version="1.0" encoding="UTF-8" standalone="yes"');
+    builder.processing(
+      'xml',
+      'version="1.0" encoding="UTF-8" standalone="yes"',
+    );
     builder.element(
       'w:document',
-      namespaces: {'http://schemas.openxmlformats.org/wordprocessingml/2006/main': 'w'},
+      namespaces: {
+        'http://schemas.openxmlformats.org/wordprocessingml/2006/main': 'w',
+      },
       nest: () {
         builder.element(
           'w:body',
@@ -64,7 +69,15 @@ class DocxReportBuilder {
                 (header.contact, false, 16),
                 (header.otherText, false, 16),
               ]) {
-                if (text != null) _paragraph(builder, text, bold: bold, size: size, color: bold ? null : '616161');
+                if (text != null) {
+                  _paragraph(
+                    builder,
+                    text,
+                    bold: bold,
+                    size: size,
+                    color: bold ? null : '616161',
+                  );
+                }
               }
               _emptyParagraph(builder);
             }
@@ -82,7 +95,13 @@ class DocxReportBuilder {
     return builder.buildDocument().toXmlString();
   }
 
-  void _paragraph(XmlBuilder builder, String text, {bool bold = false, int size = 20, String? color}) {
+  void _paragraph(
+    XmlBuilder builder,
+    String text, {
+    bool bold = false,
+    int size = 20,
+    String? color,
+  }) {
     builder.element(
       'w:p',
       nest: () {
@@ -94,10 +113,16 @@ class DocxReportBuilder {
               nest: () {
                 if (bold) builder.element('w:b');
                 builder.element('w:sz', attributes: {'w:val': '$size'});
-                if (color != null) builder.element('w:color', attributes: {'w:val': color});
+                if (color != null) {
+                  builder.element('w:color', attributes: {'w:val': color});
+                }
               },
             );
-            builder.element('w:t', attributes: {'xml:space': 'preserve'}, nest: text);
+            builder.element(
+              'w:t',
+              attributes: {'xml:space': 'preserve'},
+              nest: text,
+            );
           },
         );
       },
@@ -117,17 +142,35 @@ class DocxReportBuilder {
             builder.element(
               'w:tblBorders',
               nest: () {
-                for (final edge in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']) {
+                for (final edge in [
+                  'top',
+                  'left',
+                  'bottom',
+                  'right',
+                  'insideH',
+                  'insideV',
+                ]) {
                   builder.element(
                     'w:$edge',
-                    attributes: {'w:val': 'single', 'w:sz': '4', 'w:space': '0', 'w:color': 'BFBFBF'},
+                    attributes: {
+                      'w:val': 'single',
+                      'w:sz': '4',
+                      'w:space': '0',
+                      'w:color': 'BFBFBF',
+                    },
                   );
                 }
               },
             );
           },
         );
-        _tableRow(builder, dataset.columns, bold: true, shadingHex: '455A64', textColorHex: 'FFFFFF');
+        _tableRow(
+          builder,
+          dataset.columns,
+          bold: true,
+          shadingHex: '455A64',
+          textColorHex: 'FFFFFF',
+        );
         for (final row in dataset.rows) {
           _tableRow(builder, row);
         }
@@ -135,7 +178,13 @@ class DocxReportBuilder {
     );
   }
 
-  void _tableRow(XmlBuilder builder, List<String> cells, {bool bold = false, String? shadingHex, String? textColorHex}) {
+  void _tableRow(
+    XmlBuilder builder,
+    List<String> cells, {
+    bool bold = false,
+    String? shadingHex,
+    String? textColorHex,
+  }) {
     builder.element(
       'w:tr',
       nest: () {
@@ -146,10 +195,19 @@ class DocxReportBuilder {
               if (shadingHex != null) {
                 builder.element(
                   'w:tcPr',
-                  nest: () => builder.element('w:shd', attributes: {'w:val': 'clear', 'w:fill': shadingHex}),
+                  nest: () => builder.element(
+                    'w:shd',
+                    attributes: {'w:val': 'clear', 'w:fill': shadingHex},
+                  ),
                 );
               }
-              _paragraph(builder, cell, bold: bold, size: 18, color: textColorHex);
+              _paragraph(
+                builder,
+                cell,
+                bold: bold,
+                size: 18,
+                color: textColorHex,
+              );
             },
           );
         }
@@ -165,7 +223,11 @@ class DocxReportBuilder {
       nest: () {
         builder.element(
           'w:pgSz',
-          attributes: {'w:w': '$width', 'w:h': '$height', if (landscape) 'w:orient': 'landscape'},
+          attributes: {
+            'w:w': '$width',
+            'w:h': '$height',
+            if (landscape) 'w:orient': 'landscape',
+          },
         );
         builder.element(
           'w:pgMar',

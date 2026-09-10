@@ -28,16 +28,21 @@ class BatchListScreen extends ConsumerWidget {
       body: SafeArea(
         child: batchesAsync.when(
           loading: () => const LoadingView(message: 'Loading batches...'),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load batches.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load batches.\n$error'),
           data: (batches) {
             if (batches.isEmpty) {
-              return const EmptyView(message: 'No batches yet. Create one to start admitting students.');
+              return const EmptyView(
+                message:
+                    'No batches yet. Create one to start admitting students.',
+              );
             }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: batches.length,
               separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-              itemBuilder: (context, index) => _BatchTile(batch: batches[index]),
+              itemBuilder: (context, index) =>
+                  _BatchTile(batch: batches[index]),
             );
           },
         ),
@@ -72,7 +77,10 @@ class _BatchTile extends ConsumerWidget {
             }
           },
           itemBuilder: (context) => [
-            PopupMenuItem(value: !batch.active, child: Text(batch.active ? 'Deactivate' : 'Activate')),
+            PopupMenuItem(
+              value: !batch.active,
+              child: Text(batch.active ? 'Deactivate' : 'Activate'),
+            ),
           ],
         ),
       ),
@@ -81,7 +89,10 @@ class _BatchTile extends ConsumerWidget {
 }
 
 void _showBatchForm(BuildContext context, {Batch? existing}) {
-  showDialog<void>(context: context, builder: (context) => _BatchFormDialog(existing: existing));
+  showDialog<void>(
+    context: context,
+    builder: (context) => _BatchFormDialog(existing: existing),
+  );
 }
 
 class _BatchFormDialog extends ConsumerStatefulWidget {
@@ -95,7 +106,9 @@ class _BatchFormDialog extends ConsumerStatefulWidget {
 
 class _BatchFormDialogState extends ConsumerState<_BatchFormDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final _nameController = TextEditingController(text: widget.existing?.name ?? '');
+  late final _nameController = TextEditingController(
+    text: widget.existing?.name ?? '',
+  );
   late final _monthlyController = TextEditingController(
     text: widget.existing?.standardMonthlyFee.toStringAsFixed(0) ?? '',
   );
@@ -162,21 +175,27 @@ class _BatchFormDialogState extends ConsumerState<_BatchFormDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_errorMessage != null) ...[
-              Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
             AppTextField(
               controller: _nameController,
               label: 'Batch name',
               enabled: !_isSubmitting,
-              validator: (value) => Validators.required(value, message: 'Batch name is required'),
+              validator: (value) =>
+                  Validators.required(value, message: 'Batch name is required'),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppTextField(
               controller: _monthlyController,
               label: 'Standard monthly fee',
               enabled: !_isSubmitting,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               validator: _validateAmount,
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -184,14 +203,19 @@ class _BatchFormDialogState extends ConsumerState<_BatchFormDialog> {
               controller: _installmentController,
               label: 'Standard installment fee',
               enabled: !_isSubmitting,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               validator: _validateAmount,
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
         AppButton(label: 'Save', isLoading: _isSubmitting, onPressed: _submit),
       ],
     );

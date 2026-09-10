@@ -14,7 +14,9 @@ class HomeworkFailure implements Exception {
   String toString() => message;
 }
 
-final homeworkControllerProvider = Provider<HomeworkController>((ref) => HomeworkController(ref));
+final homeworkControllerProvider = Provider<HomeworkController>(
+  (ref) => HomeworkController(ref),
+);
 
 class HomeworkController {
   HomeworkController(this._ref);
@@ -59,19 +61,29 @@ class HomeworkController {
         relatedId: id,
       );
     } catch (_) {
-      throw const HomeworkFailure('Could not create homework. Please try again.');
+      throw const HomeworkFailure(
+        'Could not create homework. Please try again.',
+      );
     }
   }
 
-  Future<void> setCompletion(Homework existing, {required CompletionStatus status, required String? remark}) async {
+  Future<void> setCompletion(
+    Homework existing, {
+    required CompletionStatus status,
+    required String? remark,
+  }) async {
     try {
-      await _ref.read(homeworkRepositoryProvider).updateFields(existing.homeworkId, {
-        'completionStatus': status.name,
-        'remark': remark?.trim(),
-        'updatedAt': Timestamp.now(),
-      });
+      await _ref
+          .read(homeworkRepositoryProvider)
+          .updateFields(existing.homeworkId, {
+            'completionStatus': status.name,
+            'remark': remark?.trim(),
+            'updatedAt': Timestamp.now(),
+          });
     } catch (_) {
-      throw const HomeworkFailure('Could not update homework. Please try again.');
+      throw const HomeworkFailure(
+        'Could not update homework. Please try again.',
+      );
     }
   }
 }

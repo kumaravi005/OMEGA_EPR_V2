@@ -16,9 +16,14 @@ final batchRepositoryProvider = Provider<FirestoreRepository<Batch>>((ref) {
 /// Active batches only - for pickers (student admission) where a retired
 /// batch shouldn't be selectable for new admissions.
 final activeBatchesProvider = StreamProvider<List<Batch>>((ref) {
-  return ref.watch(batchRepositoryProvider).watchAll().map(
-    (batches) => batches.where((batch) => batch.active).toList()..sort((a, b) => a.name.compareTo(b.name)),
-  );
+  return ref
+      .watch(batchRepositoryProvider)
+      .watchAll()
+      .map(
+        (batches) =>
+            batches.where((batch) => batch.active).toList()
+              ..sort((a, b) => a.name.compareTo(b.name)),
+      );
 });
 
 /// All batches, including inactive ones - for the admin's batch list.
@@ -26,5 +31,7 @@ final allBatchesProvider = StreamProvider<List<Batch>>((ref) {
   return ref
       .watch(batchRepositoryProvider)
       .watchAll()
-      .map((batches) => batches.toList()..sort((a, b) => a.name.compareTo(b.name)));
+      .map(
+        (batches) => batches.toList()..sort((a, b) => a.name.compareTo(b.name)),
+      );
 });

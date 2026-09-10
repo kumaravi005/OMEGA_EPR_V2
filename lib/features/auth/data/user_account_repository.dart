@@ -4,11 +4,12 @@ import '../../../core/services/firebase_providers.dart';
 import '../../../data/repositories/firestore_repository.dart';
 import 'user_account.dart';
 
-final userAccountRepositoryProvider = Provider<FirestoreRepository<UserAccount>>((ref) {
-  return FirestoreRepository<UserAccount>(
-    firestore: ref.watch(firestoreProvider),
-    collectionPath: FirestoreCollections.users,
-    fromFirestore: UserAccount.fromMap,
-    toFirestore: (account) => account.toMap(),
-  );
-});
+final userAccountRepositoryProvider =
+    Provider<FirestoreRepository<UserAccount>>((ref) {
+      return FirestoreRepository<UserAccount>(
+        firestore: ref.watch(firestoreProvider),
+        collectionPath: FirestoreCollections.users,
+        fromFirestore: UserAccount.fromMap,
+        toFirestore: (account) => account.toMap(),
+      );
+    });

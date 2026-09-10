@@ -6,6 +6,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
+import '../data/my_notifications_provider.dart';
 
 /// A read-only feed of notification events targeted to the signed-in
 /// user (firestore.rules does the actual targeting - see
@@ -22,9 +23,12 @@ class NotificationsScreen extends ConsumerWidget {
       body: SafeArea(
         child: eventsAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load notifications.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load notifications.\n$error'),
           data: (events) {
-            if (events.isEmpty) return const EmptyView(message: 'No notifications yet.');
+            if (events.isEmpty) {
+              return const EmptyView(message: 'No notifications yet.');
+            }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: events.length,

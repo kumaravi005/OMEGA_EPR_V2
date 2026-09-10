@@ -6,6 +6,7 @@ import '../../../core/export/export_service.dart';
 import '../../../core/export/report_branding.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/date_key.dart';
+import '../../../core/utils/error_formatting.dart';
 import '../../../core/utils/marks_combiner.dart';
 import '../../../core/utils/ranking.dart';
 import '../../../core/widgets/app_button.dart';
@@ -37,10 +38,12 @@ class TestResultExportScreen extends ConsumerStatefulWidget {
   const TestResultExportScreen({super.key});
 
   @override
-  ConsumerState<TestResultExportScreen> createState() => _TestResultExportScreenState();
+  ConsumerState<TestResultExportScreen> createState() =>
+      _TestResultExportScreenState();
 }
 
-class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen> {
+class _TestResultExportScreenState
+    extends ConsumerState<TestResultExportScreen> {
   TestReportMode _mode = TestReportMode.specificTest;
   String? _batchId;
 
@@ -73,7 +76,9 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
   @override
   Widget build(BuildContext context) {
     final batchesAsync = ref.watch(allBatchesProvider);
-    final testsAsync = _batchId == null ? null : ref.watch(batchTestsProvider(_batchId!));
+    final testsAsync = _batchId == null
+        ? null
+        : ref.watch(batchTestsProvider(_batchId!));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Test result export')),
@@ -84,7 +89,10 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
             DropdownButtonFormField<TestReportMode>(
               initialValue: _mode,
               decoration: const InputDecoration(labelText: 'Report mode'),
-              items: [for (final mode in TestReportMode.values) DropdownMenuItem(value: mode, child: Text(mode.label))],
+              items: [
+                for (final mode in TestReportMode.values)
+                  DropdownMenuItem(value: mode, child: Text(mode.label)),
+              ],
               onChanged: (mode) => setState(() {
                 _mode = mode ?? _mode;
                 _resetSelections();
@@ -97,7 +105,13 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
               data: (batches) => DropdownButtonFormField<String?>(
                 initialValue: _batchId,
                 decoration: const InputDecoration(labelText: 'Batch'),
-                items: [for (final batch in batches) DropdownMenuItem<String?>(value: batch.batchId, child: Text(batch.name))],
+                items: [
+                  for (final batch in batches)
+                    DropdownMenuItem<String?>(
+                      value: batch.batchId,
+                      child: Text(batch.name),
+                    ),
+                ],
                 onChanged: (value) => setState(() {
                   _batchId = value;
                   _resetSelections();
@@ -107,8 +121,12 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
             const SizedBox(height: AppSpacing.md),
             if (_batchId != null && testsAsync != null)
               testsAsync.when(
-                loading: () => const Padding(padding: EdgeInsets.all(AppSpacing.md), child: LinearProgressIndicator()),
-                error: (error, stackTrace) => Text('Could not load tests.\n$error'),
+                loading: () => const Padding(
+                  padding: EdgeInsets.all(AppSpacing.md),
+                  child: LinearProgressIndicator(),
+                ),
+                error: (error, stackTrace) =>
+                    Text('Could not load tests.\n$error'),
                 data: (tests) => _ModeSelector(
                   mode: _mode,
                   tests: tests,
@@ -119,7 +137,8 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
                     _subjectWiseTestIds.clear();
                   }),
                   specificTestId: _specificTestId,
-                  onSpecificTestChanged: (value) => setState(() => _specificTestId = value),
+                  onSpecificTestChanged: (value) =>
+                      setState(() => _specificTestId = value),
                   subjectWiseTestIds: _subjectWiseTestIds,
                   onSubjectWiseTestsChanged: (ids) => setState(() {
                     _subjectWiseTestIds
@@ -131,10 +150,13 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
                     _multiSubjects
                       ..clear()
                       ..addAll(subjects);
-                    _subjectTestChoice.removeWhere((subject, _) => !subjects.contains(subject));
+                    _subjectTestChoice.removeWhere(
+                      (subject, _) => !subjects.contains(subject),
+                    );
                   }),
                   subjectTestChoice: _subjectTestChoice,
-                  onSubjectTestChoiceChanged: (subject, testId) => setState(() => _subjectTestChoice[subject] = testId),
+                  onSubjectTestChoiceChanged: (subject, testId) =>
+                      setState(() => _subjectTestChoice[subject] = testId),
                 ),
               ),
             const SizedBox(height: AppSpacing.md),
@@ -143,35 +165,49 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
               contentPadding: EdgeInsets.zero,
               title: const Text('Rank'),
               value: _includeRank,
-              onChanged: (value) => setState(() => _includeRank = value ?? true),
+              onChanged: (value) =>
+                  setState(() => _includeRank = value ?? true),
             ),
             if (_mode != TestReportMode.specificTest) ...[
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Total'),
                 value: _includeTotal,
-                onChanged: (value) => setState(() => _includeTotal = value ?? true),
+                onChanged: (value) =>
+                    setState(() => _includeTotal = value ?? true),
               ),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Percentage'),
                 value: _includePercentage,
-                onChanged: (value) => setState(() => _includePercentage = value ?? true),
+                onChanged: (value) =>
+                    setState(() => _includePercentage = value ?? true),
               ),
             ],
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Sort by percentage, highest first'),
-              subtitle: const Text('Off sorts alphabetically by student name instead'),
+              subtitle: const Text(
+                'Off sorts alphabetically by student name instead',
+              ),
               value: _sortByPercentage,
               onChanged: (value) => setState(() => _sortByPercentage = value),
             ),
             const SizedBox(height: AppSpacing.md),
-            FormatPicker(value: _format, onChanged: (format) => setState(() => _format = format)),
+            FormatPicker(
+              value: _format,
+              onChanged: (format) => setState(() => _format = format),
+            ),
             const SizedBox(height: AppSpacing.md),
-            OrientationPicker(value: _orientation, onChanged: (o) => setState(() => _orientation = o)),
+            OrientationPicker(
+              value: _orientation,
+              onChanged: (o) => setState(() => _orientation = o),
+            ),
             const SizedBox(height: AppSpacing.md),
-            ReportLayoutPicker(value: _layoutTemplateId, onChanged: (id) => setState(() => _layoutTemplateId = id)),
+            ReportLayoutPicker(
+              value: _layoutTemplateId,
+              onChanged: (id) => setState(() => _layoutTemplateId = id),
+            ),
             const SizedBox(height: AppSpacing.lg),
             AppButton(
               label: 'Generate export',
@@ -191,7 +227,10 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
       TestReportMode.specificTest => _specificTestId != null,
       TestReportMode.subjectWise => _subjectWiseTestIds.isNotEmpty,
       TestReportMode.multiSubject =>
-        _multiSubjects.isNotEmpty && _multiSubjects.every((subject) => _subjectTestChoice[subject] != null),
+        _multiSubjects.isNotEmpty &&
+            _multiSubjects.every(
+              (subject) => _subjectTestChoice[subject] != null,
+            ),
     };
   }
 
@@ -199,8 +238,9 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
     setState(() => _isGenerating = true);
     try {
       final students = await ref.read(studentRepositoryProvider).getAll();
-      final roster = students.where((s) => s.batchId == _batchId && s.active).toList()
-        ..sort((a, b) => a.name.compareTo(b.name));
+      final roster =
+          students.where((s) => s.batchId == _batchId && s.active).toList()
+            ..sort((a, b) => a.name.compareTo(b.name));
       final allResults = await ref.read(testResultRepositoryProvider).getAll();
       final allTests = await ref.read(testRepositoryProvider).getAll();
       // Fetched fresh, baked into a one-time snapshot - see
@@ -208,18 +248,46 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
       // generated report unaffected by a later template edit.
       final branding = _layoutTemplateId == null
           ? null
-          : (await ref.read(reportLayoutTemplateRepositoryProvider).getById(_layoutTemplateId!))?.toBranding();
+          : (await ref
+                    .read(reportLayoutTemplateRepositoryProvider)
+                    .getById(_layoutTemplateId!))
+                ?.toBranding();
 
       final dataset = switch (_mode) {
-        TestReportMode.specificTest => _buildSpecificTest(roster, allResults, allTests, branding),
-        TestReportMode.subjectWise => _buildSubjectWise(roster, allResults, allTests, branding),
-        TestReportMode.multiSubject => _buildMultiSubject(roster, allResults, allTests, branding),
+        TestReportMode.specificTest => _buildSpecificTest(
+          roster,
+          allResults,
+          allTests,
+          branding,
+        ),
+        TestReportMode.subjectWise => _buildSubjectWise(
+          roster,
+          allResults,
+          allTests,
+          branding,
+        ),
+        TestReportMode.multiSubject => _buildMultiSubject(
+          roster,
+          allResults,
+          allTests,
+          branding,
+        ),
       };
 
-      await const ExportService().export(dataset, _format, fileName: 'test_result');
+      await const ExportService().export(
+        dataset,
+        _format,
+        fileName: 'test_result',
+      );
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not generate the export.\n$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlyErrorText('Could not generate the export.\n$error'),
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isGenerating = false);
@@ -234,19 +302,29 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
   ) {
     final test = allTests.firstWhere((t) => t.testId == _specificTestId);
     final resultByStudent = {
-      for (final r in allResults.where((r) => r.testId == test.testId)) r.studentUid: r,
+      for (final r in allResults.where((r) => r.testId == test.testId))
+        r.studentUid: r,
     };
 
     final entries = [
       for (final student in roster)
-        (student: student, result: resultByStudent[student.uid], percentage: resultByStudent[student.uid]?.percentage),
+        (
+          student: student,
+          result: resultByStudent[student.uid],
+          percentage: resultByStudent[student.uid]?.percentage,
+        ),
     ];
-    _sortEntries(entries, nameOf: (e) => e.student.name, percentageOf: (e) => e.percentage);
+    _sortEntries(
+      entries,
+      nameOf: (e) => e.student.name,
+      percentageOf: (e) => e.percentage,
+    );
     final ranks = _ranksFor(entries.map((e) => e.percentage).toList());
 
     return ExportDataset(
       title: 'Test Result - ${test.title}',
-      subtitle: '${test.subject} | ${test.chapterTopic} | ${dateKey(test.date)}',
+      subtitle:
+          '${test.subject} | ${test.chapterTopic} | ${dateKey(test.date)}',
       columns: [
         'Student Name',
         if (_includeRank) 'Rank',
@@ -259,9 +337,13 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
           [
             entries[i].student.name,
             if (_includeRank) (ranks[i] == null ? '-' : '${ranks[i]}'),
-            entries[i].result == null ? '-' : entries[i].result!.obtainedMarks.toStringAsFixed(1),
+            entries[i].result == null
+                ? '-'
+                : entries[i].result!.obtainedMarks.toStringAsFixed(1),
             test.totalMarks.toStringAsFixed(0),
-            entries[i].percentage == null ? '-' : '${entries[i].percentage!.toStringAsFixed(1)}%',
+            entries[i].percentage == null
+                ? '-'
+                : '${entries[i].percentage!.toStringAsFixed(1)}%',
           ],
       ],
       orientation: _orientation,
@@ -275,8 +357,9 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
     List<TestDefinition> allTests,
     ReportBranding? branding,
   ) {
-    final tests = allTests.where((t) => _subjectWiseTestIds.contains(t.testId)).toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
+    final tests =
+        allTests.where((t) => _subjectWiseTestIds.contains(t.testId)).toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
     final maxMarks = [for (final test in tests) test.totalMarks];
 
     final entries = [
@@ -284,18 +367,34 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
         () {
           final marksPerTest = [
             for (final test in tests)
-              allResults.where((r) => r.testId == test.testId && r.studentUid == student.uid).firstOrNull?.obtainedMarks,
+              allResults
+                  .where(
+                    (r) =>
+                        r.testId == test.testId && r.studentUid == student.uid,
+                  )
+                  .firstOrNull
+                  ?.obtainedMarks,
           ];
           final combined = combineMarks(marksPerTest, maxMarks);
-          return (student: student, marksPerTest: marksPerTest, total: combined.total, percentage: combined.percentage);
+          return (
+            student: student,
+            marksPerTest: marksPerTest,
+            total: combined.total,
+            percentage: combined.percentage,
+          );
         }(),
     ];
-    _sortEntries(entries, nameOf: (e) => e.student.name, percentageOf: (e) => e.percentage);
+    _sortEntries(
+      entries,
+      nameOf: (e) => e.student.name,
+      percentageOf: (e) => e.percentage,
+    );
     final ranks = _ranksFor(entries.map((e) => e.percentage).toList());
 
     return ExportDataset(
       title: 'Test Result - Subject-wise',
-      subtitle: '${tests.isEmpty ? '' : tests.first.subject} | ${tests.length} test(s)',
+      subtitle:
+          '${tests.isEmpty ? '' : tests.first.subject} | ${tests.length} test(s)',
       columns: [
         'Student',
         if (_includeRank) 'Rank',
@@ -308,9 +407,13 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
           [
             entries[i].student.name,
             if (_includeRank) (ranks[i] == null ? '-' : '${ranks[i]}'),
-            for (final marks in entries[i].marksPerTest) (marks == null ? '-' : marks.toStringAsFixed(1)),
+            for (final marks in entries[i].marksPerTest)
+              (marks == null ? '-' : marks.toStringAsFixed(1)),
             if (_includeTotal) entries[i].total.toStringAsFixed(1),
-            if (_includePercentage) (entries[i].percentage == null ? '-' : '${entries[i].percentage!.toStringAsFixed(1)}%'),
+            if (_includePercentage)
+              (entries[i].percentage == null
+                  ? '-'
+                  : '${entries[i].percentage!.toStringAsFixed(1)}%'),
           ],
       ],
       orientation: _orientation,
@@ -326,9 +429,14 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
   ) {
     final subjects = _multiSubjects.toList()..sort();
     final testsBySubject = {
-      for (final subject in subjects) subject: allTests.firstWhere((t) => t.testId == _subjectTestChoice[subject]),
+      for (final subject in subjects)
+        subject: allTests.firstWhere(
+          (t) => t.testId == _subjectTestChoice[subject],
+        ),
     };
-    final maxMarks = [for (final subject in subjects) testsBySubject[subject]!.totalMarks];
+    final maxMarks = [
+      for (final subject in subjects) testsBySubject[subject]!.totalMarks,
+    ];
 
     final entries = [
       for (final student in roster)
@@ -336,15 +444,28 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
           final marksPerSubject = [
             for (final subject in subjects)
               allResults
-                  .where((r) => r.testId == testsBySubject[subject]!.testId && r.studentUid == student.uid)
+                  .where(
+                    (r) =>
+                        r.testId == testsBySubject[subject]!.testId &&
+                        r.studentUid == student.uid,
+                  )
                   .firstOrNull
                   ?.obtainedMarks,
           ];
           final combined = combineMarks(marksPerSubject, maxMarks);
-          return (student: student, marksPerSubject: marksPerSubject, total: combined.total, percentage: combined.percentage);
+          return (
+            student: student,
+            marksPerSubject: marksPerSubject,
+            total: combined.total,
+            percentage: combined.percentage,
+          );
         }(),
     ];
-    _sortEntries(entries, nameOf: (e) => e.student.name, percentageOf: (e) => e.percentage);
+    _sortEntries(
+      entries,
+      nameOf: (e) => e.student.name,
+      percentageOf: (e) => e.percentage,
+    );
     final ranks = _ranksFor(entries.map((e) => e.percentage).toList());
 
     return ExportDataset(
@@ -362,9 +483,13 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
           [
             entries[i].student.name,
             if (_includeRank) (ranks[i] == null ? '-' : '${ranks[i]}'),
-            for (final marks in entries[i].marksPerSubject) (marks == null ? '-' : marks.toStringAsFixed(1)),
+            for (final marks in entries[i].marksPerSubject)
+              (marks == null ? '-' : marks.toStringAsFixed(1)),
             if (_includeTotal) entries[i].total.toStringAsFixed(1),
-            if (_includePercentage) (entries[i].percentage == null ? '-' : '${entries[i].percentage!.toStringAsFixed(1)}%'),
+            if (_includePercentage)
+              (entries[i].percentage == null
+                  ? '-'
+                  : '${entries[i].percentage!.toStringAsFixed(1)}%'),
           ],
       ],
       orientation: _orientation,
@@ -376,7 +501,11 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
   /// requested, otherwise alphabetically by student name. Generic over
   /// each mode's own row-entry record shape - they only need to expose a
   /// name and a percentage.
-  void _sortEntries<T>(List<T> entries, {required String Function(T) nameOf, required double? Function(T) percentageOf}) {
+  void _sortEntries<T>(
+    List<T> entries, {
+    required String Function(T) nameOf,
+    required double? Function(T) percentageOf,
+  }) {
     if (!_sortByPercentage) {
       entries.sort((a, b) => nameOf(a).compareTo(nameOf(b)));
       return;
@@ -384,7 +513,9 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
     entries.sort((a, b) {
       final percentageA = percentageOf(a);
       final percentageB = percentageOf(b);
-      if (percentageA == null && percentageB == null) return nameOf(a).compareTo(nameOf(b));
+      if (percentageA == null && percentageB == null) {
+        return nameOf(a).compareTo(nameOf(b));
+      }
       if (percentageA == null) return 1;
       if (percentageB == null) return -1;
       return percentageB.compareTo(percentageA);
@@ -402,7 +533,9 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
     for (var i = 0; i < sortedDesc.length; i++) {
       rankByPercentage.putIfAbsent(sortedDesc[i], () => competition[i]);
     }
-    return [for (final p in percentages) p == null ? null : rankByPercentage[p]];
+    return [
+      for (final p in percentages) p == null ? null : rankByPercentage[p],
+    ];
   }
 }
 
@@ -433,9 +566,11 @@ class _ModeSelector extends StatelessWidget {
   final Set<String> multiSubjects;
   final ValueChanged<Set<String>> onMultiSubjectsChanged;
   final Map<String, String?> subjectTestChoice;
-  final void Function(String subject, String? testId) onSubjectTestChoiceChanged;
+  final void Function(String subject, String? testId)
+  onSubjectTestChoiceChanged;
 
-  String _testLabel(TestDefinition test) => '${test.title} (${test.chapterTopic}) - ${dateKey(test.date)}';
+  String _testLabel(TestDefinition test) =>
+      '${test.title} (${test.chapterTopic}) - ${dateKey(test.date)}';
 
   @override
   Widget build(BuildContext context) {
@@ -448,7 +583,10 @@ class _ModeSelector extends StatelessWidget {
           DropdownButtonFormField<String?>(
             initialValue: subject,
             decoration: const InputDecoration(labelText: 'Subject'),
-            items: [for (final s in subjects) DropdownMenuItem<String?>(value: s, child: Text(s))],
+            items: [
+              for (final s in subjects)
+                DropdownMenuItem<String?>(value: s, child: Text(s)),
+            ],
             onChanged: onSubjectChanged,
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -458,16 +596,26 @@ class _ModeSelector extends StatelessWidget {
                     initialValue: specificTestId,
                     decoration: const InputDecoration(labelText: 'Test'),
                     items: [
-                      for (final test in tests.where((t) => t.subject == subject))
-                        DropdownMenuItem<String?>(value: test.testId, child: Text(_testLabel(test))),
+                      for (final test in tests.where(
+                        (t) => t.subject == subject,
+                      ))
+                        DropdownMenuItem<String?>(
+                          value: test.testId,
+                          child: Text(_testLabel(test)),
+                        ),
                     ],
                     onChanged: onSpecificTestChanged,
                   )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Tests', style: Theme.of(context).textTheme.titleMedium),
-                      for (final test in tests.where((t) => t.subject == subject))
+                      Text(
+                        'Tests',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      for (final test in tests.where(
+                        (t) => t.subject == subject,
+                      ))
                         CheckboxListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(_testLabel(test)),
@@ -517,7 +665,10 @@ class _ModeSelector extends StatelessWidget {
                 decoration: InputDecoration(labelText: '$s test'),
                 items: [
                   for (final test in tests.where((t) => t.subject == s))
-                    DropdownMenuItem<String?>(value: test.testId, child: Text(_testLabel(test))),
+                    DropdownMenuItem<String?>(
+                      value: test.testId,
+                      child: Text(_testLabel(test)),
+                    ),
                 ],
                 onChanged: (testId) => onSubjectTestChoiceChanged(s, testId),
               ),

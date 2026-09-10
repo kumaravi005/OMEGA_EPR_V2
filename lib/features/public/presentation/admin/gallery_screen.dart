@@ -28,9 +28,12 @@ class GalleryScreen extends ConsumerWidget {
       body: SafeArea(
         child: itemsAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load the gallery.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load the gallery.\n$error'),
           data: (items) {
-            if (items.isEmpty) return const EmptyView(message: 'No gallery images yet.');
+            if (items.isEmpty) {
+              return const EmptyView(message: 'No gallery images yet.');
+            }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: items.length,
@@ -56,7 +59,11 @@ class _GalleryTile extends ConsumerWidget {
         leading: SizedBox(
           width: 56,
           height: 56,
-          child: Image.network(item.imageUrl, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined)),
+          child: Image.network(
+            item.imageUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
+          ),
         ),
         title: Text(item.title),
         subtitle: Text(item.category ?? 'Uncategorised'),
@@ -66,7 +73,9 @@ class _GalleryTile extends ConsumerWidget {
           onChanged: (value) async {
             final messenger = ScaffoldMessenger.of(context);
             try {
-              await ref.read(publicContentControllerProvider).setGalleryActive(item, value);
+              await ref
+                  .read(publicContentControllerProvider)
+                  .setGalleryActive(item, value);
             } on PublicContentFailure catch (failure) {
               messenger.showSnackBar(SnackBar(content: Text(failure.message)));
             }
@@ -78,7 +87,10 @@ class _GalleryTile extends ConsumerWidget {
 }
 
 void _showGalleryForm(BuildContext context, {GalleryItem? existing}) {
-  showDialog<void>(context: context, builder: (context) => _GalleryFormDialog(existing: existing));
+  showDialog<void>(
+    context: context,
+    builder: (context) => _GalleryFormDialog(existing: existing),
+  );
 }
 
 class _GalleryFormDialog extends ConsumerStatefulWidget {
@@ -92,10 +104,18 @@ class _GalleryFormDialog extends ConsumerStatefulWidget {
 
 class _GalleryFormDialogState extends ConsumerState<_GalleryFormDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final _imageUrlController = TextEditingController(text: widget.existing?.imageUrl ?? '');
-  late final _titleController = TextEditingController(text: widget.existing?.title ?? '');
-  late final _descriptionController = TextEditingController(text: widget.existing?.description ?? '');
-  late final _categoryController = TextEditingController(text: widget.existing?.category ?? '');
+  late final _imageUrlController = TextEditingController(
+    text: widget.existing?.imageUrl ?? '',
+  );
+  late final _titleController = TextEditingController(
+    text: widget.existing?.title ?? '',
+  );
+  late final _descriptionController = TextEditingController(
+    text: widget.existing?.description ?? '',
+  );
+  late final _categoryController = TextEditingController(
+    text: widget.existing?.category ?? '',
+  );
   late bool _active = widget.existing?.active ?? true;
 
   bool _isSubmitting = false;
@@ -142,7 +162,9 @@ class _GalleryFormDialogState extends ConsumerState<_GalleryFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.existing == null ? 'New gallery image' : 'Edit gallery image'),
+      title: Text(
+        widget.existing == null ? 'New gallery image' : 'Edit gallery image',
+      ),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -151,7 +173,10 @@ class _GalleryFormDialogState extends ConsumerState<_GalleryFormDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_errorMessage != null) ...[
-                Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                Text(
+                  _errorMessage!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
                 const SizedBox(height: AppSpacing.sm),
               ],
               AppTextField(
@@ -159,31 +184,48 @@ class _GalleryFormDialogState extends ConsumerState<_GalleryFormDialog> {
                 label: 'Image URL',
                 hintText: 'https://...',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Image URL is required'),
+                validator: (value) => Validators.required(
+                  value,
+                  message: 'Image URL is required',
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
               AppTextField(
                 controller: _titleController,
                 label: 'Title',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Title is required'),
+                validator: (value) =>
+                    Validators.required(value, message: 'Title is required'),
               ),
               const SizedBox(height: AppSpacing.sm),
-              AppTextField(controller: _descriptionController, label: 'Description (optional)', enabled: !_isSubmitting),
+              AppTextField(
+                controller: _descriptionController,
+                label: 'Description (optional)',
+                enabled: !_isSubmitting,
+              ),
               const SizedBox(height: AppSpacing.sm),
-              AppTextField(controller: _categoryController, label: 'Category (optional)', enabled: !_isSubmitting),
+              AppTextField(
+                controller: _categoryController,
+                label: 'Category (optional)',
+                enabled: !_isSubmitting,
+              ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Active (visible on the public site)'),
                 value: _active,
-                onChanged: _isSubmitting ? null : (value) => setState(() => _active = value),
+                onChanged: _isSubmitting
+                    ? null
+                    : (value) => setState(() => _active = value),
               ),
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
         AppButton(label: 'Save', isLoading: _isSubmitting, onPressed: _submit),
       ],
     );

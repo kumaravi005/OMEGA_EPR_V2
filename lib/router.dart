@@ -57,11 +57,17 @@ const _publicPaths = {AppRoutes.publicHome, AppRoutes.login};
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refresh = _GoRouterRefreshNotifier();
-  ref.listen<AsyncValue<Object?>>(currentUserAccountProvider, (previous, next) => refresh.notify());
+  ref.listen<AsyncValue<Object?>>(
+    currentUserAccountProvider,
+    (previous, next) => refresh.notify(),
+  );
   // deviceIdProvider depends on SharedPreferences loading asynchronously;
   // re-run redirect once it resolves so a restored session isn't stuck on
   // the public page if this fires before that.
-  ref.listen<AsyncValue<Object?>>(sharedPreferencesProvider, (previous, next) => refresh.notify());
+  ref.listen<AsyncValue<Object?>>(
+    sharedPreferencesProvider,
+    (previous, next) => refresh.notify(),
+  );
   ref.onDispose(refresh.dispose);
 
   return GoRouter(
@@ -69,34 +75,70 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     redirect: (context, state) => _redirect(ref, state),
     routes: [
-      GoRoute(path: AppRoutes.publicHome, builder: (context, state) => const PublicHomeScreen()),
-      GoRoute(path: AppRoutes.login, builder: (context, state) => const LoginScreen()),
-
-      GoRoute(path: AppRoutes.admin, builder: (context, state) => const AdminDashboardScreen()),
-      GoRoute(path: AppRoutes.adminAccounts, builder: (context, state) => const AdminAccountsScreen()),
-      GoRoute(path: AppRoutes.adminCreateAccount, builder: (context, state) => const CreateAccountScreen()),
-
-      GoRoute(path: AppRoutes.adminTeachers, builder: (context, state) => const TeacherListScreen()),
-      GoRoute(path: AppRoutes.adminNewTeacher, builder: (context, state) => const TeacherFormScreen()),
       GoRoute(
-        path: '${AppRoutes.adminTeachers}/:uid/edit',
-        builder: (context, state) => TeacherFormScreen(teacherUid: state.pathParameters['uid']),
+        path: AppRoutes.publicHome,
+        builder: (context, state) => const PublicHomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.login,
+        builder: (context, state) => const LoginScreen(),
       ),
 
-      GoRoute(path: AppRoutes.adminBatches, builder: (context, state) => const BatchListScreen()),
+      GoRoute(
+        path: AppRoutes.admin,
+        builder: (context, state) => const AdminDashboardScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminAccounts,
+        builder: (context, state) => const AdminAccountsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminCreateAccount,
+        builder: (context, state) => const CreateAccountScreen(),
+      ),
 
-      GoRoute(path: AppRoutes.adminStudents, builder: (context, state) => const StudentListScreen()),
-      GoRoute(path: AppRoutes.adminNewStudent, builder: (context, state) => const StudentFormScreen()),
+      GoRoute(
+        path: AppRoutes.adminTeachers,
+        builder: (context, state) => const TeacherListScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminNewTeacher,
+        builder: (context, state) => const TeacherFormScreen(),
+      ),
+      GoRoute(
+        path: '${AppRoutes.adminTeachers}/:uid/edit',
+        builder: (context, state) =>
+            TeacherFormScreen(teacherUid: state.pathParameters['uid']),
+      ),
+
+      GoRoute(
+        path: AppRoutes.adminBatches,
+        builder: (context, state) => const BatchListScreen(),
+      ),
+
+      GoRoute(
+        path: AppRoutes.adminStudents,
+        builder: (context, state) => const StudentListScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminNewStudent,
+        builder: (context, state) => const StudentFormScreen(),
+      ),
       GoRoute(
         path: '${AppRoutes.adminStudents}/:uid/edit',
-        builder: (context, state) => StudentFormScreen(studentUid: state.pathParameters['uid']),
+        builder: (context, state) =>
+            StudentFormScreen(studentUid: state.pathParameters['uid']),
       ),
       GoRoute(
         path: '${AppRoutes.adminStudents}/:uid',
-        builder: (context, state) => StudentProfileScreen(studentUid: state.pathParameters['uid']!),
+        builder: (context, state) =>
+            StudentProfileScreen(studentUid: state.pathParameters['uid']!),
       ),
 
-      GoRoute(path: AppRoutes.adminFeeDues, builder: (context, state) => const FeeDuesScreen()),
+      GoRoute(
+        path: AppRoutes.adminFeeDues,
+        builder: (context, state) => const FeeDuesScreen(),
+      ),
 
       GoRoute(
         path: AppRoutes.adminMarkStudentAttendance,
@@ -109,62 +151,143 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: AppRoutes.adminTests,
-        builder: (context, state) => const TestListScreen(basePath: AppRoutes.adminTests),
+        builder: (context, state) =>
+            const TestListScreen(basePath: AppRoutes.adminTests),
       ),
       GoRoute(
         path: '${AppRoutes.adminTests}/:testId',
-        builder: (context, state) => EnterMarksScreen(testId: state.pathParameters['testId']!),
+        builder: (context, state) =>
+            EnterMarksScreen(testId: state.pathParameters['testId']!),
       ),
 
-      GoRoute(path: AppRoutes.adminGallery, builder: (context, state) => const GalleryScreen()),
-      GoRoute(path: AppRoutes.adminBanners, builder: (context, state) => const BannersScreen()),
-      GoRoute(path: AppRoutes.adminUpcomingBatches, builder: (context, state) => const UpcomingBatchesScreen()),
-      GoRoute(path: AppRoutes.adminAdvertisements, builder: (context, state) => const AdvertisementsScreen()),
-      GoRoute(path: AppRoutes.adminAnnouncements, builder: (context, state) => const AnnouncementsScreen()),
-      GoRoute(path: AppRoutes.adminInstituteProfile, builder: (context, state) => const InstituteProfileScreen()),
-      GoRoute(path: AppRoutes.adminEnquiries, builder: (context, state) => const EnquiriesScreen()),
-      GoRoute(path: AppRoutes.adminCallbackRequests, builder: (context, state) => const CallbackRequestsScreen()),
-      GoRoute(path: AppRoutes.adminNotifications, builder: (context, state) => const NotificationsScreen()),
+      GoRoute(
+        path: AppRoutes.adminGallery,
+        builder: (context, state) => const GalleryScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminBanners,
+        builder: (context, state) => const BannersScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminUpcomingBatches,
+        builder: (context, state) => const UpcomingBatchesScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminAdvertisements,
+        builder: (context, state) => const AdvertisementsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminAnnouncements,
+        builder: (context, state) => const AnnouncementsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminInstituteProfile,
+        builder: (context, state) => const InstituteProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminEnquiries,
+        builder: (context, state) => const EnquiriesScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminCallbackRequests,
+        builder: (context, state) => const CallbackRequestsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminNotifications,
+        builder: (context, state) => const NotificationsScreen(),
+      ),
 
-      GoRoute(path: AppRoutes.adminReports, builder: (context, state) => const ReportsHubScreen()),
-      GoRoute(path: AppRoutes.adminStudentExport, builder: (context, state) => const StudentExportScreen()),
-      GoRoute(path: AppRoutes.adminFeeDuesExport, builder: (context, state) => const FeeDuesExportScreen()),
-      GoRoute(path: AppRoutes.adminTestResultExport, builder: (context, state) => const TestResultExportScreen()),
+      GoRoute(
+        path: AppRoutes.adminReports,
+        builder: (context, state) => const ReportsHubScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminStudentExport,
+        builder: (context, state) => const StudentExportScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminFeeDuesExport,
+        builder: (context, state) => const FeeDuesExportScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminTestResultExport,
+        builder: (context, state) => const TestResultExportScreen(),
+      ),
 
-      GoRoute(path: AppRoutes.adminReportTemplates, builder: (context, state) => const ReportLayoutTemplatesScreen()),
-      GoRoute(path: AppRoutes.adminReportTemplateNew, builder: (context, state) => const ReportTemplateDesignerScreen()),
+      GoRoute(
+        path: AppRoutes.adminReportTemplates,
+        builder: (context, state) => const ReportLayoutTemplatesScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminReportTemplateNew,
+        builder: (context, state) => const ReportTemplateDesignerScreen(),
+      ),
       GoRoute(
         path: '${AppRoutes.adminReportTemplates}/:templateId/edit',
-        builder: (context, state) => ReportTemplateDesignerScreen(templateId: state.pathParameters['templateId']),
+        builder: (context, state) => ReportTemplateDesignerScreen(
+          templateId: state.pathParameters['templateId'],
+        ),
       ),
 
-      GoRoute(path: AppRoutes.teacher, builder: (context, state) => const TeacherHomeScreen()),
+      GoRoute(
+        path: AppRoutes.teacher,
+        builder: (context, state) => const TeacherHomeScreen(),
+      ),
       GoRoute(
         path: AppRoutes.teacherAttendance,
         builder: (context, state) => const TeacherAttendanceHistoryScreen(),
       ),
-      GoRoute(path: AppRoutes.teacherHomework, builder: (context, state) => const HomeworkListScreen()),
-      GoRoute(path: AppRoutes.teacherAssignments, builder: (context, state) => const AssignmentListScreen()),
+      GoRoute(
+        path: AppRoutes.teacherHomework,
+        builder: (context, state) => const HomeworkListScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.teacherAssignments,
+        builder: (context, state) => const AssignmentListScreen(),
+      ),
       GoRoute(
         path: AppRoutes.teacherTests,
-        builder: (context, state) => const TestListScreen(basePath: AppRoutes.teacherTests),
+        builder: (context, state) =>
+            const TestListScreen(basePath: AppRoutes.teacherTests),
       ),
       GoRoute(
         path: '${AppRoutes.teacherTests}/:testId',
-        builder: (context, state) => EnterMarksScreen(testId: state.pathParameters['testId']!),
+        builder: (context, state) =>
+            EnterMarksScreen(testId: state.pathParameters['testId']!),
       ),
-      GoRoute(path: AppRoutes.teacherNotifications, builder: (context, state) => const NotificationsScreen()),
+      GoRoute(
+        path: AppRoutes.teacherNotifications,
+        builder: (context, state) => const NotificationsScreen(),
+      ),
 
-      GoRoute(path: AppRoutes.student, builder: (context, state) => const StudentHomeScreen()),
+      GoRoute(
+        path: AppRoutes.student,
+        builder: (context, state) => const StudentHomeScreen(),
+      ),
       GoRoute(
         path: AppRoutes.studentAttendance,
         builder: (context, state) => const StudentAttendanceHistoryScreen(),
       ),
-      GoRoute(path: AppRoutes.studentHomework, builder: (context, state) => const StudentHomeworkScreen()),
-      GoRoute(path: AppRoutes.studentAssignments, builder: (context, state) => const StudentAssignmentsScreen()),
-      GoRoute(path: AppRoutes.studentResults, builder: (context, state) => const StudentResultsScreen()),
-      GoRoute(path: AppRoutes.studentFees, builder: (context, state) => const StudentFeeScreen()),
-      GoRoute(path: AppRoutes.studentNotifications, builder: (context, state) => const NotificationsScreen()),
+      GoRoute(
+        path: AppRoutes.studentHomework,
+        builder: (context, state) => const StudentHomeworkScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.studentAssignments,
+        builder: (context, state) => const StudentAssignmentsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.studentResults,
+        builder: (context, state) => const StudentResultsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.studentFees,
+        builder: (context, state) => const StudentFeeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.studentNotifications,
+        builder: (context, state) => const NotificationsScreen(),
+      ),
     ],
   );
 });

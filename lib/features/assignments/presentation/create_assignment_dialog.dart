@@ -7,8 +7,14 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../application/assignment_controller.dart';
 
-Future<void> showCreateAssignmentDialog(BuildContext context, {required String batchId}) {
-  return showDialog<void>(context: context, builder: (context) => _CreateAssignmentDialog(batchId: batchId));
+Future<void> showCreateAssignmentDialog(
+  BuildContext context, {
+  required String batchId,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (context) => _CreateAssignmentDialog(batchId: batchId),
+  );
 }
 
 class _CreateAssignmentDialog extends ConsumerStatefulWidget {
@@ -17,10 +23,12 @@ class _CreateAssignmentDialog extends ConsumerStatefulWidget {
   final String batchId;
 
   @override
-  ConsumerState<_CreateAssignmentDialog> createState() => _CreateAssignmentDialogState();
+  ConsumerState<_CreateAssignmentDialog> createState() =>
+      _CreateAssignmentDialogState();
 }
 
-class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog> {
+class _CreateAssignmentDialogState
+    extends ConsumerState<_CreateAssignmentDialog> {
   final _formKey = GlobalKey<FormState>();
   final _subjectController = TextEditingController();
   final _titleController = TextEditingController();
@@ -53,6 +61,11 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
   Future<void> _submit() async {
     final form = _formKey.currentState;
     if (form == null || !form.validate()) return;
+
+    if (_dueDate.isBefore(_assignedDate)) {
+      setState(() => _errorMessage = 'Due date cannot be before the assigned date.');
+      return;
+    }
 
     setState(() {
       _isSubmitting = true;
@@ -90,28 +103,36 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_errorMessage != null) ...[
-              Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
             AppTextField(
               controller: _titleController,
               label: 'Title',
               enabled: !_isSubmitting,
-              validator: (value) => Validators.required(value, message: 'Title is required'),
+              validator: (value) =>
+                  Validators.required(value, message: 'Title is required'),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppTextField(
               controller: _subjectController,
               label: 'Subject',
               enabled: !_isSubmitting,
-              validator: (value) => Validators.required(value, message: 'Subject is required'),
+              validator: (value) =>
+                  Validators.required(value, message: 'Subject is required'),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppTextField(
               controller: _descriptionController,
               label: 'Description',
               enabled: !_isSubmitting,
-              validator: (value) => Validators.required(value, message: 'Description is required'),
+              validator: (value) => Validators.required(
+                value,
+                message: 'Description is required',
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
             ListTile(
@@ -130,8 +151,15 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        AppButton(label: 'Create', isLoading: _isSubmitting, onPressed: _submit),
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        AppButton(
+          label: 'Create',
+          isLoading: _isSubmitting,
+          onPressed: _submit,
+        ),
       ],
     );
   }

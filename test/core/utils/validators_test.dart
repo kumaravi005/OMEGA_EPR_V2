@@ -25,4 +25,39 @@ void main() {
       expect(Validators.email('teacher@omega.edu'), isNull);
     });
   });
+
+  group('Validators.phone', () {
+    test('rejects a missing number when required', () {
+      expect(Validators.phone(null), isNotNull);
+      expect(Validators.phone(''), isNotNull);
+    });
+
+    test('accepts a missing number when not required', () {
+      expect(Validators.phone(null, isRequired: false), isNull);
+      expect(Validators.phone('', isRequired: false), isNull);
+    });
+
+    test('rejects too few or too many digits', () {
+      expect(Validators.phone('12345'), isNotNull);
+      expect(Validators.phone('1234567890123'), isNotNull);
+    });
+
+    test('rejects letters', () {
+      expect(Validators.phone('98765abcde'), isNotNull);
+    });
+
+    test('accepts a plain 10-digit mobile number', () {
+      expect(Validators.phone('9876543210'), isNull);
+    });
+
+    test('accepts formatting: spaces, dashes, and a +91/0 prefix', () {
+      expect(Validators.phone('98765 43210'), isNull);
+      expect(Validators.phone('+91-9876543210'), isNull);
+      expect(Validators.phone('09876543210'), isNull);
+    });
+
+    test('still validates format for an optional number that was typed in', () {
+      expect(Validators.phone('123', isRequired: false), isNotNull);
+    });
+  });
 }

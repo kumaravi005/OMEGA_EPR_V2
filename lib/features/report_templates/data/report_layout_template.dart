@@ -131,7 +131,8 @@ class ReportFooterConfig {
       footerText: map['footerText'] as String? ?? '',
       showFooterText: map['showFooterText'] as bool? ?? false,
       showSignature: map['showSignature'] as bool? ?? false,
-      signatureLabel: map['signatureLabel'] as String? ?? 'Authorized Signatory',
+      signatureLabel:
+          map['signatureLabel'] as String? ?? 'Authorized Signatory',
       showPageNumber: map['showPageNumber'] as bool? ?? true,
       showDate: map['showDate'] as bool? ?? false,
       contactText: map['contactText'] as String? ?? '',
@@ -202,8 +203,12 @@ class ReportLayoutTemplate implements FirestoreDocument {
     return ReportLayoutTemplate(
       templateId: id,
       name: map['name'] as String,
-      header: ReportHeaderConfig.fromMap(Map<String, dynamic>.from(map['header'] as Map? ?? const {})),
-      footer: ReportFooterConfig.fromMap(Map<String, dynamic>.from(map['footer'] as Map? ?? const {})),
+      header: ReportHeaderConfig.fromMap(
+        Map<String, dynamic>.from(map['header'] as Map? ?? const {}),
+      ),
+      footer: ReportFooterConfig.fromMap(
+        Map<String, dynamic>.from(map['footer'] as Map? ?? const {}),
+      ),
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       updatedAt: (map['updatedAt'] as Timestamp).toDate(),
     );
@@ -225,19 +230,33 @@ class ReportLayoutTemplate implements FirestoreDocument {
         yFraction: header.logoYFraction,
         widthFraction: header.logoWidthFraction,
       ),
-      instituteName: header.showInstituteName && header.instituteName.isNotEmpty ? header.instituteName : null,
-      tagline: header.showTagline && header.tagline.isNotEmpty ? header.tagline : null,
-      address: header.showAddress && header.address.isNotEmpty ? header.address : null,
-      contact: header.showContact && header.contact.isNotEmpty ? header.contact : null,
-      otherText: header.showOtherText && header.otherText.isNotEmpty ? header.otherText : null,
+      instituteName: header.showInstituteName && header.instituteName.isNotEmpty
+          ? header.instituteName
+          : null,
+      tagline: header.showTagline && header.tagline.isNotEmpty
+          ? header.tagline
+          : null,
+      address: header.showAddress && header.address.isNotEmpty
+          ? header.address
+          : null,
+      contact: header.showContact && header.contact.isNotEmpty
+          ? header.contact
+          : null,
+      otherText: header.showOtherText && header.otherText.isNotEmpty
+          ? header.otherText
+          : null,
     ),
     footer: ReportFooterBranding(
-      footerText: footer.showFooterText && footer.footerText.isNotEmpty ? footer.footerText : null,
+      footerText: footer.showFooterText && footer.footerText.isNotEmpty
+          ? footer.footerText
+          : null,
       showSignature: footer.showSignature,
       signatureLabel: footer.signatureLabel,
       showPageNumber: footer.showPageNumber,
       showDate: footer.showDate,
-      contactText: footer.showFooterContact && footer.contactText.isNotEmpty ? footer.contactText : null,
+      contactText: footer.showFooterContact && footer.contactText.isNotEmpty
+          ? footer.contactText
+          : null,
     ),
   );
 

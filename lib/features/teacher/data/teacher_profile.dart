@@ -6,10 +6,16 @@ import '../../../data/models/gender.dart';
 /// these - e.g. Class 5 -> Science and Class 7 -> Hindi are two separate
 /// assignments for the same teacher.
 class ClassSubjectAssignment {
-  const ClassSubjectAssignment({required this.className, required this.subject});
+  const ClassSubjectAssignment({
+    required this.className,
+    required this.subject,
+  });
 
   factory ClassSubjectAssignment.fromMap(Map<String, dynamic> map) {
-    return ClassSubjectAssignment(className: map['className'] as String, subject: map['subject'] as String);
+    return ClassSubjectAssignment(
+      className: map['className'] as String,
+      subject: map['subject'] as String,
+    );
   }
 
   final String className;
@@ -40,7 +46,8 @@ class TeacherProfile implements FirestoreDocument {
   });
 
   factory TeacherProfile.fromMap(String id, Map<String, dynamic> map) {
-    final assignmentMaps = (map['assignments'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
+    final assignmentMaps = (map['assignments'] as List<dynamic>? ?? const [])
+        .cast<Map<String, dynamic>>();
     return TeacherProfile(
       uid: id,
       accountId: map['accountId'] as String,

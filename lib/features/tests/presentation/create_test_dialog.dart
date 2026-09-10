@@ -8,8 +8,14 @@ import '../../../core/widgets/app_text_field.dart';
 import '../application/test_controller.dart';
 import '../data/test_definition.dart';
 
-Future<void> showCreateTestDialog(BuildContext context, {required String batchId}) {
-  return showDialog<void>(context: context, builder: (context) => _CreateTestDialog(batchId: batchId));
+Future<void> showCreateTestDialog(
+  BuildContext context, {
+  required String batchId,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (context) => _CreateTestDialog(batchId: batchId),
+  );
 }
 
 class _CreateTestDialog extends ConsumerStatefulWidget {
@@ -74,7 +80,9 @@ class _CreateTestDialogState extends ConsumerState<_CreateTestDialog> {
             date: _date,
             totalMarks: double.parse(_totalMarksController.text),
             testType: _testType,
-            description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text,
+            description: _descriptionController.text.trim().isEmpty
+                ? null
+                : _descriptionController.text,
           );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -97,28 +105,36 @@ class _CreateTestDialogState extends ConsumerState<_CreateTestDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_errorMessage != null) ...[
-                Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                Text(
+                  _errorMessage!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
                 const SizedBox(height: AppSpacing.sm),
               ],
               AppTextField(
                 controller: _titleController,
                 label: 'Test title',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Title is required'),
+                validator: (value) =>
+                    Validators.required(value, message: 'Title is required'),
               ),
               const SizedBox(height: AppSpacing.sm),
               AppTextField(
                 controller: _subjectController,
                 label: 'Subject',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Subject is required'),
+                validator: (value) =>
+                    Validators.required(value, message: 'Subject is required'),
               ),
               const SizedBox(height: AppSpacing.sm),
               AppTextField(
                 controller: _chapterController,
                 label: 'Chapter / topic',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Chapter/topic is required'),
+                validator: (value) => Validators.required(
+                  value,
+                  message: 'Chapter/topic is required',
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
               ListTile(
@@ -131,15 +147,26 @@ class _CreateTestDialogState extends ConsumerState<_CreateTestDialog> {
                 controller: _totalMarksController,
                 label: 'Total marks',
                 enabled: !_isSubmitting,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: _validateTotalMarks,
               ),
               const SizedBox(height: AppSpacing.sm),
               DropdownButtonFormField<TestType>(
                 initialValue: _testType,
                 decoration: const InputDecoration(labelText: 'Test type'),
-                items: TestType.values.map((type) => DropdownMenuItem(value: type, child: Text(type.label))).toList(),
-                onChanged: _isSubmitting ? null : (value) => setState(() => _testType = value ?? _testType),
+                items: TestType.values
+                    .map(
+                      (type) => DropdownMenuItem(
+                        value: type,
+                        child: Text(type.label),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _isSubmitting
+                    ? null
+                    : (value) => setState(() => _testType = value ?? _testType),
               ),
               const SizedBox(height: AppSpacing.sm),
               AppTextField(
@@ -152,14 +179,24 @@ class _CreateTestDialogState extends ConsumerState<_CreateTestDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        AppButton(label: 'Create', isLoading: _isSubmitting, onPressed: _submit),
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        AppButton(
+          label: 'Create',
+          isLoading: _isSubmitting,
+          onPressed: _submit,
+        ),
       ],
     );
   }
 
   String? _validateTotalMarks(String? value) {
-    final requiredError = Validators.required(value, message: 'Total marks is required');
+    final requiredError = Validators.required(
+      value,
+      message: 'Total marks is required',
+    );
     if (requiredError != null) return requiredError;
     final parsed = double.tryParse(value!);
     if (parsed == null || parsed <= 0) return 'Enter a valid positive number';

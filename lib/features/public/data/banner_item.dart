@@ -66,8 +66,12 @@ class BannerItem implements FirestoreDocument {
       'ctaText': ctaText,
       'ctaUrl': ctaUrl,
       'active': active,
-      'displayFrom': displayFrom == null ? null : Timestamp.fromDate(displayFrom!),
-      'displayUntil': displayUntil == null ? null : Timestamp.fromDate(displayUntil!),
+      'displayFrom': displayFrom == null
+          ? null
+          : Timestamp.fromDate(displayFrom!),
+      'displayUntil': displayUntil == null
+          ? null
+          : Timestamp.fromDate(displayUntil!),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };

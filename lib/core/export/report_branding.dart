@@ -5,7 +5,11 @@
 /// point width) without a unit-conversion step either place has to get
 /// right.
 class LogoPlacement {
-  const LogoPlacement({this.xFraction = 0.0, this.yFraction = 0.0, this.widthFraction = 0.18});
+  const LogoPlacement({
+    this.xFraction = 0.0,
+    this.yFraction = 0.0,
+    this.widthFraction = 0.18,
+  });
 
   final double xFraction;
   final double yFraction;
@@ -63,7 +67,11 @@ class ReportFooterBranding {
 /// that snapshot into final bytes - there is no code path that re-reads
 /// the template later.
 class ReportBranding {
-  const ReportBranding({required this.templateName, required this.header, required this.footer});
+  const ReportBranding({
+    required this.templateName,
+    required this.header,
+    required this.footer,
+  });
 
   final String templateName;
   final ReportHeaderBranding header;

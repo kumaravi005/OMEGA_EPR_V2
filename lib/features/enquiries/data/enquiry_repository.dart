@@ -18,21 +18,30 @@ final allEnquiriesProvider = StreamProvider<List<Enquiry>>((ref) {
   return ref
       .watch(enquiryRepositoryProvider)
       .watchAll()
-      .map((items) => items.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+      .map(
+        (items) =>
+            items.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
+      );
 });
 
-final callbackRequestRepositoryProvider = Provider<FirestoreRepository<CallbackRequest>>((ref) {
-  return FirestoreRepository<CallbackRequest>(
-    firestore: ref.watch(firestoreProvider),
-    collectionPath: FirestoreCollections.callbackRequests,
-    fromFirestore: CallbackRequest.fromMap,
-    toFirestore: (request) => request.toMap(),
-  );
-});
+final callbackRequestRepositoryProvider =
+    Provider<FirestoreRepository<CallbackRequest>>((ref) {
+      return FirestoreRepository<CallbackRequest>(
+        firestore: ref.watch(firestoreProvider),
+        collectionPath: FirestoreCollections.callbackRequests,
+        fromFirestore: CallbackRequest.fromMap,
+        toFirestore: (request) => request.toMap(),
+      );
+    });
 
-final allCallbackRequestsProvider = StreamProvider<List<CallbackRequest>>((ref) {
+final allCallbackRequestsProvider = StreamProvider<List<CallbackRequest>>((
+  ref,
+) {
   return ref
       .watch(callbackRequestRepositoryProvider)
       .watchAll()
-      .map((items) => items.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+      .map(
+        (items) =>
+            items.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
+      );
 });

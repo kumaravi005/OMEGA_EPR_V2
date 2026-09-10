@@ -19,7 +19,9 @@ class PublicContentFailure implements Exception {
   String toString() => message;
 }
 
-final publicContentControllerProvider = Provider<PublicContentController>((ref) => PublicContentController(ref));
+final publicContentControllerProvider = Provider<PublicContentController>(
+  (ref) => PublicContentController(ref),
+);
 
 /// Admin CRUD for every simple public-content type (gallery, banners,
 /// upcoming batches, advertisements, announcements, institute profile).
@@ -61,7 +63,10 @@ class PublicContentController {
   }
 
   Future<void> setGalleryActive(GalleryItem item, bool active) => _run(
-    () => _ref.read(galleryRepositoryProvider).updateFields(item.itemId, {'active': active, 'updatedAt': Timestamp.now()}),
+    () => _ref.read(galleryRepositoryProvider).updateFields(item.itemId, {
+      'active': active,
+      'updatedAt': Timestamp.now(),
+    }),
   );
 
   Future<void> saveBanner({
@@ -93,13 +98,18 @@ class PublicContentController {
       if (existing == null) {
         await _ref.read(bannerRepositoryProvider).add(banner);
       } else {
-        await _ref.read(bannerRepositoryProvider).set(existing.bannerId, banner);
+        await _ref
+            .read(bannerRepositoryProvider)
+            .set(existing.bannerId, banner);
       }
     });
   }
 
   Future<void> setBannerActive(BannerItem item, bool active) => _run(
-    () => _ref.read(bannerRepositoryProvider).updateFields(item.bannerId, {'active': active, 'updatedAt': Timestamp.now()}),
+    () => _ref.read(bannerRepositoryProvider).updateFields(item.bannerId, {
+      'active': active,
+      'updatedAt': Timestamp.now(),
+    }),
   );
 
   Future<void> saveUpcomingBatch({
@@ -135,15 +145,18 @@ class PublicContentController {
       if (existing == null) {
         await _ref.read(upcomingBatchRepositoryProvider).add(batch);
       } else {
-        await _ref.read(upcomingBatchRepositoryProvider).set(existing.upcomingBatchId, batch);
+        await _ref
+            .read(upcomingBatchRepositoryProvider)
+            .set(existing.upcomingBatchId, batch);
       }
     });
   }
 
   Future<void> setUpcomingBatchActive(UpcomingBatch item, bool active) => _run(
-    () => _ref
-        .read(upcomingBatchRepositoryProvider)
-        .updateFields(item.upcomingBatchId, {'active': active, 'updatedAt': Timestamp.now()}),
+    () => _ref.read(upcomingBatchRepositoryProvider).updateFields(
+      item.upcomingBatchId,
+      {'active': active, 'updatedAt': Timestamp.now()},
+    ),
   );
 
   Future<void> saveAdvertisement({
@@ -175,18 +188,26 @@ class PublicContentController {
       if (existing == null) {
         await _ref.read(advertisementRepositoryProvider).add(ad);
       } else {
-        await _ref.read(advertisementRepositoryProvider).set(existing.advertisementId, ad);
+        await _ref
+            .read(advertisementRepositoryProvider)
+            .set(existing.advertisementId, ad);
       }
     });
   }
 
   Future<void> setAdvertisementActive(Advertisement item, bool active) => _run(
-    () => _ref
-        .read(advertisementRepositoryProvider)
-        .updateFields(item.advertisementId, {'active': active, 'updatedAt': Timestamp.now()}),
+    () => _ref.read(advertisementRepositoryProvider).updateFields(
+      item.advertisementId,
+      {'active': active, 'updatedAt': Timestamp.now()},
+    ),
   );
 
-  Future<void> saveAnnouncement({Announcement? existing, required String title, required String body, required bool active}) async {
+  Future<void> saveAnnouncement({
+    Announcement? existing,
+    required String title,
+    required String body,
+    required bool active,
+  }) async {
     final now = DateTime.now();
     final announcement = Announcement(
       announcementId: existing?.announcementId ?? '',
@@ -198,18 +219,28 @@ class PublicContentController {
     );
     await _run(() async {
       if (existing == null) {
-        final id = await _ref.read(announcementRepositoryProvider).add(announcement);
-        await recordAnnouncementNotification(_ref, title: announcement.title, body: announcement.body, relatedId: id);
+        final id = await _ref
+            .read(announcementRepositoryProvider)
+            .add(announcement);
+        await recordAnnouncementNotification(
+          _ref,
+          title: announcement.title,
+          body: announcement.body,
+          relatedId: id,
+        );
       } else {
-        await _ref.read(announcementRepositoryProvider).set(existing.announcementId, announcement);
+        await _ref
+            .read(announcementRepositoryProvider)
+            .set(existing.announcementId, announcement);
       }
     });
   }
 
   Future<void> setAnnouncementActive(Announcement item, bool active) => _run(
-    () => _ref
-        .read(announcementRepositoryProvider)
-        .updateFields(item.announcementId, {'active': active, 'updatedAt': Timestamp.now()}),
+    () => _ref.read(announcementRepositoryProvider).updateFields(
+      item.announcementId,
+      {'active': active, 'updatedAt': Timestamp.now()},
+    ),
   );
 
   Future<void> saveInstituteProfile({
@@ -220,21 +251,24 @@ class PublicContentController {
     required String? contactEmail,
     required String? address,
   }) => _run(
-    () => _ref.read(instituteProfileRepositoryProvider).set(
-      InstituteProfile.documentId,
-      InstituteProfile(
-        name: name.trim(),
-        tagline: _blankToNull(tagline),
-        about: _blankToNull(about),
-        contactPhone: _blankToNull(contactPhone),
-        contactEmail: _blankToNull(contactEmail),
-        address: _blankToNull(address),
-        updatedAt: DateTime.now(),
-      ),
-    ),
+    () => _ref
+        .read(instituteProfileRepositoryProvider)
+        .set(
+          InstituteProfile.documentId,
+          InstituteProfile(
+            name: name.trim(),
+            tagline: _blankToNull(tagline),
+            about: _blankToNull(about),
+            contactPhone: _blankToNull(contactPhone),
+            contactEmail: _blankToNull(contactEmail),
+            address: _blankToNull(address),
+            updatedAt: DateTime.now(),
+          ),
+        ),
   );
 
-  String? _blankToNull(String? value) => value == null || value.trim().isEmpty ? null : value.trim();
+  String? _blankToNull(String? value) =>
+      value == null || value.trim().isEmpty ? null : value.trim();
 
   Future<void> _run(Future<void> Function() action) async {
     try {

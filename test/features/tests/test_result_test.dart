@@ -60,9 +60,15 @@ void main() {
     });
   });
 
-  test('TestResult.idFor is deterministic per test+student, preventing duplicate marks', () {
-    expect(TestResult.idFor(testId: 'test1', studentUid: 'stu1'), 'test1_stu1');
-  });
+  test(
+    'TestResult.idFor is deterministic per test+student, preventing duplicate marks',
+    () {
+      expect(
+        TestResult.idFor(testId: 'test1', studentUid: 'stu1'),
+        'test1_stu1',
+      );
+    },
+  );
 
   group('TestController.enterMark validation', () {
     late ProviderContainer container;
@@ -73,16 +79,38 @@ void main() {
     test('rejects negative obtained marks', () async {
       final controller = container.read(testControllerProvider);
       expect(
-        () => controller.enterMark(test: _test(totalMarks: 50), studentUid: 'stu1', obtainedMarks: -5, remark: null),
-        throwsA(isA<TestActionFailure>().having((f) => f.message, 'message', contains('cannot be negative'))),
+        () => controller.enterMark(
+          test: _test(totalMarks: 50),
+          studentUid: 'stu1',
+          obtainedMarks: -5,
+          remark: null,
+        ),
+        throwsA(
+          isA<TestActionFailure>().having(
+            (f) => f.message,
+            'message',
+            contains('cannot be negative'),
+          ),
+        ),
       );
     });
 
     test('rejects obtained marks exceeding the total', () async {
       final controller = container.read(testControllerProvider);
       expect(
-        () => controller.enterMark(test: _test(totalMarks: 50), studentUid: 'stu1', obtainedMarks: 55, remark: null),
-        throwsA(isA<TestActionFailure>().having((f) => f.message, 'message', contains('cannot exceed'))),
+        () => controller.enterMark(
+          test: _test(totalMarks: 50),
+          studentUid: 'stu1',
+          obtainedMarks: 55,
+          remark: null,
+        ),
+        throwsA(
+          isA<TestActionFailure>().having(
+            (f) => f.message,
+            'message',
+            contains('cannot exceed'),
+          ),
+        ),
       );
     });
   });

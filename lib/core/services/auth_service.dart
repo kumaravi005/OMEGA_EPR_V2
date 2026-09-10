@@ -16,7 +16,10 @@ class AuthService {
 
   User? get currentUser => _auth.currentUser;
 
-  Future<UserCredential> signInWithEmailAndPassword({required String email, required String password}) {
+  Future<UserCredential> signInWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) {
     return _auth.signInWithEmailAndPassword(email: email, password: password);
   }
 

@@ -31,8 +31,14 @@ class DraggableLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = (widthFraction * headerSize.width).clamp(24.0, headerSize.width);
-    final left = (xFraction * headerSize.width).clamp(0.0, headerSize.width - width);
+    final width = (widthFraction * headerSize.width).clamp(
+      24.0,
+      headerSize.width,
+    );
+    final left = (xFraction * headerSize.width).clamp(
+      0.0,
+      headerSize.width - width,
+    );
     final top = (yFraction * headerSize.height).clamp(0.0, headerSize.height);
 
     return Positioned(
@@ -40,15 +46,26 @@ class DraggableLogo extends StatelessWidget {
       top: top,
       child: GestureDetector(
         onPanUpdate: (details) {
-          final newX = ((left + details.delta.dx) / headerSize.width).clamp(0.0, 1.0 - widthFraction);
-          final newY = ((top + details.delta.dy) / headerSize.height).clamp(0.0, 1.0);
+          final newX = ((left + details.delta.dx) / headerSize.width).clamp(
+            0.0,
+            1.0 - widthFraction,
+          );
+          final newY = ((top + details.delta.dy) / headerSize.height).clamp(
+            0.0,
+            1.0,
+          );
           onChanged(newX, newY, widthFraction);
         },
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             Container(
-              decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.primary, width: 1)),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.primary,
+                  width: 1,
+                ),
+              ),
               child: Image.network(
                 logoUrl,
                 width: width,
@@ -66,7 +83,11 @@ class DraggableLogo extends StatelessWidget {
               bottom: -7,
               child: GestureDetector(
                 onPanUpdate: (details) {
-                  final newWidth = ((width + details.delta.dx) / headerSize.width).clamp(0.04, 1.0 - xFraction);
+                  final newWidth =
+                      ((width + details.delta.dx) / headerSize.width).clamp(
+                        0.04,
+                        1.0 - xFraction,
+                      );
                   onChanged(xFraction, yFraction, newWidth);
                 },
                 child: Container(
@@ -77,7 +98,11 @@ class DraggableLogo extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 1.5),
                   ),
-                  child: const Icon(Icons.open_in_full, size: 9, color: Colors.white),
+                  child: const Icon(
+                    Icons.open_in_full,
+                    size: 9,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),

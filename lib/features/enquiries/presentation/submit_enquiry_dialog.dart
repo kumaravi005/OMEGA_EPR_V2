@@ -7,14 +7,18 @@ import '../../../core/widgets/app_text_field.dart';
 import '../application/enquiry_controller.dart';
 
 Future<void> showSubmitEnquiryDialog(BuildContext context) {
-  return showDialog<void>(context: context, builder: (context) => const _SubmitEnquiryDialog());
+  return showDialog<void>(
+    context: context,
+    builder: (context) => const _SubmitEnquiryDialog(),
+  );
 }
 
 class _SubmitEnquiryDialog extends ConsumerStatefulWidget {
   const _SubmitEnquiryDialog();
 
   @override
-  ConsumerState<_SubmitEnquiryDialog> createState() => _SubmitEnquiryDialogState();
+  ConsumerState<_SubmitEnquiryDialog> createState() =>
+      _SubmitEnquiryDialogState();
 }
 
 class _SubmitEnquiryDialogState extends ConsumerState<_SubmitEnquiryDialog> {
@@ -77,8 +81,15 @@ class _SubmitEnquiryDialogState extends ConsumerState<_SubmitEnquiryDialog> {
     if (_submitted) {
       return AlertDialog(
         title: const Text('Thank you'),
-        content: const Text('Your enquiry has been submitted. Our team will contact you soon.'),
-        actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close'))],
+        content: const Text(
+          'Your enquiry has been submitted. Our team will contact you soon.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
       );
     }
 
@@ -92,28 +103,45 @@ class _SubmitEnquiryDialogState extends ConsumerState<_SubmitEnquiryDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_errorMessage != null) ...[
-                Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                Text(
+                  _errorMessage!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
                 const SizedBox(height: AppSpacing.sm),
               ],
               AppTextField(
                 controller: _nameController,
                 label: 'Student name',
                 enabled: !_isSubmitting,
-                validator: (value) => Validators.required(value, message: 'Name is required'),
+                validator: (value) =>
+                    Validators.required(value, message: 'Name is required'),
               ),
               const SizedBox(height: AppSpacing.sm),
-              AppTextField(controller: _guardianController, label: "Father's/guardian's name (optional)", enabled: !_isSubmitting),
+              AppTextField(
+                controller: _guardianController,
+                label: "Father's/guardian's name (optional)",
+                enabled: !_isSubmitting,
+              ),
               const SizedBox(height: AppSpacing.sm),
-              AppTextField(controller: _classController, label: 'Class (optional)', enabled: !_isSubmitting),
+              AppTextField(
+                controller: _classController,
+                label: 'Class (optional)',
+                enabled: !_isSubmitting,
+              ),
               const SizedBox(height: AppSpacing.sm),
-              AppTextField(controller: _boardController, label: 'Board (optional)', enabled: !_isSubmitting),
+              AppTextField(
+                controller: _boardController,
+                label: 'Board (optional)',
+                enabled: !_isSubmitting,
+              ),
               const SizedBox(height: AppSpacing.sm),
               AppTextField(
                 controller: _primaryPhoneController,
                 label: 'Primary phone',
                 enabled: !_isSubmitting,
                 keyboardType: TextInputType.phone,
-                validator: (value) => Validators.required(value, message: 'Primary phone is required'),
+                validator: (value) =>
+                    Validators.phone(value, label: 'Primary phone'),
               ),
               const SizedBox(height: AppSpacing.sm),
               AppTextField(
@@ -121,16 +149,32 @@ class _SubmitEnquiryDialogState extends ConsumerState<_SubmitEnquiryDialog> {
                 label: 'Secondary phone (optional)',
                 enabled: !_isSubmitting,
                 keyboardType: TextInputType.phone,
+                validator: (value) => Validators.phone(
+                  value,
+                  isRequired: false,
+                  label: 'Secondary phone',
+                ),
               ),
               const SizedBox(height: AppSpacing.sm),
-              AppTextField(controller: _messageController, label: 'Message (optional)', enabled: !_isSubmitting),
+              AppTextField(
+                controller: _messageController,
+                label: 'Message (optional)',
+                enabled: !_isSubmitting,
+              ),
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        AppButton(label: 'Submit', isLoading: _isSubmitting, onPressed: _submit),
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        AppButton(
+          label: 'Submit',
+          isLoading: _isSubmitting,
+          onPressed: _submit,
+        ),
       ],
     );
   }

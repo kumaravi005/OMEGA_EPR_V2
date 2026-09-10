@@ -29,9 +29,12 @@ class EnterMarksScreen extends ConsumerWidget {
       body: SafeArea(
         child: testAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load the test.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load the test.\n$error'),
           data: (test) {
-            if (test == null) return const ErrorView(message: 'Test not found.');
+            if (test == null) {
+              return const ErrorView(message: 'Test not found.');
+            }
             return _MarksBody(test: test);
           },
         ),
@@ -52,10 +55,15 @@ class _MarksBody extends ConsumerWidget {
 
     return studentsAsync.when(
       loading: () => const LoadingView(),
-      error: (error, stackTrace) => ErrorView(message: 'Could not load students.\n$error'),
+      error: (error, stackTrace) =>
+          ErrorView(message: 'Could not load students.\n$error'),
       data: (allStudents) {
-        final students = allStudents.where((s) => s.batchId == test.batchId && s.active).toList();
-        if (students.isEmpty) return const EmptyView(message: 'No students in this batch.');
+        final students = allStudents
+            .where((s) => s.batchId == test.batchId && s.active)
+            .toList();
+        if (students.isEmpty) {
+          return const EmptyView(message: 'No students in this batch.');
+        }
         final results = resultsAsync.valueOrNull ?? const <TestResult>[];
         final resultsByStudent = {for (final r in results) r.studentUid: r};
 
@@ -67,12 +75,23 @@ class _MarksBody extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${test.title} - ${test.subject}', style: Theme.of(context).textTheme.titleLarge),
-                    Text('${test.chapterTopic} - ${dateKey(test.date)} - out of ${test.totalMarks.toStringAsFixed(0)}'),
+                    Text(
+                      '${test.title} - ${test.subject}',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    Text(
+                      '${test.chapterTopic} - ${dateKey(test.date)} - out of ${test.totalMarks.toStringAsFixed(0)}',
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     Row(
                       children: [
-                        Chip(label: Text(test.resultPublished ? 'Result published' : 'Result not published')),
+                        Chip(
+                          label: Text(
+                            test.resultPublished
+                                ? 'Result published'
+                                : 'Result not published',
+                          ),
+                        ),
                         const Spacer(),
                         if (!test.resultPublished)
                           AppButton(
@@ -81,10 +100,18 @@ class _MarksBody extends ConsumerWidget {
                             onPressed: () async {
                               final messenger = ScaffoldMessenger.of(context);
                               try {
-                                await ref.read(testControllerProvider).publishResult(test);
-                                messenger.showSnackBar(const SnackBar(content: Text('Result published.')));
+                                await ref
+                                    .read(testControllerProvider)
+                                    .publishResult(test);
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Result published.'),
+                                  ),
+                                );
                               } on TestActionFailure catch (failure) {
-                                messenger.showSnackBar(SnackBar(content: Text(failure.message)));
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text(failure.message)),
+                                );
                               }
                             },
                           ),
@@ -98,10 +125,16 @@ class _MarksBody extends ConsumerWidget {
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 itemCount: students.length,
-                separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.xs),
+                separatorBuilder: (_, _) =>
+                    const SizedBox(height: AppSpacing.xs),
                 itemBuilder: (context, index) {
                   final student = students[index];
-                  return _MarkRow(test: test, studentUid: student.uid, studentName: student.name, existing: resultsByStudent[student.uid]);
+                  return _MarkRow(
+                    test: test,
+                    studentUid: student.uid,
+                    studentName: student.name,
+                    existing: resultsByStudent[student.uid],
+                  );
                 },
               ),
             ),
@@ -113,7 +146,12 @@ class _MarksBody extends ConsumerWidget {
 }
 
 class _MarkRow extends ConsumerStatefulWidget {
-  const _MarkRow({required this.test, required this.studentUid, required this.studentName, required this.existing});
+  const _MarkRow({
+    required this.test,
+    required this.studentUid,
+    required this.studentName,
+    required this.existing,
+  });
 
   final TestDefinition test;
   final String studentUid;
@@ -125,8 +163,12 @@ class _MarkRow extends ConsumerStatefulWidget {
 }
 
 class _MarkRowState extends ConsumerState<_MarkRow> {
-  late final _marksController = TextEditingController(text: widget.existing?.obtainedMarks.toStringAsFixed(0) ?? '');
-  late final _remarkController = TextEditingController(text: widget.existing?.remark ?? '');
+  late final _marksController = TextEditingController(
+    text: widget.existing?.obtainedMarks.toStringAsFixed(0) ?? '',
+  );
+  late final _remarkController = TextEditingController(
+    text: widget.existing?.remark ?? '',
+  );
   bool _isSaving = false;
 
   @override
@@ -139,7 +181,9 @@ class _MarkRowState extends ConsumerState<_MarkRow> {
   Future<void> _save() async {
     final marks = double.tryParse(_marksController.text);
     if (marks == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid mark.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Enter a valid mark.')));
       return;
     }
     setState(() => _isSaving = true);
@@ -151,7 +195,9 @@ class _MarkRowState extends ConsumerState<_MarkRow> {
             test: widget.test,
             studentUid: widget.studentUid,
             obtainedMarks: marks,
-            remark: _remarkController.text.trim().isEmpty ? null : _remarkController.text,
+            remark: _remarkController.text.trim().isEmpty
+                ? null
+                : _remarkController.text,
           );
       messenger.showSnackBar(const SnackBar(content: Text('Mark saved.')));
     } on TestActionFailure catch (failure) {
@@ -173,8 +219,12 @@ class _MarkRowState extends ConsumerState<_MarkRow> {
               width: 80,
               child: TextField(
                 controller: _marksController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(labelText: '/ ${widget.test.totalMarks.toStringAsFixed(0)}'),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: '/ ${widget.test.totalMarks.toStringAsFixed(0)}',
+                ),
                 enabled: !_isSaving,
               ),
             ),
@@ -189,7 +239,11 @@ class _MarkRowState extends ConsumerState<_MarkRow> {
             ),
             IconButton(
               icon: _isSaving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.save_outlined),
               onPressed: _isSaving ? null : _save,
             ),

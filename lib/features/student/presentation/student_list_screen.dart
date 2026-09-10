@@ -26,7 +26,8 @@ class StudentListScreen extends ConsumerWidget {
       body: SafeArea(
         child: studentsAsync.when(
           loading: () => const LoadingView(message: 'Loading students...'),
-          error: (error, stackTrace) => ErrorView(message: 'Could not load students.\n$error'),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load students.\n$error'),
           data: (students) {
             if (students.isEmpty) {
               return const EmptyView(message: 'No students admitted yet.');
@@ -35,7 +36,8 @@ class StudentListScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: students.length,
               separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-              itemBuilder: (context, index) => _StudentTile(student: students[index]),
+              itemBuilder: (context, index) =>
+                  _StudentTile(student: students[index]),
             );
           },
         ),

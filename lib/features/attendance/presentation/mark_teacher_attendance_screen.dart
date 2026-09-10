@@ -15,10 +15,12 @@ class MarkTeacherAttendanceScreen extends ConsumerStatefulWidget {
   const MarkTeacherAttendanceScreen({super.key});
 
   @override
-  ConsumerState<MarkTeacherAttendanceScreen> createState() => _MarkTeacherAttendanceScreenState();
+  ConsumerState<MarkTeacherAttendanceScreen> createState() =>
+      _MarkTeacherAttendanceScreenState();
 }
 
-class _MarkTeacherAttendanceScreenState extends ConsumerState<MarkTeacherAttendanceScreen> {
+class _MarkTeacherAttendanceScreenState
+    extends ConsumerState<MarkTeacherAttendanceScreen> {
   DateTime _date = DateTime.now();
 
   Future<void> _pickDate() async {
@@ -54,16 +56,24 @@ class _MarkTeacherAttendanceScreenState extends ConsumerState<MarkTeacherAttenda
             Expanded(
               child: teachersAsync.when(
                 loading: () => const LoadingView(),
-                error: (error, stackTrace) => ErrorView(message: 'Could not load teachers.\n$error'),
+                error: (error, stackTrace) =>
+                    ErrorView(message: 'Could not load teachers.\n$error'),
                 data: (teachers) {
-                  if (teachers.isEmpty) return const EmptyView(message: 'No teachers yet.');
+                  if (teachers.isEmpty) {
+                    return const EmptyView(message: 'No teachers yet.');
+                  }
                   return ListView.separated(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     itemCount: teachers.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.xs),
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: AppSpacing.xs),
                     itemBuilder: (context, index) {
                       final teacher = teachers[index];
-                      return _TeacherAttendanceTile(teacherUid: teacher.uid, teacherName: teacher.name, date: _date);
+                      return _TeacherAttendanceTile(
+                        teacherUid: teacher.uid,
+                        teacherName: teacher.name,
+                        date: _date,
+                      );
                     },
                   );
                 },
@@ -77,7 +87,11 @@ class _MarkTeacherAttendanceScreenState extends ConsumerState<MarkTeacherAttenda
 }
 
 class _TeacherAttendanceTile extends ConsumerWidget {
-  const _TeacherAttendanceTile({required this.teacherUid, required this.teacherName, required this.date});
+  const _TeacherAttendanceTile({
+    required this.teacherUid,
+    required this.teacherName,
+    required this.date,
+  });
 
   final String teacherUid;
   final String teacherName;
@@ -86,14 +100,19 @@ class _TeacherAttendanceTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final historyAsync = ref.watch(teacherOwnAttendanceProvider(teacherUid));
-    final existing = historyAsync.valueOrNull?.where((r) => r.dateKey == dateKey(date)).firstOrNull;
+    final existing = historyAsync.valueOrNull
+        ?.where((r) => r.dateKey == dateKey(date))
+        .firstOrNull;
     final status = existing?.status;
 
     return Card(
       child: ListTile(
         title: Text(teacherName),
         trailing: ToggleButtons(
-          isSelected: [status == AttendanceStatus.present, status == AttendanceStatus.absent],
+          isSelected: [
+            status == AttendanceStatus.present,
+            status == AttendanceStatus.absent,
+          ],
           onPressed: (i) async {
             final messenger = ScaffoldMessenger.of(context);
             try {
@@ -102,15 +121,23 @@ class _TeacherAttendanceTile extends ConsumerWidget {
                   .markTeacherAttendance(
                     teacherUid: teacherUid,
                     date: date,
-                    status: i == 0 ? AttendanceStatus.present : AttendanceStatus.absent,
+                    status: i == 0
+                        ? AttendanceStatus.present
+                        : AttendanceStatus.absent,
                   );
             } on AttendanceFailure catch (failure) {
               messenger.showSnackBar(SnackBar(content: Text(failure.message)));
             }
           },
           children: const [
-            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('P')),
-            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('A')),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Text('P'),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Text('A'),
+            ),
           ],
         ),
       ),

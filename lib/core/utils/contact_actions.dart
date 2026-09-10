@@ -12,12 +12,16 @@ Uri buildWhatsAppUri(String phoneNumber) {
 
 /// Opens the device's native phone dialer with [phoneNumber] pre-filled.
 /// Does not place the call itself - the user still has to press call.
-Future<bool> callNumber(String phoneNumber) => launchUrl(buildTelUri(phoneNumber));
+Future<bool> callNumber(String phoneNumber) =>
+    launchUrl(buildTelUri(phoneNumber));
 
 /// Opens WhatsApp (app or web, whichever the platform supports) with a
 /// chat to [phoneNumber] ready to send. [phoneNumber] should include the
 /// country code (no leading "+" or spaces needed - non-digits are
 /// stripped).
 Future<bool> openWhatsApp(String phoneNumber) {
-  return launchUrl(buildWhatsAppUri(phoneNumber), mode: LaunchMode.externalApplication);
+  return launchUrl(
+    buildWhatsAppUri(phoneNumber),
+    mode: LaunchMode.externalApplication,
+  );
 }

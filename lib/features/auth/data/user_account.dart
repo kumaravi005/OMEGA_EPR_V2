@@ -18,7 +18,11 @@ enum UserRole {
 /// account at a time - this is the single-device login enforcement,
 /// backed by `firestore.rules` (see docs/database-architecture.md).
 class DeviceSession {
-  const DeviceSession({required this.deviceId, required this.loginAt, required this.lastSeenAt});
+  const DeviceSession({
+    required this.deviceId,
+    required this.loginAt,
+    required this.lastSeenAt,
+  });
 
   factory DeviceSession.fromMap(Map<String, dynamic> map) {
     return DeviceSession(
@@ -99,7 +103,9 @@ class UserAccount implements FirestoreDocument {
       'active': active,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
-      'lastLoginAt': lastLoginAt == null ? null : Timestamp.fromDate(lastLoginAt!),
+      'lastLoginAt': lastLoginAt == null
+          ? null
+          : Timestamp.fromDate(lastLoginAt!),
       'session': session?.toMap(),
     };
   }

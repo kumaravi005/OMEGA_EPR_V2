@@ -10,7 +10,14 @@ void main() {
     });
 
     test('rejects invalid account IDs', () {
-      for (final id in ['ab', '', 'has space', 'Upper', 'user@id', '-startswithsymbol']) {
+      for (final id in [
+        'ab',
+        '',
+        'has space',
+        'Upper',
+        'user@id',
+        '-startswithsymbol',
+      ]) {
         expect(AppConstants.accountIdPattern.hasMatch(id), isFalse, reason: id);
       }
     });
