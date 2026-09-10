@@ -29,6 +29,8 @@ import 'features/public/presentation/admin/gallery_screen.dart';
 import 'features/public/presentation/admin/institute_profile_screen.dart';
 import 'features/public/presentation/admin/upcoming_batches_screen.dart';
 import 'features/public/presentation/public_home_screen.dart';
+import 'features/report_templates/presentation/report_layout_templates_screen.dart';
+import 'features/report_templates/presentation/report_template_designer_screen.dart';
 import 'features/reports/presentation/fee_dues_export_screen.dart';
 import 'features/reports/presentation/reports_hub_screen.dart';
 import 'features/reports/presentation/student_export_screen.dart';
@@ -128,6 +130,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppRoutes.adminStudentExport, builder: (context, state) => const StudentExportScreen()),
       GoRoute(path: AppRoutes.adminFeeDuesExport, builder: (context, state) => const FeeDuesExportScreen()),
       GoRoute(path: AppRoutes.adminTestResultExport, builder: (context, state) => const TestResultExportScreen()),
+
+      GoRoute(path: AppRoutes.adminReportTemplates, builder: (context, state) => const ReportLayoutTemplatesScreen()),
+      GoRoute(path: AppRoutes.adminReportTemplateNew, builder: (context, state) => const ReportTemplateDesignerScreen()),
+      GoRoute(
+        path: '${AppRoutes.adminReportTemplates}/:templateId/edit',
+        builder: (context, state) => ReportTemplateDesignerScreen(templateId: state.pathParameters['templateId']),
+      ),
 
       GoRoute(path: AppRoutes.teacher, builder: (context, state) => const TeacherHomeScreen()),
       GoRoute(

@@ -6,6 +6,13 @@ import 'export_dataset.dart';
 /// header row, one data row per row, and a title row above the header.
 /// The one place Excel generation is implemented; every export module
 /// reuses it.
+///
+/// When [ExportDataset.branding] is set, the institute name/tagline/
+/// address/contact are added as plain text rows above the title - a
+/// simple text letterhead, not a visual replica of the PDF's positioned
+/// logo (Excel has no meaningful "logo position" concept the way a
+/// printed page does, and the `excel` package version here has no
+/// print-header/footer API to hook a page-numbered footer into either).
 class ExcelReportBuilder {
   const ExcelReportBuilder();
 
@@ -16,6 +23,8 @@ class ExcelReportBuilder {
     workbook.rename(defaultSheetName, sheetName);
     final sheet = workbook[sheetName];
 
+    final brandingStyle = CellStyle(bold: true, fontSize: 13);
+    final brandingSubStyle = CellStyle(fontColorHex: ExcelColor.grey700, fontSize: 9);
     final titleStyle = CellStyle(bold: true, fontSize: 14);
     final subtitleStyle = CellStyle(fontColorHex: ExcelColor.grey700, fontSize: 10);
     final headerStyle = CellStyle(
@@ -24,12 +33,31 @@ class ExcelReportBuilder {
       backgroundColorHex: ExcelColor.blueGrey700,
     );
 
+    final header = dataset.branding?.header;
+    if (header != null) {
+      for (final (text, style) in [
+        (header.instituteName, brandingStyle),
+        (header.tagline, brandingSubStyle),
+        (header.address, brandingSubStyle),
+        (header.contact, brandingSubStyle),
+        (header.otherText, brandingSubStyle),
+      ]) {
+        if (text == null) continue;
+        final rowIndex = sheet.maxRows;
+        sheet.appendRow([TextCellValue(text)]);
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex)).cellStyle = style;
+      }
+      sheet.appendRow([TextCellValue('')]);
+    }
+
+    final titleRowIndex = sheet.maxRows;
     sheet.appendRow([TextCellValue(dataset.title)]);
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0)).cellStyle = titleStyle;
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: titleRowIndex)).cellStyle = titleStyle;
 
     if (dataset.subtitle != null && dataset.subtitle!.isNotEmpty) {
+      final subtitleRowIndex = sheet.maxRows;
       sheet.appendRow([TextCellValue(dataset.subtitle!)]);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 1)).cellStyle = subtitleStyle;
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: subtitleRowIndex)).cellStyle = subtitleStyle;
     }
     // A real (non-empty) blank row: an all-null appendRow is a no-op for
     // row count, since nothing is actually written to any cell.

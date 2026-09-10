@@ -64,6 +64,11 @@ dependencies:
   xml: ^6.6.1
   share_plus: ^10.1.4
 
+  # Fetches the admin-configured logo image (a pasted URL - no Storage,
+  # same as gallery/banner images - see docs/database-architecture.md)
+  # for embedding into a generated PDF's header.
+  http: ^1.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

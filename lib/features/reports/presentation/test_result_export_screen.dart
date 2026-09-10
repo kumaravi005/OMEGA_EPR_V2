@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/export/export_dataset.dart';
 import '../../../core/export/export_format.dart';
 import '../../../core/export/export_service.dart';
+import '../../../core/export/report_branding.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/date_key.dart';
 import '../../../core/utils/marks_combiner.dart';
 import '../../../core/utils/ranking.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../batches/data/batch_repository.dart';
+import '../../report_templates/data/report_layout_template_repository.dart';
+import '../../report_templates/presentation/widgets/report_layout_picker.dart';
 import '../../student/data/student_profile.dart';
 import '../../student/data/student_repository.dart';
 import '../../tests/data/test_definition.dart';
@@ -56,6 +59,7 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
   bool _sortByPercentage = true;
   ExportFormat _format = ExportFormat.pdf;
   ReportOrientation _orientation = ReportOrientation.auto;
+  String? _layoutTemplateId;
   bool _isGenerating = false;
 
   void _resetSelections() {
@@ -166,6 +170,8 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
             FormatPicker(value: _format, onChanged: (format) => setState(() => _format = format)),
             const SizedBox(height: AppSpacing.md),
             OrientationPicker(value: _orientation, onChanged: (o) => setState(() => _orientation = o)),
+            const SizedBox(height: AppSpacing.md),
+            ReportLayoutPicker(value: _layoutTemplateId, onChanged: (id) => setState(() => _layoutTemplateId = id)),
             const SizedBox(height: AppSpacing.lg),
             AppButton(
               label: 'Generate export',
@@ -197,11 +203,17 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
         ..sort((a, b) => a.name.compareTo(b.name));
       final allResults = await ref.read(testResultRepositoryProvider).getAll();
       final allTests = await ref.read(testRepositoryProvider).getAll();
+      // Fetched fresh, baked into a one-time snapshot - see
+      // ReportBranding's doc comment for why this keeps an already
+      // generated report unaffected by a later template edit.
+      final branding = _layoutTemplateId == null
+          ? null
+          : (await ref.read(reportLayoutTemplateRepositoryProvider).getById(_layoutTemplateId!))?.toBranding();
 
       final dataset = switch (_mode) {
-        TestReportMode.specificTest => _buildSpecificTest(roster, allResults, allTests),
-        TestReportMode.subjectWise => _buildSubjectWise(roster, allResults, allTests),
-        TestReportMode.multiSubject => _buildMultiSubject(roster, allResults, allTests),
+        TestReportMode.specificTest => _buildSpecificTest(roster, allResults, allTests, branding),
+        TestReportMode.subjectWise => _buildSubjectWise(roster, allResults, allTests, branding),
+        TestReportMode.multiSubject => _buildMultiSubject(roster, allResults, allTests, branding),
       };
 
       await const ExportService().export(dataset, _format, fileName: 'test_result');
@@ -214,7 +226,12 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
     }
   }
 
-  ExportDataset _buildSpecificTest(List<StudentProfile> roster, List<TestResult> allResults, List<TestDefinition> allTests) {
+  ExportDataset _buildSpecificTest(
+    List<StudentProfile> roster,
+    List<TestResult> allResults,
+    List<TestDefinition> allTests,
+    ReportBranding? branding,
+  ) {
     final test = allTests.firstWhere((t) => t.testId == _specificTestId);
     final resultByStudent = {
       for (final r in allResults.where((r) => r.testId == test.testId)) r.studentUid: r,
@@ -248,10 +265,16 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
           ],
       ],
       orientation: _orientation,
+      branding: branding,
     );
   }
 
-  ExportDataset _buildSubjectWise(List<StudentProfile> roster, List<TestResult> allResults, List<TestDefinition> allTests) {
+  ExportDataset _buildSubjectWise(
+    List<StudentProfile> roster,
+    List<TestResult> allResults,
+    List<TestDefinition> allTests,
+    ReportBranding? branding,
+  ) {
     final tests = allTests.where((t) => _subjectWiseTestIds.contains(t.testId)).toList()
       ..sort((a, b) => a.date.compareTo(b.date));
     final maxMarks = [for (final test in tests) test.totalMarks];
@@ -291,10 +314,16 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
           ],
       ],
       orientation: _orientation,
+      branding: branding,
     );
   }
 
-  ExportDataset _buildMultiSubject(List<StudentProfile> roster, List<TestResult> allResults, List<TestDefinition> allTests) {
+  ExportDataset _buildMultiSubject(
+    List<StudentProfile> roster,
+    List<TestResult> allResults,
+    List<TestDefinition> allTests,
+    ReportBranding? branding,
+  ) {
     final subjects = _multiSubjects.toList()..sort();
     final testsBySubject = {
       for (final subject in subjects) subject: allTests.firstWhere((t) => t.testId == _subjectTestChoice[subject]),
@@ -339,6 +368,7 @@ class _TestResultExportScreenState extends ConsumerState<TestResultExportScreen>
           ],
       ],
       orientation: _orientation,
+      branding: branding,
     );
   }
 

@@ -184,6 +184,27 @@ lib/
       presentation/widgets/  ColumnPicker, FormatPicker, OrientationPicker,
                              TemplateBar - shared controls every export
                              screen composes instead of reimplementing.
+    report_templates/ (Set 7)  The admin-configurable A4 report-letterhead
+                             designer - a different thing from
+                             `reports/data/report_template.dart` (Set 6's
+                             saved export column/filter configs) despite
+                             the similar name; see "Report layout
+                             templates" below.
+      data/                  ReportLayoutTemplate (+ ReportHeaderConfig/
+                             ReportFooterConfig) model and repository.
+                             `toBranding()` bakes a template into the
+                             `core/export/report_branding.dart` shapes the
+                             engine actually renders from.
+      application/           ReportLayoutTemplateController (create/
+                             update/delete).
+      presentation/          ReportLayoutTemplatesScreen (list, admin CRUD
+                             entry point), ReportTemplateDesignerScreen
+                             (the A4 preview + header/footer form).
+      presentation/widgets/  A4Preview, DraggableLogo (the one true
+                             drag/resize interaction - see "Report layout
+                             templates" below), ReportLayoutPicker (the
+                             "which template" dropdown embedded in every
+                             compatible export screen).
 ```
 
 ## The export/report engine (Set 6)
@@ -325,6 +346,71 @@ via the Firebase Console (see docs/firebase-setup.md) - there is no
 sign-up screen anywhere in the app, and `firestore.rules` denies `create`
 on `users` to everyone except an already-existing admin.
 
+## Report layout templates (Set 7)
+
+An admin-designed, reusable A4 letterhead - logo, institute name/tagline/
+address/contact, and a footer (signature area/page number/date/contact) -
+picked by name from any compatible export screen. This is a template
+system layered on top of Set 6's engine, not a second one:
+
+```
+ReportTemplateDesignerScreen (A4Preview + form)
+        ↓ admin saves
+reportLayoutTemplates/{templateId}          <- ReportHeaderConfig/ReportFooterConfig
+        ↓ .toBranding(), fetched fresh right before "Generate"
+ReportBranding                               <- core/export/report_branding.dart
+        ↓ ExportDataset.branding
+PdfReportBuilder / ExcelReportBuilder / DocxReportBuilder   <- same Set 6 builders, branding-aware
+```
+
+- **Visual editing, kept simple**: the logo is the one element that's
+  genuinely drag-to-move/drag-to-resize (`DraggableLogo`, reporting back
+  fractions of the header area - see [`LogoPlacement`] in
+  `core/export/report_branding.dart`). Every other header/footer element
+  (institute name, tagline, address, contact, other header text, footer
+  text, signature label, date, page number, footer contact) is a text
+  field plus a show/hide switch - not draggable. This is the literal
+  "keep the editor simple... do not build a full Canva-like design
+  system" boundary: one free-form interaction, everything else is a
+  form.
+- **`A4Preview` mirrors `PdfReportBuilder`'s layout logic**, not just its
+  data: logo-side text anchoring (text block sits on whichever half of
+  the header the logo *isn't* on) and the same 3-column footer row
+  (signature left, footer text center, date/contact/page-number right)
+  are reimplemented in Flutter widgets so what the admin sees while
+  dragging is what the generated PDF actually looks like - not an
+  approximation.
+- **Why an already-generated report doesn't change when its template is
+  edited later**: every export screen fetches the chosen template fresh
+  (`getById`, not a cached/watched value) and calls `.toBranding()`
+  immediately before rendering, producing a plain, disconnected
+  `ReportBranding` value object - there is no code path anywhere that
+  re-reads a template to redraw a report after the fact. Combined with
+  every export already being "generate once, hand over static bytes"
+  (Set 6), this is structurally guaranteed, not something that needed
+  extra versioning/snapshot machinery to build.
+- **Rich header/footer/logo rendering is PDF-only.** Excel and DOCX get a
+  lightweight text-based letterhead (institute name/tagline/address/
+  contact as plain rows/paragraphs above the title) when a template is
+  applied, not a visual replica - "A4 header/footer with a positioned
+  logo" and printed page numbering are fundamentally PDF/print concepts;
+  Excel has no page-orientation API in the installed `excel` package
+  version to hook into either (same limitation noted in Set 6). This
+  keeps every format "connected" to the one template system without
+  pretending Excel/DOCX have a print layout the way a PDF page does.
+- **What counts as a "compatible report"**: every export screen built in
+  Set 6 (student list, fee dues, test result, in all three modes) got the
+  `ReportLayoutPicker` dropdown - that's the literal integration point.
+  An "attendance report" export (mentioned in the Set 7 spec's reuse
+  list) was **not** built here - Set 6 never built an attendance export
+  screen to begin with, and adding a new export module was out of scope
+  for "build the template system and connect it to the existing engine".
+  The engine/template system is generic enough that an attendance export
+  added later would reuse both without changes.
+- **Logo images are pasted URLs**, same as every other image field since
+  Set 5 - Storage still isn't enabled (see docs/firebase-setup.md). No
+  new decision here, just the established pattern applied again.
+
 ## What's deliberately not here yet
 
 - Teacher/student **photos**, and every public-content image
@@ -358,8 +444,12 @@ on `users` to everyone except an already-existing admin.
   (Set 6) is the export/print-and-call substitute for it.
 - Any feature folder beyond `auth`, `admin`, `teacher`, `student`,
   `batches`, `attendance`, `homework`, `assignments`, `tests`, `public`,
-  `enquiries`, `notifications`, `reports` - e.g. `fees` as its own
-  module, settings, audit logs.
+  `enquiries`, `notifications`, `reports`, `report_templates` - e.g.
+  `fees` as its own module, settings, audit logs.
+- An attendance-report export screen - Set 6 never built one, and adding
+  a new export module wasn't in scope for Set 7's own goal (the template
+  system + connecting it to what already exists). See "Report layout
+  templates" above.
 - Changing a role after account creation, or deleting an account/teacher/
   student/batch (admin deactivates via `active: false` instead).
 - Editing or deleting a recorded payment, attendance heartbeat aside -

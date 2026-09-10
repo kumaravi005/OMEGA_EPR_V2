@@ -8,6 +8,8 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../batches/data/batch.dart';
 import '../../batches/data/batch_repository.dart';
+import '../../report_templates/data/report_layout_template_repository.dart';
+import '../../report_templates/presentation/widgets/report_layout_picker.dart';
 import '../../student/data/student_profile.dart';
 import '../../student/data/student_repository.dart';
 import '../data/report_template.dart';
@@ -66,6 +68,7 @@ class _StudentReportExportScreenState extends ConsumerState<StudentReportExportS
   bool _duesOnly = true;
   ExportFormat _format = ExportFormat.pdf;
   ReportOrientation _orientation = ReportOrientation.auto;
+  String? _layoutTemplateId;
   bool _isGenerating = false;
 
   @override
@@ -91,6 +94,7 @@ class _StudentReportExportScreenState extends ConsumerState<StudentReportExportS
     'duesOnly': _duesOnly,
     'format': _format.name,
     'orientation': _orientation.name,
+    'layoutTemplateId': _layoutTemplateId,
   };
 
   void _applyConfig(Map<String, dynamic> config) {
@@ -109,6 +113,7 @@ class _StudentReportExportScreenState extends ConsumerState<StudentReportExportS
         (o) => o.name == config['orientation'],
         orElse: () => ReportOrientation.auto,
       );
+      _layoutTemplateId = config['layoutTemplateId'] as String?;
     });
   }
 
@@ -184,6 +189,8 @@ class _StudentReportExportScreenState extends ConsumerState<StudentReportExportS
             FormatPicker(value: _format, onChanged: (format) => setState(() => _format = format)),
             const SizedBox(height: AppSpacing.md),
             OrientationPicker(value: _orientation, onChanged: (o) => setState(() => _orientation = o)),
+            const SizedBox(height: AppSpacing.md),
+            ReportLayoutPicker(value: _layoutTemplateId, onChanged: (id) => setState(() => _layoutTemplateId = id)),
             const SizedBox(height: AppSpacing.lg),
             AppButton(
               label: 'Generate export',
@@ -240,6 +247,15 @@ class _StudentReportExportScreenState extends ConsumerState<StudentReportExportS
         return _sortAscending ? result : -result;
       });
 
+      // Fetched fresh (not from a watched/cached provider) right before
+      // rendering, and baked into `ExportDataset.branding` as a
+      // one-time snapshot - if the template is edited later, this
+      // already-generated report is unaffected (see ReportBranding's
+      // doc comment).
+      final branding = _layoutTemplateId == null
+          ? null
+          : (await ref.read(reportLayoutTemplateRepositoryProvider).getById(_layoutTemplateId!))?.toBranding();
+
       final orderedKeys = StudentReportColumns.orderedKeys(_selectedColumns);
       final dataset = ExportDataset(
         title: widget.datasetTitle,
@@ -251,6 +267,7 @@ class _StudentReportExportScreenState extends ConsumerState<StudentReportExportS
         columns: [for (final key in orderedKeys) StudentReportColumns.all.firstWhere((c) => c.key == key).label],
         rows: [for (final row in rows) StudentReportColumns.row(row, orderedKeys)],
         orientation: _orientation,
+        branding: branding,
       );
 
       await const ExportService().export(dataset, _format, fileName: widget.exportFileName);

@@ -49,6 +49,12 @@ was built.
   dependencies" only because there's no way to produce real PDF/Excel/
   DOCX bytes without them - they were added once, for the shared engine,
   not per module.
+- Report *layout* templates (Set 7, `features/report_templates/`) extend
+  the same engine - `ExportDataset.branding` and the branding-aware
+  header/footer code in `PdfReportBuilder`/`ExcelReportBuilder`/
+  `DocxReportBuilder` - rather than being a second PDF pipeline. Adding
+  the `http` package (to fetch a configured logo URL) is the one
+  exception to "no unnecessary dependencies" this set needed.
 
 ## State management
 

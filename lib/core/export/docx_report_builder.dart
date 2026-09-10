@@ -11,6 +11,14 @@ import 'export_dataset.dart';
 /// builds the XML directly instead of using a template-filling package).
 /// Word paginates and wraps table text on its own, so there's no manual
 /// page-break/page-numbering logic here - see docs/database-architecture.md.
+///
+/// When [ExportDataset.branding] is set, the institute name/tagline/
+/// address/contact are added as plain paragraphs above the title - a
+/// simple text letterhead. The logo image and footer (signature/date/
+/// page number) are PDF-only (see [PdfReportBuilder]) - a real image
+/// header/footer in docx needs extra zip parts this builder deliberately
+/// doesn't add, matching the same "no manual page numbering" scope
+/// decision already made for the plain page-count footer.
 class DocxReportBuilder {
   const DocxReportBuilder();
 
@@ -47,6 +55,19 @@ class DocxReportBuilder {
         builder.element(
           'w:body',
           nest: () {
+            final header = dataset.branding?.header;
+            if (header != null) {
+              for (final (text, bold, size) in [
+                (header.instituteName, true, 28),
+                (header.tagline, false, 18),
+                (header.address, false, 16),
+                (header.contact, false, 16),
+                (header.otherText, false, 16),
+              ]) {
+                if (text != null) _paragraph(builder, text, bold: bold, size: size, color: bold ? null : '616161');
+              }
+              _emptyParagraph(builder);
+            }
             _paragraph(builder, dataset.title, bold: true, size: 32);
             if (dataset.subtitle != null && dataset.subtitle!.isNotEmpty) {
               _paragraph(builder, dataset.subtitle!, size: 18, color: '616161');

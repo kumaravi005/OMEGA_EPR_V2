@@ -742,6 +742,32 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Report *layout* templates (Set 7) - a different thing from
+    // `reportTemplates` above despite the similar name: this is the
+    // visual A4 letterhead (logo position/size, header text, footer/
+    // signature/page-number config), not an export's column/filter
+    // choices. Admin-only, freely deletable - same reasoning as
+    // `reportTemplates`. `header`/`footer` are validated only at the
+    // top level (they're maps); their nested shape is defined and
+    // interpreted entirely by ReportHeaderConfig/ReportFooterConfig on
+    // the client and carries no access-control meaning of its own.
+    function newReportLayoutTemplateIsValid() {
+      let data = request.resource.data;
+      return data.name is string && data.name.size() > 0
+        && data.header is map
+        && data.footer is map
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(['name', 'header', 'footer', 'createdAt', 'updatedAt']);
+    }
+
+    match /reportLayoutTemplates/{templateId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() && newReportLayoutTemplateIsValid();
+      allow update: if isAdmin() && newReportLayoutTemplateIsValid();
+      allow delete: if isAdmin();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

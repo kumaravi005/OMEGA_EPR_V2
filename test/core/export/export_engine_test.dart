@@ -1,11 +1,41 @@
+import 'dart:convert';
 import 'package:archive/archive.dart';
 import 'package:excel/excel.dart' as xls;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:omega_epr_v2/core/export/docx_report_builder.dart';
 import 'package:omega_epr_v2/core/export/excel_report_builder.dart';
 import 'package:omega_epr_v2/core/export/export_dataset.dart';
 import 'package:omega_epr_v2/core/export/pdf_report_builder.dart';
+import 'package:omega_epr_v2/core/export/report_branding.dart';
 import 'package:xml/xml.dart';
+
+// A minimal valid 1x1 transparent PNG, used to test logo fetching without
+// a real network call.
+final _tinyPngBytes = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+);
+
+ReportBranding _branding({String? logoUrl}) => ReportBranding(
+  templateName: 'Letterhead',
+  header: ReportHeaderBranding(
+    logoUrl: logoUrl,
+    logoPlacement: const LogoPlacement(xFraction: 0.02, yFraction: 0.1, widthFraction: 0.2),
+    instituteName: 'Omega Education Centre',
+    tagline: 'Excellence in learning',
+    address: '123 Main Street',
+    contact: '+91 90000 00000',
+  ),
+  footer: const ReportFooterBranding(
+    footerText: 'This is a computer-generated report.',
+    showSignature: true,
+    signatureLabel: 'Principal',
+    showPageNumber: true,
+    showDate: true,
+    contactText: 'www.example.org',
+  ),
+);
 
 ExportDataset _smallDataset() => ExportDataset(
   title: 'Student List',
@@ -55,6 +85,49 @@ void main() {
 
     test('does not throw for a wide, many-row dataset (multi-page + landscape)', () async {
       final bytes = await const PdfReportBuilder().build(_wideDataset(columnCount: 10, rowCount: 120));
+      expect(bytes, isNotEmpty);
+    });
+
+    test('renders a branded header/footer with a fetched logo', () async {
+      final client = MockClient((request) async => http.Response.bytes(_tinyPngBytes, 200));
+      final dataset = _smallDataset();
+      final branded = ExportDataset(
+        title: dataset.title,
+        subtitle: dataset.subtitle,
+        columns: dataset.columns,
+        rows: dataset.rows,
+        branding: _branding(logoUrl: 'https://example.org/logo.png'),
+      );
+
+      final bytes = await PdfReportBuilder(httpClient: client).build(branded);
+      expect(bytes, isNotEmpty);
+      expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+    });
+
+    test('a broken/unreachable logo URL does not fail the export', () async {
+      final client = MockClient((request) async => http.Response('not found', 404));
+      final dataset = _smallDataset();
+      final branded = ExportDataset(
+        title: dataset.title,
+        columns: dataset.columns,
+        rows: dataset.rows,
+        branding: _branding(logoUrl: 'https://example.org/missing.png'),
+      );
+
+      final bytes = await PdfReportBuilder(httpClient: client).build(branded);
+      expect(bytes, isNotEmpty);
+    });
+
+    test('renders branded header/footer text even with no logo configured', () async {
+      final dataset = _smallDataset();
+      final branded = ExportDataset(
+        title: dataset.title,
+        columns: dataset.columns,
+        rows: dataset.rows,
+        branding: _branding(),
+      );
+
+      final bytes = await const PdfReportBuilder().build(branded);
       expect(bytes, isNotEmpty);
     });
   });

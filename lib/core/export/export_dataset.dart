@@ -1,3 +1,5 @@
+import 'report_branding.dart';
+
 /// Orientation for a printed/paginated report (PDF). `auto` picks
 /// landscape once there are more columns than comfortably fit a portrait
 /// A4 page (see [ExportDataset.isLandscape]) - Excel/DOCX ignore this
@@ -17,6 +19,7 @@ class ExportDataset {
     required this.columns,
     required this.rows,
     this.orientation = ReportOrientation.auto,
+    this.branding,
   }) : assert(columns.isNotEmpty, 'An export must have at least one column');
 
   /// Report title, shown at the top of every output format (e.g.
@@ -35,6 +38,11 @@ class ExportDataset {
   final List<List<String>> rows;
 
   final ReportOrientation orientation;
+
+  /// A saved report-layout template's header/footer/logo, already baked
+  /// into a snapshot (see [ReportBranding]) - null renders exactly as
+  /// Set 6 did (title/subtitle header, plain page-number footer).
+  final ReportBranding? branding;
 
   /// More than 6 columns stops fitting a portrait A4 page comfortably at
   /// a readable font size, so `auto` switches to landscape from there.

@@ -517,6 +517,49 @@ for what actually goes into `config` per module, and why test-result
 mode/batch/subject/test selections are deliberately *not* saved (they're
 one-off per report, not a reusable preference).
 
+## Report layout templates (Set 7)
+
+```
+reportLayoutTemplates/{templateId}
+  name         string
+  header:
+    logoUrl                string | null    pasted URL - no Storage, same
+                                              as every other image field
+                                              since Set 5
+    logoXFraction, logoYFraction, logoWidthFraction   number, 0..1 -
+      fractions of the header area, set by dragging/resizing the logo in
+      the designer (see LogoPlacement in core/export/report_branding.dart)
+    instituteName, showInstituteName        string, bool
+    tagline, showTagline                    string, bool
+    address, showAddress                    string, bool
+    contact, showContact                    string, bool
+    otherText, showOtherText                string, bool
+  footer:
+    footerText, showFooterText              string, bool
+    showSignature                           bool
+    signatureLabel                          string  (e.g. "Authorized Signatory")
+    showPageNumber                          bool
+    showDate                                bool
+    contactText, showFooterContact          string, bool
+  createdAt, updatedAt
+```
+
+Text and its show/hide flag are stored separately (not "empty string
+means hidden") so toggling something off doesn't lose what was typed -
+`ReportLayoutTemplate.toBranding()` is what actually collapses each pair
+to a single nullable field (null exactly when hidden or genuinely empty),
+producing the plain `ReportBranding` snapshot every export builder
+renders from. See docs/architecture.md's "Report layout templates" for
+the full designer -> template -> branding -> PDF pipeline, and why
+editing a template afterward can't change a report already generated
+with it.
+
+Admin-only, and - like `reportTemplates` (Set 6) - genuinely deletable:
+a saved letterhead is a reusable asset the admin manages, not a durable
+record. `header`/`footer` are validated only as maps at the rules level;
+their nested shape carries no access-control meaning (same reasoning as
+`reportTemplates.config`).
+
 ## Security posture (this phase)
 
 `storage.rules` still **denies all reads and writes** - Storage itself
@@ -553,9 +596,10 @@ above:
 - `enquiries`/`callbackRequests`: public, unauthenticated `create`;
   admin-only read/update; `delete` never allowed (see "Public writes"
   above).
-- `reportTemplates`: admin-only read/create/update **and** delete (see
-  "Saved export templates" above - the one collection in this project
-  where client-side delete is actually allowed).
+- `reportTemplates`/`reportLayoutTemplates`: admin-only read/create/
+  update **and** delete (see "Saved export templates" and "Report layout
+  templates" above - the two collections in this project where
+  client-side delete is actually allowed).
 - Every other planned collection (`fees`, `subjects`, `academicSessions`,
   `auditLogs`, ...) stays fully closed until the phase that implements
   it, so access rules are never written against guessed requirements.

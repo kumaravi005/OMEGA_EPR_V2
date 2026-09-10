@@ -34,4 +34,9 @@ abstract final class FirestoreCollections {
   static const banners = 'banners';
   static const upcomingBatches = 'upcomingBatches';
   static const callbackRequests = 'callbackRequests';
+
+  // Added in Set 7 - distinct from `reportTemplates` (Set 6's saved
+  // export column/filter configs): this is the visual A4 header/footer
+  // letterhead template.
+  static const reportLayoutTemplates = 'reportLayoutTemplates';
 }
