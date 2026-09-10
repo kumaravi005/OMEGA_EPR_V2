@@ -716,6 +716,32 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Saved export/report configurations (Set 6) - "Basic Student List"
+    // style reusable templates for the export engine. Admin-only tooling
+    // (only admin ever reaches the export screens), and unlike the
+    // append-only collections above, a template genuinely may be deleted
+    // - it's a saved preference, not a durable record. `config` is a
+    // free-form map (selected columns/filters/sort/mode/format) - its
+    // shape is validated client-side by whichever export screen reads it,
+    // not here, since it varies per module and carries no access-control
+    // meaning of its own.
+    function newReportTemplateIsValid() {
+      let data = request.resource.data;
+      return data.name is string && data.name.size() > 0
+        && data.module in ['studentExport', 'feeDuesExport', 'testResultExport']
+        && data.config is map
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(['name', 'module', 'config', 'createdAt', 'updatedAt']);
+    }
+
+    match /reportTemplates/{templateId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() && newReportTemplateIsValid();
+      allow update: if isAdmin() && newReportTemplateIsValid();
+      allow delete: if isAdmin();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

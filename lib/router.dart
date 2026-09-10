@@ -29,6 +29,10 @@ import 'features/public/presentation/admin/gallery_screen.dart';
 import 'features/public/presentation/admin/institute_profile_screen.dart';
 import 'features/public/presentation/admin/upcoming_batches_screen.dart';
 import 'features/public/presentation/public_home_screen.dart';
+import 'features/reports/presentation/fee_dues_export_screen.dart';
+import 'features/reports/presentation/reports_hub_screen.dart';
+import 'features/reports/presentation/student_export_screen.dart';
+import 'features/reports/presentation/test_result_export_screen.dart';
 import 'features/student/presentation/fee_dues_screen.dart';
 import 'features/student/presentation/student_fee_screen.dart';
 import 'features/student/presentation/student_form_screen.dart';
@@ -119,6 +123,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppRoutes.adminEnquiries, builder: (context, state) => const EnquiriesScreen()),
       GoRoute(path: AppRoutes.adminCallbackRequests, builder: (context, state) => const CallbackRequestsScreen()),
       GoRoute(path: AppRoutes.adminNotifications, builder: (context, state) => const NotificationsScreen()),
+
+      GoRoute(path: AppRoutes.adminReports, builder: (context, state) => const ReportsHubScreen()),
+      GoRoute(path: AppRoutes.adminStudentExport, builder: (context, state) => const StudentExportScreen()),
+      GoRoute(path: AppRoutes.adminFeeDuesExport, builder: (context, state) => const FeeDuesExportScreen()),
+      GoRoute(path: AppRoutes.adminTestResultExport, builder: (context, state) => const TestResultExportScreen()),
 
       GoRoute(path: AppRoutes.teacher, builder: (context, state) => const TeacherHomeScreen()),
       GoRoute(

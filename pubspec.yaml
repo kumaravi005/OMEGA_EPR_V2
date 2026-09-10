@@ -55,6 +55,15 @@ dependencies:
   # Call / WhatsApp actions
   url_launcher: ^6.3.2
 
+  # Export/report engine (Set 6): PDF generation + print/save, Excel
+  # workbook generation, and zip building for hand-rolled DOCX output.
+  pdf: ^3.11.1
+  printing: ^5.13.4
+  excel: ^4.0.6
+  archive: ^3.6.1
+  xml: ^6.6.1
+  share_plus: ^10.1.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

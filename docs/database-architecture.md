@@ -495,6 +495,28 @@ oversight and to have created them in the first place); `update`/`delete`
 stay denied to everyone - a notification is either created correctly or
 not created, never edited after the fact.
 
+## Saved export templates (Set 6)
+
+```
+reportTemplates/{templateId}
+  name       string    e.g. "Basic Student List"
+  module     "studentExport" | "feeDuesExport" | "testResultExport"
+  config     map       free-form - whatever the owning export screen put
+                        there (selected columns, filters, sort, format,
+                        orientation); not interpreted or validated by
+                        rules, since its shape varies per module and
+                        carries no access-control meaning of its own
+  createdAt, updatedAt
+```
+
+Admin-only, and - unlike every other collection in this project so far -
+genuinely deletable: a saved template is a personal preference an admin
+might want to remove, not a durable record like a payment or an
+attendance mark. See docs/architecture.md's "The export/report engine"
+for what actually goes into `config` per module, and why test-result
+mode/batch/subject/test selections are deliberately *not* saved (they're
+one-off per report, not a reusable preference).
+
 ## Security posture (this phase)
 
 `storage.rules` still **denies all reads and writes** - Storage itself
@@ -531,7 +553,9 @@ above:
 - `enquiries`/`callbackRequests`: public, unauthenticated `create`;
   admin-only read/update; `delete` never allowed (see "Public writes"
   above).
+- `reportTemplates`: admin-only read/create/update **and** delete (see
+  "Saved export templates" above - the one collection in this project
+  where client-side delete is actually allowed).
 - Every other planned collection (`fees`, `subjects`, `academicSessions`,
-  `reportTemplates`, `auditLogs`, ...) stays fully closed until the phase
-  that implements it, so access rules are never written against guessed
-  requirements.
+  `auditLogs`, ...) stays fully closed until the phase that implements
+  it, so access rules are never written against guessed requirements.

@@ -41,6 +41,14 @@ was built.
   `AdminAccountController.createAccount` and docs/architecture.md's "Why
   no Cloud Functions"). Don't introduce Cloud Functions unless a future
   requirement genuinely can't be expressed as a security rule.
+- One export/report engine (`core/export/`, Set 6), not a bespoke
+  PDF/Excel/DOCX writer per module - every export screen builds its own
+  data (filters/columns/sorting) and hands a plain `ExportDataset` to the
+  shared `ExportService`. The `pdf`/`printing`/`excel`/`archive`/`xml`/
+  `share_plus` packages this needed are an exception to "no unnecessary
+  dependencies" only because there's no way to produce real PDF/Excel/
+  DOCX bytes without them - they were added once, for the shared engine,
+  not per module.
 
 ## State management
 

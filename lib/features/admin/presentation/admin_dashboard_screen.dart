@@ -116,6 +116,11 @@ class AdminDashboardScreen extends ConsumerWidget {
                   label: 'Notifications',
                   onTap: () => context.push(AppRoutes.adminNotifications),
                 ),
+                NavTile(
+                  icon: Icons.summarize_outlined,
+                  label: 'Reports & exports',
+                  onTap: () => context.push(AppRoutes.adminReports),
+                ),
               ],
             ),
           ),

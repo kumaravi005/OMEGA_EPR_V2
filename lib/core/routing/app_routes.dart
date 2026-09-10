@@ -29,6 +29,10 @@ abstract final class AppRoutes {
   static const adminEnquiries = '/admin/enquiries';
   static const adminCallbackRequests = '/admin/callback-requests';
   static const adminNotifications = '/admin/notifications';
+  static const adminReports = '/admin/reports';
+  static const adminStudentExport = '/admin/reports/students';
+  static const adminFeeDuesExport = '/admin/reports/fee-dues';
+  static const adminTestResultExport = '/admin/reports/test-results';
 
   static const teacher = '/teacher';
   static const teacherAttendance = '/teacher/attendance';

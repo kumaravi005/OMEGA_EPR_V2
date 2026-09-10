@@ -160,7 +160,102 @@ lib/
                              (core/services/notification_event.dart);
                              firestore.rules does the actual per-user
                              targeting, not the screen.
+    reports/ (Set 6)         Admin export/report screens - each one builds
+                             its own data (its own filters/columns/
+                             sorting), then hands a plain `ExportDataset`
+                             to the shared engine in `core/export/` for
+                             actual PDF/Excel/DOCX rendering. See "The
+                             export/report engine" below.
+      data/                  ReportTemplate model + repository (saved
+                             export configurations), StudentReportColumns
+                             (the column catalogue shared by the student
+                             list and fee-dues exports - see
+                             docs/database-architecture.md).
+      application/           ReportTemplateController (save/delete a
+                             template).
+      presentation/          ReportsHubScreen (nav to the three export
+                             screens), StudentReportExportScreen (the one
+                             implementation behind both StudentExportScreen
+                             and FeeDuesExportScreen - they differ only in
+                             title/defaults/an extra "dues only" filter,
+                             not in how rows are built or rendered),
+                             TestResultExportScreen (all three test-report
+                             modes).
+      presentation/widgets/  ColumnPicker, FormatPicker, OrientationPicker,
+                             TemplateBar - shared controls every export
+                             screen composes instead of reimplementing.
 ```
+
+## The export/report engine (Set 6)
+
+`lib/core/export/` is the one place PDF/Excel/DOCX rendering is
+implemented - every export screen (student list, fee dues, test result,
+in whichever of its three modes) builds its own `ExportDataset` (title,
+optional subtitle, column headers, pre-formatted string rows, an
+orientation hint) and hands it to `ExportService`; nothing downstream of
+that point is module-specific.
+
+```
+data source + filters + selected columns + sorting   <- each export screen, on its own
+        ↓
+ExportDataset (title, columns, rows, orientation)     <- the shared "engine input" shape
+        ↓
+ExportService.export(dataset, format)                 <- the one shared facade
+        ↓
+PdfReportBuilder | ExcelReportBuilder | DocxReportBuilder   <- one renderer per format, used by every module
+        ↓
+Printing.layoutPdf (PDF - print/save preview) | Share.shareXFiles (Excel/DOCX)
+```
+
+- **`PdfReportBuilder`** (`pdf` + `printing` packages): A4, `pw.MultiPage`
+  auto-paginates a `pw.TableHelper.fromTextArray` table across as many
+  pages as the row count needs, with a repeating header row and a "Page X
+  of Y" footer on every page - this is the "multiple pages, proper table
+  wrapping, long names, page numbering" requirement, implemented once.
+- **`ExcelReportBuilder`** (`excel` package): a single-sheet workbook -
+  title, subtitle, a bold header row, then one row per data row.
+- **`DocxReportBuilder`**: hand-rolled WordprocessingML, zipped with the
+  `archive` package - not a template-filling package, because a fixed
+  template can't express an admin-chosen, variable number of table
+  columns. See docs/database-architecture.md for why this is safe/simple
+  enough to hand-roll.
+- **Orientation**: `ExportDataset.isLandscape` defaults to landscape past
+  6 columns (`ReportOrientation.auto`), overridable per export via
+  `OrientationPicker`. PDF and DOCX both honor it (Excel has no
+  print-orientation concept the `excel` package exposes at this version,
+  so it's ignored there).
+- **Currency in exports**: exported currency cells read "Rs. 1234", not
+  "₹1234" - the default PDF/DOCX/Excel fonts have no Rupee-sign glyph,
+  and bundling a custom font for one symbol wasn't worth it. This only
+  affects exported files; the in-app UI still shows ₹ everywhere else.
+- **Delivery**: PDF goes through `Printing.layoutPdf`, which opens the
+  platform's native print/save preview - deliberate, since the fee-dues
+  report specifically is meant to be printed and handed to staff for
+  manual calling, not just downloaded. Excel/DOCX go through
+  `Share.shareXFiles` (a download on web, the share sheet on Android),
+  since neither has anything print-preview-shaped to open.
+- **Saved templates**: `reportTemplates/{templateId}` (admin-only,
+  freely deletable - unlike every append-only collection elsewhere in
+  this project, a saved template is a preference, not a record) stores
+  `{name, module, config}`, where `config` is a free-form map each export
+  screen defines and interprets for itself (selected columns, filters,
+  sort, format, orientation - test-result mode/batch/subject/test
+  selections are deliberately NOT saved, since those are one-off per
+  report, not a reusable preference). `TemplateBar` is the one shared
+  load/save/delete widget every export screen embeds.
+- **What's shared vs. what isn't, deliberately**: `StudentReportColumns`
+  (the column catalogue: name, father name, class, board, batch, session,
+  mobiles, final fee, paid, due) and `StudentReportExportScreen` (the
+  whole filter/column/sort/generate implementation) are shared by both
+  the student-list export and the fee-dues export - they're the same
+  underlying entity with different default filters. Test-result export
+  is genuinely a different data shape (marks/tests/subjects, not student
+  fields), so it has its own screen - but it reuses the same
+  `ExportDataset`/`ExportService`/`FormatPicker`/`OrientationPicker` as
+  everything else, and its ranking logic (`core/utils/ranking.dart`) and
+  combined-score math (`core/utils/marks_combiner.dart`) are pure,
+  independently unit-tested functions, not something reimplemented per
+  test-report mode.
 
 Every feature folder above is populated with only what's actually been
 built. `fees` as its own module is still folded into `features/student/`
@@ -253,10 +348,18 @@ on `users` to everyone except an already-existing admin.
   decision, not an oversight.
 - A telecaller role - enquiry/callback management is admin-only by
   explicit requirement (Set 5).
+- A "grade" export column - the Set 6 spec explicitly says not to invent
+  a grading system, and none is configured anywhere else in this project
+  to reuse. Rank/total/percentage are implemented; grade is left for a
+  later phase once an actual grading scale exists to compute from.
+- A scheduled "fee due/reminder" notification - it would need a cron-like
+  trigger, which needs server-side compute this project deliberately
+  doesn't have (see "Why no Cloud Functions"). The fee-dues *export*
+  (Set 6) is the export/print-and-call substitute for it.
 - Any feature folder beyond `auth`, `admin`, `teacher`, `student`,
   `batches`, `attendance`, `homework`, `assignments`, `tests`, `public`,
-  `enquiries`, `notifications` - e.g. `fees` as its own module, reports,
-  exports, settings.
+  `enquiries`, `notifications`, `reports` - e.g. `fees` as its own
+  module, settings, audit logs.
 - Changing a role after account creation, or deleting an account/teacher/
   student/batch (admin deactivates via `active: false` instead).
 - Editing or deleting a recorded payment, attendance heartbeat aside -
