@@ -27,6 +27,12 @@ final activeBatchesProvider = StreamProvider<List<Batch>>((ref) {
 });
 
 /// All batches, including inactive ones - for the admin's batch list.
+/// Read rule is `isSignedIn()` only (no per-document dependency), so an
+/// unconstrained `watchAll()` is safe (see docs/database-architecture.md's
+/// "Firestore query-shape requirement") - every filter the batch list
+/// screen offers (session/class/board/status/search) is applied
+/// client-side on this same stream, not as separate Firestore queries,
+/// which keeps this at zero composite indexes.
 final allBatchesProvider = StreamProvider<List<Batch>>((ref) {
   return ref
       .watch(batchRepositoryProvider)
@@ -34,4 +40,17 @@ final allBatchesProvider = StreamProvider<List<Batch>>((ref) {
       .map(
         (batches) => batches.toList()..sort((a, b) => a.name.compareTo(b.name)),
       );
+});
+
+/// Active batches for one class - the reusable lookup a future Student
+/// Admission "Class -> Batch" picker needs (see docs/architecture.md's
+/// Set 10 section). Derived client-side from [activeBatchesProvider],
+/// not a new Firestore query.
+final activeBatchesForClassProvider = Provider.family<List<Batch>, String>((
+  ref,
+  classId,
+) {
+  final batches =
+      ref.watch(activeBatchesProvider).valueOrNull ?? const <Batch>[];
+  return batches.where((batch) => batch.classId == classId).toList();
 });

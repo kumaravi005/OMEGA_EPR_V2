@@ -237,11 +237,78 @@ students/{uid}                  keyed the same as the matching users/{uid}
 
 batches/{batchId}
   name
+  batchCode                string | null   optional short code, e.g. "C8-MOR"
+  description              string | null
+  academicSessionId        string          required - references
+                                             academicSessions/{sessionId}
+                                             (Set 9). Same batch name can
+                                             legitimately repeat across
+                                             different sessions - the
+                                             session link is what keeps
+                                             them distinguishable.
+  classId                  string          required - references
+                                             classes/{classId} (Set 9)
+  boardId                  string | null   optional - references
+                                             boards/{boardId} (Set 9).
+                                             When the chosen board is
+                                             "Others", boardCustomText
+                                             carries the actual free-text
+                                             board name instead of being
+                                             discarded.
+  boardCustomText          string | null
   standardMonthlyFee       number
   standardInstallmentFee   number
+  studentCount             int             denormalized counter, defaults
+                                             to 0 on create; not written by
+                                             anything yet in Set 10 - kept
+                                             so a future Student Admission
+                                             set can increment/decrement it
+                                             on admission/transfer without
+                                             a schema change.
   active                   bool
   createdAt, updatedAt
 ```
+
+`academicSessionId`/`classId` were added in Set 10; batches created before
+Set 10 don't have them on the stored document. `Batch.fromMap` defaults
+both to `''` on read (`isLinkedToMasterData` reports whether a batch is
+actually linked), and `batchUpdateIsValid()` in `firestore.rules`
+explicitly tolerates their absence so that a partial `.update()` (e.g.
+toggling `active`) on such a historical batch keeps working unchanged; a
+full edit-form re-save naturally migrates the document once an admin
+opens and saves it, since the form always supplies every field.
+
+### Standard fee vs. final agreed fee - and where this is headed
+
+`standardMonthlyFee`/`standardInstallmentFee` on a batch are the
+**template** figures for that batch, not tied to any one student - they
+must never be edited to reflect a single student's discount. The
+existing `students/{uid}` record already keeps its own snapshot
+(`standardFee`, `finalFee`, `feeReason`) precisely so a discount never
+touches the batch (see "Fee model" below).
+
+Set 10 adds two pure, deliberately **unpersisted** Dart models -
+`NegotiatedFee` and `InstallmentScheduleItem` (both in
+`lib/features/batches/data/`) - as the reusable shape a future, richer
+Student Admission set can adopt without redesigning this boundary again:
+
+- `NegotiatedFee`: `standardFee` (snapshot at negotiation time),
+  `finalFee`, `discountAmount` (computed), `isInstallmentPlan`, `remark`,
+  `effectiveDate`, `configuredByUid`, `createdAt`/`updatedAt`. A superset
+  of today's `standardFee`/`finalFee`/`feeReason` trio on `students/{uid}`.
+- `InstallmentScheduleItem`: `label`, `amount`, `dueDate`, `status`
+  (`InstallmentStatus.pending`/`paid`) - a per-student, customizable
+  installment schedule, distinct from the batch's own single
+  `standardInstallmentFee` figure.
+
+Neither model has a repository, a Firestore collection, or security
+rules yet - they exist only as tested value objects
+(`toMap`/`fromMap` round-trips) so that whichever future set implements
+full Student Admission can reuse the shape instead of inventing it under
+time pressure. `Batch.standardFeeFor({required bool isInstallment})` is
+the one shared lookup both today's `StudentFormScreen` and any future
+admission flow should call, rather than duplicating the
+monthly-vs-installment branch.
 
 ### Fee model
 
@@ -657,11 +724,12 @@ able to tell "does this already exist" before writing.
 `firestore.rules` denies `delete` outright on all four collections above
 (and on the extended `institutes/main`) - "prefer deactivation/archiving
 over destructive deletion" for master data that a future record could
-reference. Since nothing yet references these collections (existing
-modules still use their own free-text fields - see
-docs/architecture.md), there's no live foreign-key risk today, but the
-`delete: if false` rule is already in place so that remains true once
-something does reference them.
+reference. As of Set 10, `batches` is the first live consumer
+(`academicSessionId`/`classId`/`boardId`, above) - deactivating a
+session/class/board instead of deleting it is what keeps a batch that
+references it from ever pointing at a vanished document; `students`
+still uses its own free-text `className`/`board` fields (see
+docs/architecture.md) and is unaffected either way.
 
 ## Security posture (this phase)
 

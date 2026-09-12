@@ -23,6 +23,12 @@ class BatchController {
 
   Future<void> createBatch({
     required String name,
+    String? batchCode,
+    String? description,
+    required String academicSessionId,
+    required String classId,
+    String? boardId,
+    String? boardCustomText,
     required double standardMonthlyFee,
     required double standardInstallmentFee,
   }) async {
@@ -34,6 +40,12 @@ class BatchController {
             Batch(
               batchId: '',
               name: name.trim(),
+              batchCode: _blankToNull(batchCode),
+              description: _blankToNull(description),
+              academicSessionId: academicSessionId,
+              classId: classId,
+              boardId: boardId,
+              boardCustomText: _blankToNull(boardCustomText),
               standardMonthlyFee: standardMonthlyFee,
               standardInstallmentFee: standardInstallmentFee,
               active: true,
@@ -49,6 +61,12 @@ class BatchController {
   Future<void> updateBatch(
     Batch existing, {
     required String name,
+    String? batchCode,
+    String? description,
+    required String academicSessionId,
+    required String classId,
+    String? boardId,
+    String? boardCustomText,
     required double standardMonthlyFee,
     required double standardInstallmentFee,
   }) async {
@@ -60,9 +78,16 @@ class BatchController {
             Batch(
               batchId: existing.batchId,
               name: name.trim(),
+              batchCode: _blankToNull(batchCode),
+              description: _blankToNull(description),
+              academicSessionId: academicSessionId,
+              classId: classId,
+              boardId: boardId,
+              boardCustomText: _blankToNull(boardCustomText),
               standardMonthlyFee: standardMonthlyFee,
               standardInstallmentFee: standardInstallmentFee,
               active: existing.active,
+              studentCount: existing.studentCount,
               createdAt: existing.createdAt,
               updatedAt: DateTime.now(),
             ),
@@ -82,4 +107,7 @@ class BatchController {
       throw const BatchFailure('Could not update the batch. Please try again.');
     }
   }
+
+  String? _blankToNull(String? value) =>
+      value == null || value.trim().isEmpty ? null : value.trim();
 }

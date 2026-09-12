@@ -139,9 +139,9 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
         .where((b) => b.batchId == _selectedBatchId)
         .firstOrNull;
     if (batch == null) return;
-    _standardFee = _paymentPlan == PaymentPlan.installment
-        ? batch.standardInstallmentFee
-        : batch.standardMonthlyFee;
+    _standardFee = batch.standardFeeFor(
+      isInstallment: _paymentPlan == PaymentPlan.installment,
+    );
     // Auto-populate the final fee to match the standard fee - admin can
     // still adjust it below (that's the discount workflow).
     _finalFeeController.text = _standardFee.toStringAsFixed(0);

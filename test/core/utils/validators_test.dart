@@ -60,4 +60,35 @@ void main() {
       expect(Validators.phone('123', isRequired: false), isNotNull);
     });
   });
+
+  group('Validators.amount', () {
+    test('rejects a missing amount', () {
+      expect(Validators.amount(null), isNotNull);
+      expect(Validators.amount(''), isNotNull);
+    });
+
+    test('rejects text that is not a number', () {
+      expect(Validators.amount('abc'), isNotNull);
+    });
+
+    test('rejects a negative amount', () {
+      expect(Validators.amount('-50'), isNotNull);
+    });
+
+    test('accepts zero by default', () {
+      expect(Validators.amount('0'), isNull);
+    });
+
+    test(
+      'rejects zero when allowZero is false (e.g. an installment amount)',
+      () {
+        expect(Validators.amount('0', allowZero: false), isNotNull);
+      },
+    );
+
+    test('accepts a valid positive amount', () {
+      expect(Validators.amount('700'), isNull);
+      expect(Validators.amount('8000.50'), isNull);
+    });
+  });
 }

@@ -39,4 +39,24 @@ abstract final class Validators {
     }
     return null;
   }
+
+  /// A non-negative currency amount (a fee, a payment, an installment) -
+  /// the one place this was previously duplicated as a private
+  /// `_validateAmount` method per screen (batch fee configuration,
+  /// payment recording, ...). [allowZero] false additionally rejects
+  /// zero (e.g. an installment amount should never be free, but a fee
+  /// override arguably could be).
+  static String? amount(
+    String? value, {
+    String label = 'Amount',
+    bool allowZero = true,
+  }) {
+    final requiredError = required(value, message: '$label is required');
+    if (requiredError != null) return requiredError;
+    final parsed = double.tryParse(value!.trim());
+    if (parsed == null) return 'Enter a valid $label';
+    if (parsed < 0) return '$label cannot be negative';
+    if (!allowZero && parsed == 0) return '$label must be greater than zero';
+    return null;
+  }
 }

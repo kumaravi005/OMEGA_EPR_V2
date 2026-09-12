@@ -257,27 +257,67 @@ service cloud.firestore {
       }
     }
 
-    // Batches (Set 3): a shared reference catalogue (name + standard
-    // fee), not sensitive personal data, so any signed-in account may
-    // read it - only admin may create/edit one.
+    // Batches (Set 3, extended Set 10 with academic-session/class/board
+    // links + fee configuration): a shared reference catalogue, not
+    // sensitive personal data, so any signed-in account may read it -
+    // only admin may create/edit one. `academicSessionId`/`classId` are
+    // required going forward (Set 10) - a batch created before Set 10
+    // simply has neither field at all, which the app treats as "not yet
+    // linked to master data" rather than crashing (see Batch.fromMap);
+    // editing that batch through the new form requires filling them in,
+    // which is exactly the validation below.
     function batchFields() {
-      return ['name', 'standardMonthlyFee', 'standardInstallmentFee', 'active', 'createdAt', 'updatedAt'];
+      return [
+        'name', 'batchCode', 'description', 'academicSessionId', 'classId', 'boardId', 'boardCustomText',
+        'standardMonthlyFee', 'standardInstallmentFee', 'active', 'studentCount', 'createdAt', 'updatedAt'
+      ];
     }
 
     function newBatchIsValid() {
       let data = request.resource.data;
       return data.name is string && data.name.size() >= 2
+        && (data.batchCode == null || data.batchCode is string)
+        && (data.description == null || data.description is string)
+        && data.academicSessionId is string && data.academicSessionId.size() > 0
+        && data.classId is string && data.classId.size() > 0
+        && (data.boardId == null || data.boardId is string)
+        && (data.boardCustomText == null || data.boardCustomText is string)
         && data.standardMonthlyFee is number && data.standardMonthlyFee >= 0
         && data.standardInstallmentFee is number && data.standardInstallmentFee >= 0
         && data.active == true
+        && data.studentCount == 0
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
         && data.keys().hasOnly(batchFields());
     }
 
+    // A plain `.update()` (e.g. `setActive` toggling just `active`) only
+    // merges the given fields onto whatever the document already has -
+    // for a batch created before Set 10, that means the resulting
+    // document still has NONE of the fields added here (they were never
+    // written, not even as null). This validator has to tolerate that -
+    // "field is absent" is fine, "field is present but the wrong shape"
+    // is not - so an old batch's operational active/inactive toggle
+    // keeps working without first forcing a full edit-form migration,
+    // while a real edit-form save (which always supplies every field)
+    // is still fully validated as normal.
     function batchUpdateIsValid() {
-      return request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.keys().hasOnly(batchFields());
+      let data = request.resource.data;
+      let keys = data.keys();
+      return data.name is string && data.name.size() >= 2
+        && (!keys.hasAny(['batchCode']) || data.batchCode == null || data.batchCode is string)
+        && (!keys.hasAny(['description']) || data.description == null || data.description is string)
+        && (!keys.hasAny(['academicSessionId']) || data.academicSessionId is string)
+        && (!keys.hasAny(['classId']) || data.classId is string)
+        && (!keys.hasAny(['boardId']) || data.boardId == null || data.boardId is string)
+        && (!keys.hasAny(['boardCustomText']) || data.boardCustomText == null || data.boardCustomText is string)
+        && data.standardMonthlyFee is number && data.standardMonthlyFee >= 0
+        && data.standardInstallmentFee is number && data.standardInstallmentFee >= 0
+        && data.active is bool
+        && (!keys.hasAny(['studentCount']) || (data.studentCount is number && data.studentCount >= 0))
+        && data.createdAt == resource.data.createdAt
+        && data.updatedAt is timestamp
+        && keys.hasOnly(batchFields());
     }
 
     match /batches/{batchId} {

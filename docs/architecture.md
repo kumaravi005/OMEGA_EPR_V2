@@ -81,12 +81,25 @@ lib/
                              FeeDuesScreen, AddPaymentDialog,
                              StudentHomeScreen (nav hub: attendance,
                              homework, assignments, results).
-    batches/                Batch catalogue (name + standard monthly/
-                             installment fee) - referenced by student
+    batches/ (Set 3, extended Set 10)   Batch catalogue - each batch
+                             belongs to exactly one academic session and
+                             class (Set 9 master data), optionally a
+                             board, and carries its own standard monthly/
+                             installment fee - referenced by student
                              admission, not a role's own app area.
-      data/                 Batch model, Firestore repository provider.
+      data/                 Batch model + repository (+
+                             activeBatchesForClassProvider, the "Class ->
+                             Batch" lookup a future admission picker
+                             needs). NegotiatedFee/InstallmentScheduleItem -
+                             pure, unpersisted foundation models for a
+                             future Student Admission set's per-student
+                             discount and installment-schedule records
+                             (see "Batch fee configuration (Set 10)"
+                             below).
       application/          BatchController (create/update/toggle active).
-      presentation/         BatchListScreen (list + create/edit dialog).
+      presentation/         BatchListScreen (search + session/class/status
+                             filters), BatchFormDialog (create/edit,
+                             including fee configuration).
     attendance/ (Set 4)     Student attendance (one record per batch/date,
                              never per subject) and teacher attendance
                              (admin-marked, teacher views own only).
