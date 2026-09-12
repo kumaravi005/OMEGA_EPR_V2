@@ -109,9 +109,9 @@ class AdminDashboardScreen extends ConsumerWidget {
                   onTap: () => context.push(AppRoutes.adminAnnouncements),
                 ),
                 NavTile(
-                  icon: Icons.info_outline,
-                  label: 'Institute profile',
-                  onTap: () => context.push(AppRoutes.adminInstituteProfile),
+                  icon: Icons.settings_outlined,
+                  label: 'Configuration',
+                  onTap: () => context.push(AppRoutes.adminConfiguration),
                 ),
                 NavTile(
                   icon: Icons.notifications_outlined,

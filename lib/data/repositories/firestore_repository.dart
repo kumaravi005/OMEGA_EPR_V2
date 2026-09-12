@@ -98,4 +98,10 @@ class FirestoreRepository<T> {
   }
 
   Future<void> delete(String id) => _dataSource.delete(id);
+
+  /// The underlying collection reference, for operations that don't fit
+  /// the CRUD methods above (e.g. an atomic multi-document `WriteBatch` -
+  /// see `AcademicSessionController.setActiveSession`, which flips the
+  /// previously-active session off and the new one on in one commit).
+  CollectionReference<Map<String, dynamic>> get collection => _dataSource.raw;
 }

@@ -63,7 +63,9 @@ class _CreateAssignmentDialogState
     if (form == null || !form.validate()) return;
 
     if (_dueDate.isBefore(_assignedDate)) {
-      setState(() => _errorMessage = 'Due date cannot be before the assigned date.');
+      setState(
+        () => _errorMessage = 'Due date cannot be before the assigned date.',
+      );
       return;
     }
 

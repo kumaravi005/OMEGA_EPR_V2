@@ -60,7 +60,9 @@ class _CreateHomeworkDialogState extends ConsumerState<_CreateHomeworkDialog> {
     if (form == null || !form.validate()) return;
 
     if (_dueDate.isBefore(_date)) {
-      setState(() => _errorMessage = 'Due date cannot be before the homework date.');
+      setState(
+        () => _errorMessage = 'Due date cannot be before the homework date.',
+      );
       return;
     }
 

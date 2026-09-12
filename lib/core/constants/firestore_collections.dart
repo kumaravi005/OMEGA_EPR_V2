@@ -39,4 +39,10 @@ abstract final class FirestoreCollections {
   // export column/filter configs): this is the visual A4 header/footer
   // letterhead template.
   static const reportLayoutTemplates = 'reportLayoutTemplates';
+
+  // Added in Set 9 - academic master data. `academicSessions` and
+  // `subjects` were already declared above (from the original Set 1
+  // plan); `classes` and `boards` were not anticipated then.
+  static const classes = 'classes';
+  static const boards = 'boards';
 }

@@ -55,6 +55,14 @@ was built.
   `DocxReportBuilder` - rather than being a second PDF pipeline. Adding
   the `http` package (to fetch a configured logo URL) is the one
   exception to "no unnecessary dependencies" this set needed.
+- Master/config data (Set 9: `academicSessions`, `classes`, `boards`,
+  `subjects`) is a "shared reference catalogue" like `batches` - any
+  signed-in account may read, only admin may write, `delete` is never
+  allowed (deactivate instead). When a collection needs a "no more than
+  one active" invariant across sibling documents (the active academic
+  session), enforce it client-side with an atomic `FirebaseFirestore`
+  `WriteBatch`, not a Firestore rule - rules can't inspect sibling
+  documents to enforce a collection-wide invariant.
 
 ## State management
 

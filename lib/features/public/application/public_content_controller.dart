@@ -247,9 +247,12 @@ class PublicContentController {
     required String name,
     required String? tagline,
     required String? about,
+    required String? logoUrl,
     required String? contactPhone,
+    required String? secondaryPhone,
     required String? contactEmail,
     required String? address,
+    required String? website,
   }) => _run(
     () => _ref
         .read(instituteProfileRepositoryProvider)
@@ -259,9 +262,12 @@ class PublicContentController {
             name: name.trim(),
             tagline: _blankToNull(tagline),
             about: _blankToNull(about),
+            logoUrl: _blankToNull(logoUrl),
             contactPhone: _blankToNull(contactPhone),
+            secondaryPhone: _blankToNull(secondaryPhone),
             contactEmail: _blankToNull(contactEmail),
             address: _blankToNull(address),
+            website: _blankToNull(website),
             updatedAt: DateTime.now(),
           ),
         ),

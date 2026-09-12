@@ -666,16 +666,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // The single institute-profile document (Set 5) - public branding/
-    // about/contact info powering the public site. Not a managed
-    // collection of many institutes; always `institutes/main`.
+    // The single institute-profile document (Set 5, extended Set 9 with
+    // logoUrl/secondaryPhone/website as the central institute
+    // configuration) - public branding/about/contact info powering the
+    // public site. Not a managed collection of many institutes; always
+    // `institutes/main`.
     match /institutes/{instituteId} {
       allow get, list: if true;
       allow create, update: if isAdmin()
         && instituteId == 'main'
         && request.resource.data.name is string && request.resource.data.name.size() > 0
         && request.resource.data.updatedAt is timestamp
-        && request.resource.data.keys().hasOnly(['name', 'tagline', 'about', 'contactPhone', 'contactEmail', 'address', 'updatedAt']);
+        && request.resource.data.keys().hasOnly([
+          'name', 'tagline', 'about', 'logoUrl', 'contactPhone', 'secondaryPhone', 'contactEmail', 'address',
+          'website', 'updatedAt'
+        ]);
       allow delete: if false;
     }
 
@@ -779,6 +784,81 @@ service cloud.firestore {
       allow create: if isAdmin() && newReportLayoutTemplateIsValid();
       allow update: if isAdmin() && newReportLayoutTemplateIsValid();
       allow delete: if isAdmin();
+    }
+
+    // Academic master data (Set 9): academic sessions, classes, boards,
+    // subjects. All four are "shared reference catalogues" like
+    // `batches` - not personal data, so any signed-in account may read;
+    // only admin may write. None allow `delete` - "prefer deactivation/
+    // archiving instead of destructive deletion" (Set 9's data-safety
+    // requirement) - an `active` flag is the only way to retire an
+    // entry. "Only one active academic session" is enforced client-side
+    // via an atomic WriteBatch (see AcademicSessionController), not
+    // here - a rule can't inspect sibling documents to enforce a
+    // collection-wide invariant, and getting this wrong has no security
+    // consequence (a display inconsistency, not unauthorized access).
+    function newAcademicSessionIsValid() {
+      let data = request.resource.data;
+      return data.name is string && data.name.size() > 0
+        && data.startDate is timestamp
+        && data.endDate is timestamp
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(['name', 'startDate', 'endDate', 'isActive', 'createdAt', 'updatedAt']);
+    }
+
+    match /academicSessions/{sessionId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && newAcademicSessionIsValid();
+      allow delete: if false;
+    }
+
+    function newSchoolClassIsValid() {
+      let data = request.resource.data;
+      return data.name is string && data.name.size() > 0
+        && data.sortOrder is number
+        && data.active is bool
+        && data.subjectIds is list
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(['name', 'sortOrder', 'active', 'subjectIds', 'createdAt', 'updatedAt']);
+    }
+
+    match /classes/{classId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && newSchoolClassIsValid();
+      allow delete: if false;
+    }
+
+    function newBoardIsValid() {
+      let data = request.resource.data;
+      return data.name is string && data.name.size() > 0
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(['name', 'active', 'createdAt', 'updatedAt']);
+    }
+
+    match /boards/{boardId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && newBoardIsValid();
+      allow delete: if false;
+    }
+
+    function newSubjectIsValid() {
+      let data = request.resource.data;
+      return data.name is string && data.name.size() > 0
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(['name', 'active', 'createdAt', 'updatedAt']);
+    }
+
+    match /subjects/{subjectId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && newSubjectIsValid();
+      allow delete: if false;
     }
 
     match /{document=**} {

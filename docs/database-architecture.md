@@ -560,6 +560,109 @@ record. `header`/`footer` are validated only as maps at the rules level;
 their nested shape carries no access-control meaning (same reasoning as
 `reportTemplates.config`).
 
+## Institute configuration, extended (Set 9)
+
+```
+institutes/main   (unchanged shape, three fields added)
+  ...same fields as Set 5's institute profile...
+  logoUrl          string | null   pasted URL - no Storage, same as
+                                     every other image field
+  secondaryPhone   string | null
+  website          string | null
+```
+
+Additive only - the document is still the same Set 5 singleton, still
+keyed `main`; existing readers of `name`/`tagline`/`about`/`contactPhone`/
+`contactEmail`/`address` are unaffected.
+
+## Academic master data (Set 9)
+
+```
+academicSessions/{sessionId}
+  name        string            e.g. "2026-27"
+  startDate   timestamp
+  endDate     timestamp
+  isActive    bool              exactly one session is ever true - see
+                                  "Only one active session" below
+  createdAt, updatedAt
+
+classes/{classId}                deterministic id for seeded rows (e.g.
+                                   "class9"), auto-id for admin-added ones
+  name         string            e.g. "Class 9"
+  sortOrder    number            display order, admin-editable
+  active       bool
+  subjectIds   list<string>      Subject document ids this class offers -
+                                   the class-subject applicability link
+                                   (see "Why subjectIds lives on the
+                                   class" below)
+  createdAt, updatedAt
+
+boards/{boardId}                 deterministic id for seeded rows (e.g.
+                                   "cbse"), auto-id for admin-added ones
+  name      string                e.g. "CBSE", "BSEB", "Others" - "Others"
+                                   is not special-cased in the schema
+  active    bool
+  createdAt, updatedAt
+
+subjects/{subjectId}             deterministic id for seeded rows (e.g.
+                                   "mathematics"), auto-id for admin-added
+                                   ones
+  name      string
+  active    bool
+  createdAt, updatedAt
+```
+
+### Why `subjectIds` lives on the class, not a join collection
+
+The only lookup direction any future module needs is "which subjects
+does this class offer" (e.g. a homework/test subject dropdown, once
+those modules are wired to read this - see docs/architecture.md's Set 9
+section for why that wiring isn't done yet). A field on `classes`
+answers that directly with a `get()`; a separate
+`classSubjects/{classId}_{subjectId}` join collection would need an
+extra query for the exact same answer, with no offsetting benefit at
+this project's scale (a handful of classes, a dozen subjects). Subject
+*documents* stay their own collection (not embedded in each class)
+because the same subject is referenced by multiple classes and is
+managed independently (renamed/deactivated once, not per class).
+
+### Only one active academic session
+
+`AcademicSessionController.setActiveSession` performs an atomic
+`WriteBatch`: it flips every other session's `isActive` to `false` and
+the chosen one to `true` in a single commit. This is enforced
+client-side, not by a Firestore rule - a rule evaluates one document
+write at a time and cannot inspect sibling documents in the same
+collection to enforce a collection-wide "at most one" invariant, and
+getting this wrong has no security consequence (a display
+inconsistency if two ever ended up active, never unauthorized data
+access), so client-side atomicity is the right amount of engineering
+for this, not a missing security control.
+
+### Deterministic vs. auto-generated ids
+
+Every seeded default (`seedDefaults()` in `AcademicConfigController`)
+uses a deterministic id derived from its English name (`class9`, `cbse`,
+`mathematics`, ...) so `subjectIds` and any future reference can name a
+subject/class/board by a stable id that survives a display-name rename,
+per Set 9's "use stable ids rather than relying on display names as
+database identifiers". An admin-added entry beyond the seeded defaults
+gets a normal auto-generated id (via `add()`), same as every other
+admin-created collection in this project (batches, teachers, ...) - only
+the *seeded* rows need predictable ids, since `seedDefaults()` has to be
+able to tell "does this already exist" before writing.
+
+### Data safety: no delete, ever
+
+`firestore.rules` denies `delete` outright on all four collections above
+(and on the extended `institutes/main`) - "prefer deactivation/archiving
+over destructive deletion" for master data that a future record could
+reference. Since nothing yet references these collections (existing
+modules still use their own free-text fields - see
+docs/architecture.md), there's no live foreign-key risk today, but the
+`delete: if false` rule is already in place so that remains true once
+something does reference them.
+
 ## Security posture (this phase)
 
 `storage.rules` still **denies all reads and writes** - Storage itself
@@ -623,9 +726,13 @@ above:
   update **and** delete (see "Saved export templates" and "Report layout
   templates" above - the two collections in this project where
   client-side delete is actually allowed).
-- Every other planned collection (`fees`, `subjects`, `academicSessions`,
-  `auditLogs`, ...) stays fully closed until the phase that implements
-  it, so access rules are never written against guessed requirements.
+- `academicSessions`/`classes`/`boards`/`subjects` (Set 9): any signed-in
+  account may read (shared reference catalogues, like `batches`);
+  only admin may `create`/`update`; `delete` is never allowed (see
+  "Academic master data" above).
+- Every other planned collection (`fees`, `auditLogs`, ...) stays fully
+  closed until the phase that implements it, so access rules are never
+  written against guessed requirements.
 
 ## Firestore query-shape requirement (Set 8 - found and fixed)
 

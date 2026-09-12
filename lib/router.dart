@@ -3,6 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/routing/app_routes.dart';
 import 'core/services/auth_service.dart';
+import 'features/academics/presentation/academic_config_hub_screen.dart';
+import 'features/academics/presentation/academic_sessions_screen.dart';
+import 'features/academics/presentation/boards_screen.dart';
+import 'features/academics/presentation/classes_screen.dart';
+import 'features/academics/presentation/subjects_screen.dart';
 import 'features/admin/presentation/admin_accounts_screen.dart';
 import 'features/admin/presentation/admin_dashboard_screen.dart';
 import 'features/admin/presentation/create_account_screen.dart';
@@ -227,6 +232,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => ReportTemplateDesignerScreen(
           templateId: state.pathParameters['templateId'],
         ),
+      ),
+
+      GoRoute(
+        path: AppRoutes.adminConfiguration,
+        builder: (context, state) => const AcademicConfigHubScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminAcademicSessions,
+        builder: (context, state) => const AcademicSessionsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminClasses,
+        builder: (context, state) => const ClassesScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminBoards,
+        builder: (context, state) => const BoardsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminSubjects,
+        builder: (context, state) => const SubjectsScreen(),
       ),
 
       GoRoute(

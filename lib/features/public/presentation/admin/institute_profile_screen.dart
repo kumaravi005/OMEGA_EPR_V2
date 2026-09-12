@@ -10,8 +10,10 @@ import '../../../../core/widgets/loading_view.dart';
 import '../../application/public_content_controller.dart';
 import '../../data/public_content_repositories.dart';
 
-/// Single settings form for the one institute-profile document that
-/// powers the public site's branding/about/contact sections.
+/// Single settings form for the one institute-profile document - the
+/// central institute configuration (Set 9) every future screen/report
+/// should read instead of hard-coding institute details, as well as the
+/// public site's branding/about/contact source.
 class InstituteProfileScreen extends ConsumerWidget {
   const InstituteProfileScreen({super.key});
 
@@ -20,7 +22,7 @@ class InstituteProfileScreen extends ConsumerWidget {
     final profileAsync = ref.watch(instituteProfileProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Institute profile')),
+      appBar: AppBar(title: const Text('Institute configuration')),
       body: SafeArea(
         child: profileAsync.when(
           loading: () => const LoadingView(),
@@ -30,9 +32,12 @@ class InstituteProfileScreen extends ConsumerWidget {
             name: profile?.name ?? '',
             tagline: profile?.tagline ?? '',
             about: profile?.about ?? '',
+            logoUrl: profile?.logoUrl ?? '',
             contactPhone: profile?.contactPhone ?? '',
+            secondaryPhone: profile?.secondaryPhone ?? '',
             contactEmail: profile?.contactEmail ?? '',
             address: profile?.address ?? '',
+            website: profile?.website ?? '',
           ),
         ),
       ),
@@ -45,17 +50,23 @@ class _ProfileForm extends ConsumerStatefulWidget {
     required this.name,
     required this.tagline,
     required this.about,
+    required this.logoUrl,
     required this.contactPhone,
+    required this.secondaryPhone,
     required this.contactEmail,
     required this.address,
+    required this.website,
   });
 
   final String name;
   final String tagline;
   final String about;
+  final String logoUrl;
   final String contactPhone;
+  final String secondaryPhone;
   final String contactEmail;
   final String address;
+  final String website;
 
   @override
   ConsumerState<_ProfileForm> createState() => _ProfileFormState();
@@ -66,13 +77,18 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
   late final _nameController = TextEditingController(text: widget.name);
   late final _taglineController = TextEditingController(text: widget.tagline);
   late final _aboutController = TextEditingController(text: widget.about);
+  late final _logoUrlController = TextEditingController(text: widget.logoUrl);
   late final _contactPhoneController = TextEditingController(
     text: widget.contactPhone,
+  );
+  late final _secondaryPhoneController = TextEditingController(
+    text: widget.secondaryPhone,
   );
   late final _contactEmailController = TextEditingController(
     text: widget.contactEmail,
   );
   late final _addressController = TextEditingController(text: widget.address);
+  late final _websiteController = TextEditingController(text: widget.website);
 
   bool _isSubmitting = false;
   String? _errorMessage;
@@ -83,9 +99,12 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
     _nameController.dispose();
     _taglineController.dispose();
     _aboutController.dispose();
+    _logoUrlController.dispose();
     _contactPhoneController.dispose();
+    _secondaryPhoneController.dispose();
     _contactEmailController.dispose();
     _addressController.dispose();
+    _websiteController.dispose();
     super.dispose();
   }
 
@@ -106,9 +125,12 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
             name: _nameController.text,
             tagline: _taglineController.text,
             about: _aboutController.text,
+            logoUrl: _logoUrlController.text,
             contactPhone: _contactPhoneController.text,
+            secondaryPhone: _secondaryPhoneController.text,
             contactEmail: _contactEmailController.text,
             address: _addressController.text,
+            website: _websiteController.text,
           );
       if (mounted) setState(() => _successMessage = 'Saved.');
     } on PublicContentFailure catch (failure) {
@@ -170,14 +192,39 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   AppTextField(
+                    controller: _logoUrlController,
+                    label: 'Logo image URL (optional)',
+                    hintText: 'https://...',
+                    enabled: !_isSubmitting,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  AppTextField(
+                    controller: _addressController,
+                    label: 'Address (optional)',
+                    enabled: !_isSubmitting,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  AppTextField(
                     controller: _contactPhoneController,
-                    label: 'Contact phone (optional)',
+                    label: 'Primary phone (optional)',
                     enabled: !_isSubmitting,
                     keyboardType: TextInputType.phone,
                     validator: (value) => Validators.phone(
                       value,
                       isRequired: false,
-                      label: 'Contact phone',
+                      label: 'Primary phone',
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  AppTextField(
+                    controller: _secondaryPhoneController,
+                    label: 'Secondary phone (optional)',
+                    enabled: !_isSubmitting,
+                    keyboardType: TextInputType.phone,
+                    validator: (value) => Validators.phone(
+                      value,
+                      isRequired: false,
+                      label: 'Secondary phone',
                     ),
                   ),
                   const SizedBox(height: AppSpacing.sm),
@@ -185,11 +232,15 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
                     controller: _contactEmailController,
                     label: 'Contact email (optional)',
                     enabled: !_isSubmitting,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? null
+                        : Validators.email(value),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   AppTextField(
-                    controller: _addressController,
-                    label: 'Address (optional)',
+                    controller: _websiteController,
+                    label: 'Website / social link (optional)',
+                    hintText: 'https://...',
                     enabled: !_isSubmitting,
                   ),
                   const SizedBox(height: AppSpacing.lg),

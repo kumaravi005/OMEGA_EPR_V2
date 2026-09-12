@@ -205,6 +205,25 @@ lib/
                              templates" below), ReportLayoutPicker (the
                              "which template" dropdown embedded in every
                              compatible export screen).
+    academics/ (Set 9)       Institute/academic master data, centrally
+                             configured by admin instead of hard-coded or
+                             free-text per module - see "Admin
+                             configuration and academic master data
+                             (Set 9)" below.
+      data/                  AcademicSession, SchoolClass, Board, Subject
+                             models + one shared repositories file (same
+                             "each repository is a trivial one-liner"
+                             reasoning as `public_content_repositories.dart`).
+      application/           AcademicConfigController - save/activate/
+                             deactivate for all four master-data types,
+                             plus the one-time idempotent `seedDefaults()`
+                             action (Class 5-12, CBSE/BSEB/Others, the
+                             standard subject list).
+      presentation/          AcademicConfigHubScreen (nav to the four
+                             sections + the "load defaults" action),
+                             AcademicSessionsScreen, ClassesScreen (also
+                             owns the class-subject picker), BoardsScreen,
+                             SubjectsScreen.
 ```
 
 ## The export/report engine (Set 6)
@@ -477,20 +496,92 @@ operation:
 | Upcoming batch listings | Admin → Upcoming batches |
 | Advertisements (+ popup, + active window) | Admin → Advertisements |
 | Announcements | Admin → Announcements |
-| Institute profile (name, tagline, about, contact, address) | Admin → Institute profile |
+| Institute profile (name, logo, tagline, about, primary/secondary phone, email, address, website) | Admin → Configuration → Institute |
+| Academic sessions (name, start/end date, which one is active) | Admin → Configuration → Academic session |
+| Classes (name, display order, active) + which subjects each offers | Admin → Configuration → Classes |
+| Boards (e.g. CBSE, BSEB, Others) | Admin → Configuration → Boards |
+| Subjects | Admin → Configuration → Subjects |
 | Report/export letterhead: logo (position/size), header text, footer/signature/page-number/date | Admin → Report templates |
 | Saved export column/filter presets | Any export screen's "Save as template" |
 | Admission enquiries / callback requests (status only) | Admin → Enquiries / Callback requests |
 
-**Two items from the original Set 1 plan were never built as their own
-configurable entities, by design, not oversight**: "academic session"
-and "subject" are free-text fields typed per student/homework/test
-record, not a managed catalogue with its own admin screen (unlike
-`batches`, which is a real collection). Building a dedicated CRUD module
-for either would be a **new business feature**, out of scope for a
-hardening phase - if this turns out to matter operationally (e.g.
-sessions/subjects need to be constrained to a fixed list rather than
-free text), that's its own future set, not a Set 8 fix.
+Academic session/class/board/subject were, as of Set 8, deliberately
+*not yet* their own configurable entities (free-text fields typed per
+record instead) - Set 9 built the master-data layer described here. See
+"Admin configuration and academic master data (Set 9)" below for the
+full shape and the explicit scope boundary (existing modules like
+student admission/homework/tests still use their own free-text fields;
+wiring them to read this master data is future work, not part of Set 9).
+
+## Admin configuration and academic master data (Set 9)
+
+No new business features - this set built the foundational master-data
+layer other modules will reference in future sets, and extended the
+institute-profile document that already existed (Set 5) into the
+central institute-configuration record. See
+docs/database-architecture.md's "Academic master data" section for the
+exact schema.
+
+- **Institute configuration**: `InstituteProfile` (already existed for
+  the public site) gained `logoUrl`, `secondaryPhone`, and `website` -
+  additive, backward-compatible fields on the same singleton document,
+  not a new collection. The logo is a pasted URL, same as every other
+  image field since Set 5 (Storage still isn't enabled).
+- **Academic sessions**: a real `academicSessions` collection (previously
+  a bare `academicSession` string field on `StudentProfile`/
+  `UpcomingBatch` - those existing free-text fields are untouched; this
+  is a new, separate master collection future modules can reference by
+  id). Exactly one session is ever active - enforced by
+  `AcademicSessionController.setActiveSession`'s atomic `WriteBatch`
+  (flips the old active session off and the new one on in one commit),
+  not by a Firestore rule (a rule can't inspect sibling documents to
+  enforce a collection-wide invariant, and getting this wrong has no
+  security consequence). Sessions are never deleted - `firestore.rules`
+  denies `delete` outright on this collection, matching the project's
+  existing "prefer deactivation over destructive deletion" convention.
+- **Classes**: `SchoolClass` (named to avoid colliding with Dart's
+  `class` keyword) - Class 5 through 12 initially, each with a
+  `subjectIds` list naming which `Subject` documents apply to it.
+- **Boards**: CBSE/BSEB/Others initially, plain entries with no special
+  handling for "Others" in the data model - a future student-admission
+  screen is expected to show a free-text override when the board named
+  "Others" is selected, but that wiring is out of scope here (see below).
+- **Subjects**: a flat master list (Hindi, English, Sanskrit,
+  Mathematics, Social Science, History, Civics/Political Science,
+  Economics, Science, Physics, Chemistry, Biology). Class-subject
+  applicability lives on `SchoolClass.subjectIds`, not a separate join
+  collection - the only lookup direction any future module needs is
+  "which subjects does this class offer", so a field on the class is
+  simpler and just as centralized as a join table at this project's
+  scale.
+- **One-time default seeding, not a silent migration**: `seedDefaults()`
+  writes the initial classes/boards/subjects/class-subject mapping
+  specified above, but only for entries that don't already exist
+  (existence-checked before every write, keyed by deterministic ids like
+  `class9`/`cbse`/`mathematics`) - it never overwrites a name/active
+  flag/subject list an admin has since edited. It's triggered by an
+  explicit admin button on `AcademicConfigHubScreen` (with a confirmation
+  dialog explaining what it does), not run automatically on app launch -
+  consistent with this project's "no collection is populated with
+  sample/fake data" convention, since this is the real initial master
+  data an admin would otherwise have to type in by hand.
+- **All four collections read like `batches`**: `allow get, list: if
+  isSignedIn()` (a shared reference catalogue, not personal data) with
+  `allow create, update: if isAdmin()` and `allow delete: if false` -
+  same "unconstrained `watchAll()` is safe because the rule has no
+  per-document dependency" reasoning documented in Set 8's "Firestore
+  query-shape requirement".
+- **What this set deliberately does NOT do**: wire any *existing* module
+  to read this new master data. Student admission's `className`/`board`/
+  `academicSession` fields, and homework/assignment/test's `subject`
+  field, are all still free text, exactly as Sets 3-4 left them -
+  changing those screens to use dropdowns sourced from
+  `activeSchoolClassesProvider`/`activeBoardsProvider`/
+  `activeSubjectsProvider` is future work explicitly out of scope for
+  "build the master-data layer, don't touch Student Admission/Teacher
+  Management/Attendance/Fees/Results/Tests/Public Gallery" (Set 9's own
+  scope boundary). The providers are ready and centrally located for
+  whichever future set does that wiring.
 
 ## What's deliberately not here yet
 
