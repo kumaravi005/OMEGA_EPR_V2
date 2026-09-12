@@ -25,8 +25,12 @@ class AttendanceController {
 
   /// Marks (or corrects) the whole batch's attendance for [date] in one
   /// write - `records` covers every student, never split by subject.
+  /// [academicSessionId]/[classId] are the selected batch's own, snapshotted
+  /// at write time (see [StudentAttendanceRecord]'s doc comment).
   Future<void> markStudentAttendance({
     required String batchId,
+    required String academicSessionId,
+    required String classId,
     required DateTime date,
     required Map<String, AttendanceStatus> records,
   }) async {
@@ -36,22 +40,26 @@ class AttendanceController {
     final day = dateOnly(date);
     final key = dateKey(day);
     final now = DateTime.now();
+    final recordId = '${batchId}_$key';
 
     try {
       final existing = await _ref
           .read(studentAttendanceRepositoryProvider)
-          .getById('${batchId}_$key');
+          .getById(recordId);
       await _ref
           .read(studentAttendanceRepositoryProvider)
           .set(
-            '${batchId}_$key',
+            recordId,
             StudentAttendanceRecord(
-              recordId: '${batchId}_$key',
+              recordId: recordId,
               batchId: batchId,
               dateKey: key,
               date: day,
+              academicSessionId: academicSessionId,
+              classId: classId,
               records: records,
-              markedBy: admin.uid,
+              createdBy: existing?.createdBy ?? admin.uid,
+              updatedBy: admin.uid,
               createdAt: existing?.createdAt ?? now,
               updatedAt: now,
             ),
@@ -63,10 +71,16 @@ class AttendanceController {
     }
   }
 
-  Future<void> markTeacherAttendance({
-    required String teacherUid,
+  /// Marks (or corrects) every given teacher's attendance for [date] in a
+  /// single atomic `WriteBatch` commit - one network round-trip for the
+  /// whole day's staff, not one write per teacher (Set 13 spec: "use an
+  /// efficient batch write... do not make one unnecessary network write
+  /// per [record] if the architecture can safely batch them"). Each
+  /// teacher's record still preserves its own `createdAt`/`createdBy` on
+  /// re-mark, exactly like [markStudentAttendance].
+  Future<void> markTeacherAttendanceBulk({
     required DateTime date,
-    required AttendanceStatus status,
+    required Map<String, AttendanceStatus> statuses,
   }) async {
     final admin = _ref.read(currentUserAccountProvider).valueOrNull;
     if (admin == null) throw const AttendanceFailure('Please sign in again.');
@@ -76,24 +90,28 @@ class AttendanceController {
     final now = DateTime.now();
 
     try {
-      final existing = await _ref
-          .read(teacherAttendanceRepositoryProvider)
-          .getById('${teacherUid}_$key');
-      await _ref
-          .read(teacherAttendanceRepositoryProvider)
-          .set(
-            '${teacherUid}_$key',
-            TeacherAttendanceRecord(
-              recordId: '${teacherUid}_$key',
-              teacherUid: teacherUid,
-              dateKey: key,
-              date: day,
-              status: status,
-              markedBy: admin.uid,
-              createdAt: existing?.createdAt ?? now,
-              updatedAt: now,
-            ),
-          );
+      final repo = _ref.read(teacherAttendanceRepositoryProvider);
+      final writeBatch = repo.collection.firestore.batch();
+
+      for (final entry in statuses.entries) {
+        final teacherUid = entry.key;
+        final recordId = '${teacherUid}_$key';
+        final existing = await repo.getById(recordId);
+        final record = TeacherAttendanceRecord(
+          recordId: recordId,
+          teacherUid: teacherUid,
+          dateKey: key,
+          date: day,
+          status: entry.value,
+          createdBy: existing?.createdBy ?? admin.uid,
+          updatedBy: admin.uid,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        );
+        writeBatch.set(repo.collection.doc(recordId), record.toMap());
+      }
+
+      await writeBatch.commit();
     } catch (_) {
       throw const AttendanceFailure(
         'Could not save attendance. Please try again.',

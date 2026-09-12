@@ -8,6 +8,7 @@ import '../../../core/widgets/loading_view.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../student/data/student_repository.dart';
 import '../data/attendance_repository.dart';
+import '../data/attendance_stats.dart';
 import '../data/student_attendance_record.dart';
 
 /// A student/parent's own attendance history, present/absent counts and
@@ -76,11 +77,9 @@ class _History extends ConsumerWidget {
           return const EmptyView(message: 'No attendance recorded yet.');
         }
 
-        final present = mine
-            .where((r) => r.records[studentUid] == AttendanceStatus.present)
-            .length;
-        final absent = mine.length - present;
-        final percentage = mine.isEmpty ? 0.0 : (present / mine.length) * 100;
+        final stats = computeAttendanceStats(
+          mine.map((r) => r.records[studentUid]!),
+        );
 
         return ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
@@ -89,11 +88,13 @@ class _History extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _Stat(label: 'Present', value: '$present'),
-                  _Stat(label: 'Absent', value: '$absent'),
+                  _Stat(label: 'Present', value: '${stats.present}'),
+                  _Stat(label: 'Absent', value: '${stats.absent}'),
                   _Stat(
                     label: 'Attendance %',
-                    value: '${percentage.toStringAsFixed(1)}%',
+                    value: stats.percentage == null
+                        ? '-'
+                        : '${stats.percentage!.toStringAsFixed(1)}%',
                   ),
                 ],
               ),

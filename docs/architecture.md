@@ -134,17 +134,41 @@ lib/
       presentation/         BatchListScreen (search + session/class/status
                              filters), BatchFormDialog (create/edit,
                              including fee configuration).
-    attendance/ (Set 4)     Student attendance (one record per batch/date,
-                             never per subject) and teacher attendance
-                             (admin-marked, teacher views own only).
-      data/                 StudentAttendanceRecord, TeacherAttendanceRecord.
+    attendance/ (Set 4, extended Set 13)   Student attendance (one record
+                             per batch/date, never per subject) and
+                             teacher attendance (admin-marked, teacher
+                             views own only). Marking now cascades
+                             Session -> Class -> (matching active
+                             batches) for students, and admin gets a
+                             history/summary view for both, on top of
+                             each role's own view.
+      data/                 StudentAttendanceRecord (+ an
+                             academicSessionId/classId snapshot of the
+                             batch at marking time),
+                             TeacherAttendanceRecord - both split the old
+                             single `markedBy` into createdBy/updatedBy.
+                             AttendanceStats/computeAttendanceStats - the
+                             one shared present/absent/percentage
+                             calculation every history/summary view uses,
+                             always computed on demand, never a stored
+                             counter.
       application/          AttendanceController (mark/correct - both use
                              a deterministic doc id, see
-                             docs/database-architecture.md).
-      presentation/         MarkStudentAttendanceScreen,
-                             MarkTeacherAttendanceScreen (both admin),
+                             docs/database-architecture.md;
+                             markTeacherAttendanceBulk saves a whole
+                             day's staff in one WriteBatch commit instead
+                             of one write per teacher).
+      presentation/         AttendanceHubScreen (admin's entry point),
+                             MarkStudentAttendanceScreen (Session -> Class
+                             -> Batch -> Date -> student list, admin),
+                             MarkTeacherAttendanceScreen (Date -> teacher
+                             list, staged + one Save action, admin),
+                             Student/TeacherAttendanceReportScreen (admin
+                             history: filters + a date range, per-
+                             student/teacher present/absent/percentage),
                              *AttendanceHistoryScreen (own view, teacher
-                             and student each get one).
+                             and student each get one, both now show a
+                             percentage).
     homework/, assignments/ (Set 4)   Same shape as each other - a batch-
                              wide entry a teacher creates and tracks
                              completion/status on, a student reads.

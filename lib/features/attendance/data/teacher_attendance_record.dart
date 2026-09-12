@@ -12,19 +12,24 @@ class TeacherAttendanceRecord implements FirestoreDocument {
     required this.dateKey,
     required this.date,
     required this.status,
-    required this.markedBy,
+    required this.createdBy,
+    required this.updatedBy,
     required this.createdAt,
     required this.updatedAt,
   });
 
   factory TeacherAttendanceRecord.fromMap(String id, Map<String, dynamic> map) {
+    // Pre-Set-13 documents stored a single `markedBy` field - see
+    // StudentAttendanceRecord.fromMap for the identical fallback.
+    final legacyMarkedBy = map['markedBy'] as String?;
     return TeacherAttendanceRecord(
       recordId: id,
       teacherUid: map['teacherUid'] as String,
       dateKey: map['dateKey'] as String,
       date: (map['date'] as Timestamp).toDate(),
       status: AttendanceStatus.fromValue(map['status'] as String),
-      markedBy: map['markedBy'] as String,
+      createdBy: map['createdBy'] as String? ?? legacyMarkedBy ?? '',
+      updatedBy: map['updatedBy'] as String? ?? legacyMarkedBy ?? '',
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       updatedAt: (map['updatedAt'] as Timestamp).toDate(),
     );
@@ -35,7 +40,8 @@ class TeacherAttendanceRecord implements FirestoreDocument {
   final String dateKey;
   final DateTime date;
   final AttendanceStatus status;
-  final String markedBy;
+  final String createdBy;
+  final String updatedBy;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -49,7 +55,8 @@ class TeacherAttendanceRecord implements FirestoreDocument {
       'dateKey': dateKey,
       'date': Timestamp.fromDate(date),
       'status': status.name,
-      'markedBy': markedBy,
+      'createdBy': createdBy,
+      'updatedBy': updatedBy,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };

@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../auth/application/auth_providers.dart';
 import '../data/attendance_repository.dart';
+import '../data/attendance_stats.dart';
 import '../data/student_attendance_record.dart';
 
-/// A teacher's own attendance history - view only (marking is admin-only;
-/// see firestore.rules).
+/// A teacher's own attendance history, present/absent counts and
+/// percentage - view only (marking is admin-only; see firestore.rules).
 class TeacherAttendanceHistoryScreen extends ConsumerWidget {
   const TeacherAttendanceHistoryScreen({super.key});
 
@@ -38,35 +40,75 @@ class TeacherAttendanceHistoryScreen extends ConsumerWidget {
                           message: 'No attendance recorded yet.',
                         );
                       }
-                      return ListView.separated(
+                      final stats = computeAttendanceStats(
+                        records.map((r) => r.status),
+                      );
+                      return ListView(
                         padding: const EdgeInsets.all(AppSpacing.md),
-                        itemCount: records.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: AppSpacing.xs),
-                        itemBuilder: (context, index) {
-                          final record = records[index];
-                          return Card(
-                            child: ListTile(
-                              title: Text(record.dateKey),
-                              trailing: Text(
-                                record.status.label,
-                                style: TextStyle(
-                                  color:
-                                      record.status == AttendanceStatus.present
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Theme.of(context).colorScheme.error,
-                                  fontWeight: FontWeight.w600,
+                        children: [
+                          AppCard(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                _Stat(
+                                  label: 'Present',
+                                  value: '${stats.present}',
+                                ),
+                                _Stat(
+                                  label: 'Absent',
+                                  value: '${stats.absent}',
+                                ),
+                                _Stat(
+                                  label: 'Attendance %',
+                                  value: stats.percentage == null
+                                      ? '-'
+                                      : '${stats.percentage!.toStringAsFixed(1)}%',
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          for (final record in records)
+                            Card(
+                              child: ListTile(
+                                title: Text(record.dateKey),
+                                trailing: Text(
+                                  record.status.label,
+                                  style: TextStyle(
+                                    color:
+                                        record.status ==
+                                            AttendanceStatus.present
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context).colorScheme.error,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ),
-                          );
-                        },
+                        ],
                       );
                     },
                   );
                 },
               ),
       ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(value, style: Theme.of(context).textTheme.headlineMedium),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+      ],
     );
   }
 }

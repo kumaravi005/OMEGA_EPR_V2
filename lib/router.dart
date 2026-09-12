@@ -13,10 +13,13 @@ import 'features/admin/presentation/admin_dashboard_screen.dart';
 import 'features/admin/presentation/create_account_screen.dart';
 import 'features/assignments/presentation/assignment_list_screen.dart';
 import 'features/assignments/presentation/student_assignments_screen.dart';
+import 'features/attendance/presentation/attendance_hub_screen.dart';
 import 'features/attendance/presentation/mark_student_attendance_screen.dart';
 import 'features/attendance/presentation/mark_teacher_attendance_screen.dart';
 import 'features/attendance/presentation/student_attendance_history_screen.dart';
+import 'features/attendance/presentation/student_attendance_report_screen.dart';
 import 'features/attendance/presentation/teacher_attendance_history_screen.dart';
+import 'features/attendance/presentation/teacher_attendance_report_screen.dart';
 import 'features/auth/application/auth_providers.dart';
 import 'features/auth/application/device_id_service.dart';
 import 'features/auth/data/user_account.dart';
@@ -152,12 +155,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
 
       GoRoute(
+        path: AppRoutes.adminAttendance,
+        builder: (context, state) => const AttendanceHubScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.adminMarkStudentAttendance,
         builder: (context, state) => const MarkStudentAttendanceScreen(),
       ),
       GoRoute(
         path: AppRoutes.adminMarkTeacherAttendance,
         builder: (context, state) => const MarkTeacherAttendanceScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminStudentAttendanceHistory,
+        builder: (context, state) => const StudentAttendanceReportScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminTeacherAttendanceHistory,
+        builder: (context, state) => const TeacherAttendanceReportScreen(),
       ),
 
       GoRoute(

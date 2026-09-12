@@ -17,8 +17,13 @@ abstract final class AppRoutes {
   static const adminStudents = '/admin/students';
   static const adminNewStudent = '/admin/students/new';
   static const adminFeeDues = '/admin/fee-dues';
+  static const adminAttendance = '/admin/attendance';
   static const adminMarkStudentAttendance = '/admin/attendance/students';
   static const adminMarkTeacherAttendance = '/admin/attendance/teachers';
+  static const adminStudentAttendanceHistory =
+      '/admin/attendance/students/history';
+  static const adminTeacherAttendanceHistory =
+      '/admin/attendance/teachers/history';
   static const adminTests = '/admin/tests';
   static const adminGallery = '/admin/gallery';
   static const adminBanners = '/admin/banners';

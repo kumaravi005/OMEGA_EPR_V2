@@ -58,15 +58,8 @@ class AdminDashboardScreen extends ConsumerWidget {
                 ),
                 NavTile(
                   icon: Icons.event_available_outlined,
-                  label: 'Student attendance',
-                  onTap: () =>
-                      context.push(AppRoutes.adminMarkStudentAttendance),
-                ),
-                NavTile(
-                  icon: Icons.badge_outlined,
-                  label: 'Teacher attendance',
-                  onTap: () =>
-                      context.push(AppRoutes.adminMarkTeacherAttendance),
+                  label: 'Attendance',
+                  onTap: () => context.push(AppRoutes.adminAttendance),
                 ),
                 NavTile(
                   icon: Icons.assignment_outlined,

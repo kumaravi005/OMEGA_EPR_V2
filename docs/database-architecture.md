@@ -515,19 +515,24 @@ Android 11+ needs the `<queries>` entries in
 (already added) - iOS needs no equivalent for plain `tel:`/`https:`
 links.
 
-## Attendance, homework, assignments, tests and results (Set 4)
+## Attendance, homework, assignments, tests and results (Set 4, attendance extended Set 13)
 
 ```
 attendance/{batchId}_{dateKey}          one record per batch/date - NEVER
                                           split by subject
   batchId, dateKey ("2026-09-10"), date
+  academicSessionId, classId   snapshot of the batch's own session/class
+                                 at marking time (Set 13) - '' on a
+                                 pre-Set-13 record (never a live join;
+                                 see "Attendance identity and snapshots"
+                                 below)
   records    { studentUid: "present" | "absent", ... }   every student in
                                                            the batch, in one map
-  markedBy, createdAt, updatedAt
+  createdBy, updatedBy, createdAt, updatedAt
 
 teacherAttendance/{teacherUid}_{dateKey}   one record per teacher/date
   teacherUid, dateKey, date, status ("present" | "absent")
-  markedBy, createdAt, updatedAt
+  createdBy, updatedBy, createdAt, updatedAt
 
 homework/{homeworkId}                   shared by the whole batch
   batchId, subject, date, description, dueDate
@@ -565,6 +570,50 @@ same trick (`<testId>_<studentUid>`) so re-entering a mark can never
 create a second record either, and so a student can fetch their own
 result with a plain `get()` instead of needing `list` permission on the
 whole collection.
+
+### Attendance identity and snapshots (Set 13)
+
+The spec's duplicate-prevention identity is "Academic Session + Batch +
+Date" for students - the id doesn't need a separate session segment
+because a batch belongs to exactly one academic session (Set 10's
+"a batch always belongs to exactly one session and one class" invariant),
+so `<batchId>_<dateKey>` already uniquely determines session+batch+date;
+adding `academicSessionId` into the id itself would be redundant, not
+more correct.
+
+`academicSessionId`/`classId` on the record ARE still worth storing
+despite that redundancy, for a different reason: they're a **snapshot**
+of the batch's session/class at the moment attendance was marked, not a
+live join. If a batch's own session/class assignment were ever edited
+later (rare, but the batch edit form allows it), a live join through
+`batchId` would retroactively change which session/class a *past*
+attendance record appears to belong to - exactly the kind of historical
+rewrite Sets 10/11 already established snapshots to prevent for fee
+data. The admin attendance history screen still falls back to resolving
+session/class via the batch for any pre-Set-13 record that predates the
+snapshot (`academicSessionId`/`classId` read back as `''`).
+
+`createdBy`/`updatedBy` replace the single `markedBy` field Set 4 used
+for both - `markedBy` is preserved as a read-only fallback
+(`StudentAttendanceRecord.fromMap`/`TeacherAttendanceRecord.fromMap`) so
+a record marked before Set 13 still reports a sensible value for both,
+but every write from Set 13 onward always populates the new pair and
+never re-emits `markedBy`.
+
+### Efficient bulk save (Set 13)
+
+Student attendance was always a single write per batch/date (`records`
+already covers every student in one document) - nothing to batch.
+Teacher attendance is one document *per teacher* per date (so each
+teacher can `get`/`list` their own independently - see "Role
+authorization" below), which meant marking a whole day's staff used to
+take one write per teacher-tap. `AttendanceController.
+markTeacherAttendanceBulk` now stages every teacher's status locally in
+the UI and commits them all in a single Firestore `WriteBatch` when
+admin taps Save - one atomic network round-trip for the whole day's
+staff, matching the spec's "do not make one unnecessary network write
+per record if the architecture can safely batch them" while keeping
+each teacher's record independently queryable exactly as before.
 
 **"Do not expose unpublished marks to students"** is enforced in
 `firestore.rules`, not just the UI: a student's `get` on `testResults` is

@@ -36,6 +36,26 @@ final batchAttendanceProvider =
           );
     });
 
+/// Every student attendance record, newest first - admin-only (the
+/// `attendance` `list` rule's `isAdmin()` branch has no per-document
+/// dependency, so this unconstrained `watchAll()` is safe - see
+/// docs/database-architecture.md's "Firestore query-shape requirement").
+/// For the admin attendance history/report screen, which filters by
+/// session/class/batch/date-range entirely client-side rather than as
+/// separate Firestore queries - the same "one stream, filter in the UI"
+/// approach as `allBatchesProvider`/`allStudentsProvider`, appropriate at
+/// this project's scale.
+final allStudentAttendanceProvider =
+    StreamProvider<List<StudentAttendanceRecord>>((ref) {
+      return ref
+          .watch(studentAttendanceRepositoryProvider)
+          .watchAll()
+          .map(
+            (records) =>
+                records.toList()..sort((a, b) => b.date.compareTo(a.date)),
+          );
+    });
+
 final teacherAttendanceRepositoryProvider =
     Provider<FirestoreRepository<TeacherAttendanceRecord>>((ref) {
       return FirestoreRepository<TeacherAttendanceRecord>(
@@ -44,6 +64,19 @@ final teacherAttendanceRepositoryProvider =
         fromFirestore: TeacherAttendanceRecord.fromMap,
         toFirestore: (record) => record.toMap(),
       );
+    });
+
+/// Every teacher attendance record, newest first - admin-only, same
+/// reasoning as [allStudentAttendanceProvider].
+final allTeacherAttendanceProvider =
+    StreamProvider<List<TeacherAttendanceRecord>>((ref) {
+      return ref
+          .watch(teacherAttendanceRepositoryProvider)
+          .watchAll()
+          .map(
+            (records) =>
+                records.toList()..sort((a, b) => b.date.compareTo(a.date)),
+          );
     });
 
 /// One teacher's own attendance history, newest first. Filtered

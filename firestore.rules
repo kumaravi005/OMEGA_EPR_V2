@@ -432,13 +432,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Student attendance (Set 4): one record per batch/date, covering the
-    // whole batch - never split by subject. Document id is deterministic
+    // Student attendance (Set 4, extended Set 13 with an academicSessionId/
+    // classId snapshot and a createdBy/updatedBy split replacing the old
+    // single `markedBy`): one record per batch/date, covering the whole
+    // batch - never split by subject. Document id is deterministic
     // (`<batchId>_<dateKey>`), checked below, so the same batch/date can
     // never produce two records - marking again just updates the one that
-    // exists (admin-only, matching the spec exactly).
+    // exists (admin-only, matching the spec exactly). A batch belongs to
+    // exactly one session (Set 10), so `<batchId>_<dateKey>` already
+    // uniquely identifies session+batch+date without a session segment.
     function attendanceFields() {
-      return ['batchId', 'dateKey', 'date', 'records', 'markedBy', 'createdAt', 'updatedAt'];
+      return [
+        'batchId', 'dateKey', 'date', 'academicSessionId', 'classId', 'records', 'createdBy', 'updatedBy',
+        'createdAt', 'updatedAt'
+      ];
     }
 
     function newAttendanceIsValid(recordId) {
@@ -447,20 +454,41 @@ service cloud.firestore {
         && data.batchId is string
         && data.dateKey is string
         && data.date is timestamp
+        && data.academicSessionId is string && data.academicSessionId.size() > 0
+        && data.classId is string && data.classId.size() > 0
         && data.records is map
-        && data.markedBy is string
+        && data.createdBy is string
+        && data.updatedBy is string
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
         && data.keys().hasOnly(attendanceFields());
     }
 
+    // The app always writes the full current shape via `.set()` (never a
+    // partial `.update()`), so a pre-Set-13 document being re-marked is
+    // always replaced wholesale with the new shape - `keys().hasOnly(...)`
+    // needs no special tolerance for the old `markedBy` field, which
+    // simply won't be in the new document. The one thing that DOES need
+    // tolerance is comparing against a field the OLD document might not
+    // have had at all (academicSessionId/classId/createdBy didn't exist
+    // before Set 13) - guarded below so editing a historical record for
+    // the first time under these rules doesn't error out.
     function attendanceUpdateIsValid() {
-      return request.resource.data.batchId == resource.data.batchId
-        && request.resource.data.dateKey == resource.data.dateKey
-        && request.resource.data.date == resource.data.date
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.records is map
-        && request.resource.data.keys().hasOnly(attendanceFields());
+      let data = request.resource.data;
+      let old = resource.data;
+      return data.batchId == old.batchId
+        && data.dateKey == old.dateKey
+        && data.date == old.date
+        && data.createdAt == old.createdAt
+        && (!old.keys().hasAny(['academicSessionId']) || data.academicSessionId == old.academicSessionId)
+        && (!old.keys().hasAny(['classId']) || data.classId == old.classId)
+        && (!old.keys().hasAny(['createdBy']) || data.createdBy == old.createdBy)
+        && data.academicSessionId is string && data.academicSessionId.size() > 0
+        && data.classId is string && data.classId.size() > 0
+        && data.records is map
+        && data.createdBy is string
+        && data.updatedBy is string
+        && data.keys().hasOnly(attendanceFields());
     }
 
     // Student branch is scoped by the record's `batchId` (queryable via
@@ -482,12 +510,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Teacher attendance (Set 4): one record per teacher/date, same
-    // duplicate-prevention scheme as student attendance. Admin-only to
-    // write - "teacher cannot edit attendance unless explicitly permitted
-    // by admin", and no such permission exists yet in this phase.
+    // Teacher attendance (Set 4, extended Set 13 with a createdBy/
+    // updatedBy split replacing the old single `markedBy`): one record
+    // per teacher/date, same duplicate-prevention scheme as student
+    // attendance. Admin-only to write - "teacher cannot edit attendance
+    // unless explicitly permitted by admin", and no such permission
+    // exists yet in this phase.
     function teacherAttendanceFields() {
-      return ['teacherUid', 'dateKey', 'date', 'status', 'markedBy', 'createdAt', 'updatedAt'];
+      return ['teacherUid', 'dateKey', 'date', 'status', 'createdBy', 'updatedBy', 'createdAt', 'updatedAt'];
     }
 
     function newTeacherAttendanceIsValid(recordId) {
@@ -497,18 +527,27 @@ service cloud.firestore {
         && data.dateKey is string
         && data.date is timestamp
         && data.status in ['present', 'absent']
-        && data.markedBy is string
+        && data.createdBy is string
+        && data.updatedBy is string
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
         && data.keys().hasOnly(teacherAttendanceFields());
     }
 
+    // Same reasoning as attendanceUpdateIsValid: writes always replace
+    // the full document, but the `createdBy` old-value comparison is
+    // guarded since a pre-Set-13 document never had that field.
     function teacherAttendanceUpdateIsValid() {
-      return request.resource.data.teacherUid == resource.data.teacherUid
-        && request.resource.data.dateKey == resource.data.dateKey
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.status in ['present', 'absent']
-        && request.resource.data.keys().hasOnly(teacherAttendanceFields());
+      let data = request.resource.data;
+      let old = resource.data;
+      return data.teacherUid == old.teacherUid
+        && data.dateKey == old.dateKey
+        && data.createdAt == old.createdAt
+        && (!old.keys().hasAny(['createdBy']) || data.createdBy == old.createdBy)
+        && data.status in ['present', 'absent']
+        && data.createdBy is string
+        && data.updatedBy is string
+        && data.keys().hasOnly(teacherAttendanceFields());
     }
 
     match /teacherAttendance/{recordId} {
