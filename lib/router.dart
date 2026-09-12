@@ -49,6 +49,7 @@ import 'features/student/presentation/student_profile_screen.dart';
 import 'features/teacher/presentation/teacher_form_screen.dart';
 import 'features/teacher/presentation/teacher_home_screen.dart';
 import 'features/teacher/presentation/teacher_list_screen.dart';
+import 'features/teacher/presentation/teacher_profile_screen.dart';
 import 'features/tests/presentation/enter_marks_screen.dart';
 import 'features/tests/presentation/student_results_screen.dart';
 import 'features/tests/presentation/test_list_screen.dart';
@@ -114,6 +115,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '${AppRoutes.adminTeachers}/:uid/edit',
         builder: (context, state) =>
             TeacherFormScreen(teacherUid: state.pathParameters['uid']),
+      ),
+      GoRoute(
+        path: '${AppRoutes.adminTeachers}/:uid',
+        builder: (context, state) =>
+            TeacherProfileScreen(teacherUid: state.pathParameters['uid']!),
       ),
 
       GoRoute(

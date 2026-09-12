@@ -15,6 +15,10 @@ final teacherRepositoryProvider = Provider<FirestoreRepository<TeacherProfile>>(
   },
 );
 
+/// Admin's full teacher list, including inactive ones - every filter the
+/// teacher list screen offers (search/subject/status) is applied
+/// client-side on this one stream, matching `allStudentsProvider`/
+/// `allBatchesProvider` at this project's scale (~10 teachers).
 final allTeachersProvider = StreamProvider<List<TeacherProfile>>((ref) {
   return ref
       .watch(teacherRepositoryProvider)
@@ -22,5 +26,20 @@ final allTeachersProvider = StreamProvider<List<TeacherProfile>>((ref) {
       .map(
         (teachers) =>
             teachers.toList()..sort((a, b) => a.name.compareTo(b.name)),
+      );
+});
+
+/// Active teachers only - for a future teacher-batch-subject assignment
+/// picker (Set 12 spec: "an inactive teacher should not normally be
+/// selectable for future assignments"). Derived client-side, not a new
+/// Firestore query - same reasoning as `activeBatchesProvider`.
+final activeTeachersProvider = StreamProvider<List<TeacherProfile>>((ref) {
+  return ref
+      .watch(teacherRepositoryProvider)
+      .watchAll()
+      .map(
+        (teachers) =>
+            teachers.where((teacher) => teacher.active).toList()
+              ..sort((a, b) => a.name.compareTo(b.name)),
       );
 });

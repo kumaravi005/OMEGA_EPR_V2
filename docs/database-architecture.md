@@ -205,10 +205,23 @@ own record (nothing more).
 teachers/{uid}                  keyed the same as the matching users/{uid}
   uid, accountId                 same account the teacher logs in with
   name, dateOfBirth, gender, qualification, address
+  photoUrl       string | null   a pasted external image URL - same
+                                  pattern as student/gallery/banner/logo
+                                  images (Storage isn't enabled - see
+                                  docs/firebase-setup.md)
   primaryMobile, secondaryMobile (optional)
-  assignments   [{ className, subject }, ...]   a teacher may have many -
-                                                  e.g. Class 5->Science AND
-                                                  Class 7->Hindi
+  subjectIds     [subjectId, ...]   references subjects/{subjectId}
+                                     (Set 9) by stable id - a flat
+                                     TEACHING CAPABILITY list, e.g. a
+                                     teacher capable of Hindi, Social
+                                     Science and Science all at once.
+                                     Independent of any class/batch (see
+                                     "Teacher/subject relationship
+                                     (Set 12)" below); '' (empty list) on
+                                     a pre-Set-12 document
+  active         bool             defaults to true on read for a
+                                    pre-Set-12 document, which predates
+                                    this field
   createdAt, updatedAt
 
 students/{uid}                  keyed the same as the matching users/{uid} -
@@ -321,6 +334,48 @@ batches/{batchId}
   active                   bool
   createdAt, updatedAt
 ```
+
+### Teacher/subject relationship (Set 12)
+
+`TeacherProfile.subjectIds` replaces the old free-text `assignments`
+(`[{ className, subject }, ...]`) field from Set 3. That field was
+confirmed unused everywhere outside the teacher feature itself (never
+read by homework/assignments/tests/attendance - see below), so
+replacing it with a proper reference to `subjects/{subjectId}` (Set 9)
+closes the "uncontrolled comma-separated text field" gap directly rather
+than layering a second, competing subject concept on top of it.
+
+`subjectIds` is a flat multi-select over `activeSubjectsProvider` (only
+subjects that exist in the configured master data are selectable, via
+a checkbox-list dialog that mirrors `ClassesScreen`'s own subject
+picker exactly) and represents teaching **capability**, not an
+assignment to any particular class or batch - a teacher capable of
+"Science" can be capable of it for every class that offers Science, and
+a teacher may hold several subjects at once (e.g. Hindi + Social
+Science + Science). `TeacherFormController` normalizes every write
+through `dedupeSubjectIds()` (a pure, order-preserving de-duplication
+helper) so "no duplicate subject ids" holds regardless of how a caller
+assembled the list, on top of the `Set<String>`-backed picker UI already
+preventing it by construction.
+
+**Deliberately NOT built here** (Set 12 spec: "do NOT implement
+teacher-to-batch assignment yet"): nothing links a `TeacherProfile` to a
+specific `Batch`/`SchoolClass`. `subjectIds` only has to not *prevent*
+that future relationship - it doesn't need to model it. A future
+teacher-batch-subject assignment set can reference a teacher by `uid`, a
+batch by `batchId`, and a subject by `subjectId` (validating that the
+subject is one of the teacher's `subjectIds` and one of the batch's
+class's `SchoolClass.subjectIds`) without this set's schema changing.
+`activeTeachersProvider` (mirroring `activeBatchesProvider`) is already
+in place as the "don't offer an inactive teacher" lookup that picker
+will need.
+
+This does **not** change why homework/assignments/tests still let any
+active teacher manage any batch's records (see "Why homework/
+assignments/tests aren't restricted to 'only the assigned teacher'"
+below) - that reasoning was about a *batch* cross-reference, which
+remains exactly as unresolved as before; `subjectIds` never claimed to
+solve it.
 
 `academicSessionId`/`classId` were added in Set 10; batches created before
 Set 10 don't have them on the stored document. `Batch.fromMap` defaults
@@ -519,10 +574,11 @@ only allowed once the *parent test's* `resultPublished` field is `true`
 created - only the marks are gated.
 
 **Why homework/assignments/tests aren't restricted to "only the assigned
-teacher"**: a teacher's `assignments` list (see `teachers/{uid}` above)
-names *class* strings (e.g. "Class 5"), while homework/assignments/tests
-reference a *batch id* - the two aren't the same concept in this system,
-and there's no reliable server-side mapping between them yet. Rather than
+teacher"**: a teacher's `subjectIds` (see `teachers/{uid}` above and
+"Teacher/subject relationship (Set 12)") names *subjects* a teacher is
+capable of teaching, while homework/assignments/tests reference a
+*batch id* - there is still no link from a teacher to a specific batch
+(Set 12 deliberately didn't build one - see that section). Rather than
 build a fragile cross-reference, any active teacher may manage any
 batch's homework/assignments/tests; the create screens still only offer
 batches that exist, so this is a scope decision (documented, not a bug),

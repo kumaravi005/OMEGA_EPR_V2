@@ -55,16 +55,31 @@ lib/
       presentation/         AdminDashboardScreen (nav to every admin section),
                              AdminAccountsScreen (login-account list),
                              CreateAccountScreen.
-    teacher/                Teacher-as-a-managed-record (Set 3) + the
-                             teacher's own app area (Set 2 placeholder,
-                             real nav hub as of Set 4).
-      data/                 TeacherProfile (+ ClassSubjectAssignment) model,
-                             Firestore repository provider.
-      application/          TeacherFormController (create/update a profile).
-      presentation/         TeacherListScreen, TeacherFormScreen (one screen
-                             handles both create and edit),
-                             TeacherHomeScreen (nav hub: attendance,
-                             homework, assignments, tests).
+    teacher/                Teacher-as-a-managed-record (Set 3, subjects
+                             wired to the Set 9 subject master and
+                             active/inactive status added in Set 12) +
+                             the teacher's own app area (Set 2
+                             placeholder, real nav hub as of Set 4).
+      data/                 TeacherProfile model (+ dedupeSubjectIds, a
+                             pure helper so "no duplicate subject" holds
+                             regardless of caller), Firestore repository
+                             provider (+ activeTeachersProvider, ready
+                             for a future teacher-batch-subject
+                             assignment picker).
+      application/          TeacherFormController (create/update a
+                             profile, setActive).
+      presentation/         TeacherListScreen (search + subject/status
+                             filters), TeacherFormScreen (one screen
+                             handles both create and edit; subjects are
+                             picked from the Set 9 master via a
+                             checkbox-list dialog, never typed),
+                             TeacherProfileScreen (Teacher information /
+                             Professional information / Contact
+                             information / Subjects taught / Account
+                             information, call/WhatsApp,
+                             activate/deactivate), TeacherHomeScreen (nav
+                             hub: attendance, homework, assignments,
+                             tests).
     student/                Student-as-a-managed-record (Set 3, admission
                              wired to Set 9/10 master data in Set 11) +
                              the student/parent's own app area (Set 2
@@ -619,14 +634,15 @@ exact schema.
 
 ## What's deliberately not here yet
 
-- Teacher photos and every public-content image
-  (gallery/banner/advertisement/upcoming-batch poster) - Storage isn't
-  enabled on this project (see docs/firebase-setup.md), so as of Set 5
-  every such field is a plain `imageUrl`/`posterUrl` string the admin
-  pastes (external hosting - e.g. any image host URL). Student photos
-  follow the identical pasted-URL pattern as of Set 11
-  (`StudentProfile.photoUrl`). Every other admission/profile/content
-  field is in place, so switching to real uploads later is an isolated
+- Every public-content image (gallery/banner/advertisement/upcoming-batch
+  poster) - Storage isn't enabled on this project (see
+  docs/firebase-setup.md), so as of Set 5 every such field is a plain
+  `imageUrl`/`posterUrl` string the admin pastes (external hosting -
+  e.g. any image host URL). Student photos (Set 11,
+  `StudentProfile.photoUrl`) and teacher photos (Set 12,
+  `TeacherProfile.photoUrl`) both follow the identical pasted-URL
+  pattern. Every other admission/profile/content field is in place, so
+  switching to real uploads later is an isolated
   addition, not a rework.
 - Actual push notification *delivery* - `notifications` documents are
   written (see docs/database-architecture.md's "Notification event

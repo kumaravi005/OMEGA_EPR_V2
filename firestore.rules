@@ -139,13 +139,18 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Teacher profiles (Set 3): admin-managed only. A teacher may read
-    // their own profile but never write it - editing is exclusively an
-    // admin action (see docs/database-architecture.md).
+    // Teacher profiles (Set 3, extended Set 12 with a photo URL, a
+    // subjectIds capability list referencing the Set 9 subject master,
+    // and active/inactive status - replacing the old free-text
+    // `assignments` [{className, subject}] pairs, which were never
+    // cross-referenced against anything and are confirmed unused outside
+    // this collection). Admin-managed only. A teacher may read their own
+    // profile but never write it - editing is exclusively an admin
+    // action (see docs/database-architecture.md).
     function teacherFields() {
       return [
-        'uid', 'accountId', 'name', 'dateOfBirth', 'gender', 'qualification', 'address', 'primaryMobile',
-        'secondaryMobile', 'assignments', 'createdAt', 'updatedAt'
+        'uid', 'accountId', 'name', 'dateOfBirth', 'gender', 'photoUrl', 'qualification', 'address',
+        'primaryMobile', 'secondaryMobile', 'subjectIds', 'active', 'createdAt', 'updatedAt'
       ];
     }
 
@@ -156,20 +161,36 @@ service cloud.firestore {
         && data.name is string && data.name.size() >= 2
         && data.dateOfBirth is timestamp
         && data.gender in ['male', 'female', 'other']
+        && (data.photoUrl == null || data.photoUrl is string)
         && data.qualification is string
         && data.address is string
         && data.primaryMobile is string && data.primaryMobile.size() >= 6
-        && data.assignments is list
+        && data.subjectIds is list
+        && data.active == true
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
         && data.keys().hasOnly(teacherFields());
     }
 
+    // Tolerates the ABSENCE of every Set-12-added field (and the
+    // presence of the now-removed `assignments`, which a full edit-form
+    // save always omits and `setActive` now explicitly deletes) -
+    // exactly the same backward-compatibility pattern as
+    // `batchUpdateIsValid`/`studentUpdateIsValid` (Sets 10-11): a
+    // pre-Set-12 teacher document has none of the new fields, so a
+    // partial `.update()` (`setActive`) keeps working unchanged, while a
+    // full profile save (which always supplies every current field) is
+    // still fully validated.
     function teacherUpdateIsValid() {
-      return request.resource.data.uid == resource.data.uid
-        && request.resource.data.accountId == resource.data.accountId
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.keys().hasOnly(teacherFields());
+      let data = request.resource.data;
+      let keys = data.keys();
+      return data.uid == resource.data.uid
+        && data.accountId == resource.data.accountId
+        && data.createdAt == resource.data.createdAt
+        && (!keys.hasAny(['photoUrl']) || data.photoUrl == null || data.photoUrl is string)
+        && (!keys.hasAny(['subjectIds']) || data.subjectIds is list)
+        && (!keys.hasAny(['active']) || data.active is bool)
+        && keys.hasOnly(teacherFields());
     }
 
     match /teachers/{teacherId} {

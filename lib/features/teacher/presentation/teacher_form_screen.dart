@@ -9,6 +9,8 @@ import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../../data/models/gender.dart';
+import '../../academics/data/academics_repositories.dart';
+import '../../academics/data/subject.dart';
 import '../application/teacher_form_controller.dart';
 import '../data/teacher_profile.dart';
 import '../data/teacher_repository.dart';
@@ -50,20 +52,6 @@ class TeacherFormScreen extends ConsumerWidget {
   }
 }
 
-class _AssignmentRowControllers {
-  _AssignmentRowControllers({String className = '', String subject = ''})
-    : classNameController = TextEditingController(text: className),
-      subjectController = TextEditingController(text: subject);
-
-  final TextEditingController classNameController;
-  final TextEditingController subjectController;
-
-  void dispose() {
-    classNameController.dispose();
-    subjectController.dispose();
-  }
-}
-
 class _TeacherForm extends ConsumerStatefulWidget {
   const _TeacherForm({required this.existing});
 
@@ -82,6 +70,9 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
   late final _nameController = TextEditingController(
     text: widget.existing?.name ?? '',
   );
+  late final _photoUrlController = TextEditingController(
+    text: widget.existing?.photoUrl ?? '',
+  );
   late final _qualificationController = TextEditingController(
     text: widget.existing?.qualification ?? '',
   );
@@ -97,7 +88,7 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
 
   DateTime? _dateOfBirth;
   Gender _gender = Gender.male;
-  final List<_AssignmentRowControllers> _assignmentRows = [];
+  late final Set<String> _subjectIds = {...?widget.existing?.subjectIds};
 
   bool _obscurePassword = true;
   bool _isSubmitting = false;
@@ -110,15 +101,6 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
     super.initState();
     _dateOfBirth = widget.existing?.dateOfBirth;
     _gender = widget.existing?.gender ?? Gender.male;
-    for (final assignment
-        in widget.existing?.assignments ?? const <ClassSubjectAssignment>[]) {
-      _assignmentRows.add(
-        _AssignmentRowControllers(
-          className: assignment.className,
-          subject: assignment.subject,
-        ),
-      );
-    }
   }
 
   @override
@@ -126,13 +108,11 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
     _accountIdController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
+    _photoUrlController.dispose();
     _qualificationController.dispose();
     _addressController.dispose();
     _primaryMobileController.dispose();
     _secondaryMobileController.dispose();
-    for (final row in _assignmentRows) {
-      row.dispose();
-    }
     super.dispose();
   }
 
@@ -147,12 +127,21 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
     if (picked != null) setState(() => _dateOfBirth = picked);
   }
 
-  void _addAssignmentRow() {
-    setState(() => _assignmentRows.add(_AssignmentRowControllers()));
-  }
-
-  void _removeAssignmentRow(int index) {
-    setState(() => _assignmentRows.removeAt(index).dispose());
+  Future<void> _editSubjects(List<Subject> selectableSubjects) async {
+    final selected = await showDialog<Set<String>>(
+      context: context,
+      builder: (context) => _SubjectPickerDialog(
+        subjects: selectableSubjects,
+        initiallySelected: _subjectIds,
+      ),
+    );
+    if (selected != null) {
+      setState(
+        () => _subjectIds
+          ..clear()
+          ..addAll(selected),
+      );
+    }
   }
 
   Future<void> _submit() async {
@@ -162,16 +151,6 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
       setState(() => _errorMessage = 'Date of birth is required.');
       return;
     }
-
-    final assignments = _assignmentRows
-        .map(
-          (row) => ClassSubjectAssignment(
-            className: row.classNameController.text.trim(),
-            subject: row.subjectController.text.trim(),
-          ),
-        )
-        .where((a) => a.className.isNotEmpty && a.subject.isNotEmpty)
-        .toList();
 
     setState(() {
       _isSubmitting = true;
@@ -183,32 +162,59 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
       final secondaryMobile = _secondaryMobileController.text.trim().isEmpty
           ? null
           : _secondaryMobileController.text;
+      final subjectIds = _subjectIds.toList();
+
       if (_isEditing) {
         await controller.updateTeacher(
           existing: widget.existing!,
           name: _nameController.text,
           dateOfBirth: _dateOfBirth!,
           gender: _gender,
+          photoUrl: _photoUrlController.text,
           qualification: _qualificationController.text,
           address: _addressController.text,
           primaryMobile: _primaryMobileController.text,
           secondaryMobile: secondaryMobile,
-          assignments: assignments,
+          subjectIds: subjectIds,
         );
-      } else {
-        await controller.createTeacher(
-          accountId: _accountIdController.text,
-          password: _passwordController.text,
-          name: _nameController.text,
-          dateOfBirth: _dateOfBirth!,
-          gender: _gender,
-          qualification: _qualificationController.text,
-          address: _addressController.text,
-          primaryMobile: _primaryMobileController.text,
-          secondaryMobile: secondaryMobile,
-          assignments: assignments,
-        );
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        return;
       }
+
+      final result = await controller.createTeacher(
+        accountId: _accountIdController.text,
+        password: _passwordController.text,
+        name: _nameController.text,
+        dateOfBirth: _dateOfBirth!,
+        gender: _gender,
+        photoUrl: _photoUrlController.text,
+        qualification: _qualificationController.text,
+        address: _addressController.text,
+        primaryMobile: _primaryMobileController.text,
+        secondaryMobile: secondaryMobile,
+        subjectIds: subjectIds,
+      );
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Teacher added'),
+          content: Text(
+            'Teacher name: ${result.teacherName}\n'
+            'Teacher ID: ${result.teacherId}\n'
+            'Account ID: ${result.accountId}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
       if (!mounted) return;
       Navigator.of(context).pop();
     } on TeacherFormFailure catch (failure) {
@@ -220,6 +226,26 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
 
   @override
   Widget build(BuildContext context) {
+    final activeSubjectsAsync = ref.watch(activeSubjectsProvider);
+    final allSubjectsAsync = ref.watch(allSubjectsProvider);
+    final allSubjects = allSubjectsAsync.valueOrNull ?? const <Subject>[];
+    final activeSubjects = activeSubjectsAsync.valueOrNull ?? const <Subject>[];
+    // Merge in any already-selected subject that has since been
+    // deactivated, so editing a teacher never silently drops it from
+    // both the display and the picker (same pattern as batch/session
+    // pickers elsewhere in the app).
+    final selectableSubjects = [
+      ...activeSubjects,
+      for (final subject in allSubjects)
+        if (_subjectIds.contains(subject.subjectId) &&
+            !activeSubjects.any((s) => s.subjectId == subject.subjectId))
+          subject,
+    ];
+    final selectedSubjectNames = allSubjects
+        .where((s) => _subjectIds.contains(s.subjectId))
+        .map((s) => s.name)
+        .toList();
+
     return Scaffold(
       appBar: AppBar(title: Text(_isEditing ? 'Edit teacher' : 'New teacher')),
       body: Center(
@@ -243,7 +269,136 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
                       const SizedBox(height: AppSpacing.md),
                     ],
                     Text(
-                      'Login credentials',
+                      'Personal information',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      controller: _nameController,
+                      label: 'Teacher name *',
+                      enabled: !_isSubmitting,
+                      validator: (value) => Validators.required(
+                        value,
+                        message: 'Teacher name is required',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        _dateOfBirth == null
+                            ? 'Date of birth'
+                            : 'Date of birth: ${_dateOfBirth!.toLocal()}'
+                                  .split(' ')
+                                  .first,
+                      ),
+                      trailing: const Icon(Icons.calendar_today_outlined),
+                      onTap: _isSubmitting ? null : _pickDateOfBirth,
+                    ),
+                    DropdownButtonFormField<Gender>(
+                      initialValue: _gender,
+                      decoration: const InputDecoration(labelText: 'Gender *'),
+                      items: Gender.values
+                          .map(
+                            (gender) => DropdownMenuItem(
+                              value: gender,
+                              child: Text(_genderLabel(gender)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _isSubmitting
+                          ? null
+                          : (value) =>
+                                setState(() => _gender = value ?? _gender),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      controller: _photoUrlController,
+                      label: 'Photo URL (optional - paste an image link)',
+                      enabled: !_isSubmitting,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Text(
+                      'Professional information',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      controller: _qualificationController,
+                      label: 'Qualification',
+                      enabled: !_isSubmitting,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Text(
+                      'Contact information',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      controller: _primaryMobileController,
+                      label: 'Primary mobile *',
+                      enabled: !_isSubmitting,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) =>
+                          Validators.phone(value, label: 'Primary mobile'),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      controller: _secondaryMobileController,
+                      label: 'Secondary mobile (optional)',
+                      enabled: !_isSubmitting,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) => Validators.phone(
+                        value,
+                        isRequired: false,
+                        label: 'Secondary mobile',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      controller: _addressController,
+                      label: 'Address',
+                      enabled: !_isSubmitting,
+                      validator: (value) => Validators.required(
+                        value,
+                        message: 'Address is required',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Subjects taught',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: _isSubmitting
+                              ? null
+                              : () => _editSubjects(selectableSubjects),
+                          icon: const Icon(Icons.edit_outlined),
+                          label: const Text('Edit'),
+                        ),
+                      ],
+                    ),
+                    if (selectedSubjectNames.isEmpty)
+                      Text(
+                        'No subjects selected yet.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      )
+                    else
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.sm,
+                        children: [
+                          for (final name in selectedSubjectNames)
+                            Chip(label: Text(name)),
+                        ],
+                      ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Text(
+                      _isEditing ? 'Account information' : 'Account creation',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: AppSpacing.sm),
@@ -274,144 +429,8 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
                       ),
                     ],
                     const SizedBox(height: AppSpacing.lg),
-                    Text(
-                      'Personal details',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _nameController,
-                      label: 'Name',
-                      enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(
-                        value,
-                        message: 'Name is required',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        _dateOfBirth == null
-                            ? 'Date of birth'
-                            : 'Date of birth: ${_dateOfBirth!.toLocal()}'
-                                  .split(' ')
-                                  .first,
-                      ),
-                      trailing: const Icon(Icons.calendar_today_outlined),
-                      onTap: _isSubmitting ? null : _pickDateOfBirth,
-                    ),
-                    DropdownButtonFormField<Gender>(
-                      initialValue: _gender,
-                      decoration: const InputDecoration(labelText: 'Gender'),
-                      items: Gender.values
-                          .map(
-                            (gender) => DropdownMenuItem(
-                              value: gender,
-                              child: Text(_genderLabel(gender)),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: _isSubmitting
-                          ? null
-                          : (value) =>
-                                setState(() => _gender = value ?? _gender),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _qualificationController,
-                      label: 'Qualification',
-                      enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(
-                        value,
-                        message: 'Qualification is required',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _addressController,
-                      label: 'Address',
-                      enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(
-                        value,
-                        message: 'Address is required',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    Text(
-                      'Contact',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _primaryMobileController,
-                      label: 'Primary mobile',
-                      enabled: !_isSubmitting,
-                      keyboardType: TextInputType.phone,
-                      validator: (value) =>
-                          Validators.phone(value, label: 'Primary mobile'),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _secondaryMobileController,
-                      label: 'Secondary mobile (optional)',
-                      enabled: !_isSubmitting,
-                      keyboardType: TextInputType.phone,
-                      validator: (value) => Validators.phone(
-                        value,
-                        isRequired: false,
-                        label: 'Secondary mobile',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Class / subject assignments',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle_outline),
-                          onPressed: _isSubmitting ? null : _addAssignmentRow,
-                        ),
-                      ],
-                    ),
-                    for (var i = 0; i < _assignmentRows.length; i++)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: AppTextField(
-                                controller:
-                                    _assignmentRows[i].classNameController,
-                                label: 'Class',
-                                enabled: !_isSubmitting,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Expanded(
-                              child: AppTextField(
-                                controller:
-                                    _assignmentRows[i].subjectController,
-                                label: 'Subject',
-                                enabled: !_isSubmitting,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline),
-                              onPressed: _isSubmitting
-                                  ? null
-                                  : () => _removeAssignmentRow(i),
-                            ),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: AppSpacing.lg),
                     AppButton(
-                      label: 'Save',
+                      label: _isEditing ? 'Save' : 'Add teacher',
                       isLoading: _isSubmitting,
                       onPressed: _submit,
                     ),
@@ -456,5 +475,70 @@ class _TeacherFormState extends ConsumerState<_TeacherForm> {
       case Gender.other:
         return 'Other';
     }
+  }
+}
+
+/// Multi-select checkbox dialog over the subject master - mirrors
+/// `_SubjectPickerDialog` in `academics/presentation/classes_screen.dart`
+/// (same visual treatment: `CheckboxListTile` list, Cancel/Save actions,
+/// returning the chosen set of `Subject.subjectId`s) so a teacher's
+/// "subjects taught" picker looks and behaves identically to a class's
+/// subject picker.
+class _SubjectPickerDialog extends StatefulWidget {
+  const _SubjectPickerDialog({
+    required this.subjects,
+    required this.initiallySelected,
+  });
+
+  final List<Subject> subjects;
+  final Set<String> initiallySelected;
+
+  @override
+  State<_SubjectPickerDialog> createState() => _SubjectPickerDialogState();
+}
+
+class _SubjectPickerDialogState extends State<_SubjectPickerDialog> {
+  late final Set<String> _selected = {...widget.initiallySelected};
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Subjects taught'),
+      content: SizedBox(
+        width: 360,
+        child: widget.subjects.isEmpty
+            ? const Text('No subjects configured yet.')
+            : SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final subject in widget.subjects)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(subject.name),
+                        value: _selected.contains(subject.subjectId),
+                        onChanged: (checked) => setState(() {
+                          if (checked ?? false) {
+                            _selected.add(subject.subjectId);
+                          } else {
+                            _selected.remove(subject.subjectId);
+                          }
+                        }),
+                      ),
+                  ],
+                ),
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_selected),
+          child: const Text('Save'),
+        ),
+      ],
+    );
   }
 }
