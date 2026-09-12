@@ -65,22 +65,41 @@ lib/
                              handles both create and edit),
                              TeacherHomeScreen (nav hub: attendance,
                              homework, assignments, tests).
-    student/                Student-as-a-managed-record (Set 3, including
-                             fees/payments) + the student/parent's own app
-                             area (Set 2 placeholder, real nav hub as of
-                             Set 4).
-      data/                 StudentProfile, Payment models, Firestore
-                             repository providers (payments is a
-                             per-student subcollection - see
+    student/                Student-as-a-managed-record (Set 3, admission
+                             wired to Set 9/10 master data in Set 11) +
+                             the student/parent's own app area (Set 2
+                             placeholder, real nav hub as of Set 4).
+      data/                 StudentProfile - stable identity + the
+                             CURRENT admission's fee/academic snapshot;
+                             StudentAdmission - one immutable-once-
+                             created record per admission event, at
+                             `students/{uid}/admissions/{admissionId}`
+                             (initial admission, or a later batch
+                             transfer - see "Student admission (Set 11)"
+                             below); Payment model. Firestore repository
+                             providers (admissions/payments are both
+                             per-student subcollections - see
                              docs/database-architecture.md).
-      application/          StudentFormController (admit/update),
+      application/          StudentFormController (admit/update/
+                             changeBatch/setActive - see below),
                              PaymentController (record a payment).
-      presentation/         StudentListScreen, StudentFormScreen (create/edit,
-                             batch fee auto-population), StudentProfileScreen
-                             (fee summary, payment history, call/WhatsApp),
-                             FeeDuesScreen, AddPaymentDialog,
-                             StudentHomeScreen (nav hub: attendance,
-                             homework, assignments, results).
+      presentation/         StudentListScreen (search + session/class/
+                             batch/status filters), StudentFormScreen
+                             (new admission: full form incl. session ->
+                             class -> batch -> fee; edit: identity/
+                             contact/board only - academic/fee fields
+                             are read-only, changed only via "Change
+                             batch"), ChangeBatchDialog (records a new
+                             admission, preserves the superseded one),
+                             InstallmentEntryDialog (shared by both),
+                             StudentProfileScreen (Student information /
+                             Parent & contact / Academic information /
+                             Fee agreement / Account information /
+                             payment history, call/WhatsApp,
+                             activate/deactivate), FeeDuesScreen,
+                             AddPaymentDialog, StudentHomeScreen (nav
+                             hub: attendance, homework, assignments,
+                             results).
     batches/ (Set 3, extended Set 10)   Batch catalogue - each batch
                              belongs to exactly one academic session and
                              class (Set 9 master data), optionally a
@@ -88,14 +107,14 @@ lib/
                              installment fee - referenced by student
                              admission, not a role's own app area.
       data/                 Batch model + repository (+
-                             activeBatchesForClassProvider, the "Class ->
-                             Batch" lookup a future admission picker
-                             needs). NegotiatedFee/InstallmentScheduleItem -
-                             pure, unpersisted foundation models for a
-                             future Student Admission set's per-student
-                             discount and installment-schedule records
-                             (see "Batch fee configuration (Set 10)"
-                             below).
+                             activeBatchesForClassProvider and
+                             batchesForSessionAndClass, the "Session ->
+                             Class -> matching batches" lookups Student
+                             Admission (Set 11) uses). InstallmentScheduleItem -
+                             one row of a student's installment schedule,
+                             embedded in `StudentAdmission.installments`
+                             (see docs/database-architecture.md's
+                             "Student admission (Set 11)").
       application/          BatchController (create/update/toggle active).
       presentation/         BatchListScreen (search + session/class/status
                              filters), BatchFormDialog (create/edit,
@@ -594,17 +613,21 @@ exact schema.
   "build the master-data layer, don't touch Student Admission/Teacher
   Management/Attendance/Fees/Results/Tests/Public Gallery" (Set 9's own
   scope boundary). The providers are ready and centrally located for
-  whichever future set does that wiring.
+  whichever future set does that wiring. (Student admission was wired to
+  this master data in Set 11 - see below; homework/assignment/test's
+  `subject` field remains free text.)
 
 ## What's deliberately not here yet
 
-- Teacher/student **photos**, and every public-content image
+- Teacher photos and every public-content image
   (gallery/banner/advertisement/upcoming-batch poster) - Storage isn't
   enabled on this project (see docs/firebase-setup.md), so as of Set 5
   every such field is a plain `imageUrl`/`posterUrl` string the admin
-  pastes (external hosting - e.g. any image host URL). Every other
-  admission/profile/content field is in place, so switching to real
-  uploads later is an isolated addition, not a rework.
+  pastes (external hosting - e.g. any image host URL). Student photos
+  follow the identical pasted-URL pattern as of Set 11
+  (`StudentProfile.photoUrl`). Every other admission/profile/content
+  field is in place, so switching to real uploads later is an isolated
+  addition, not a rework.
 - Actual push notification *delivery* - `notifications` documents are
   written (see docs/database-architecture.md's "Notification event
   hooks") and, as of Set 5, read back by a shared `NotificationsScreen`

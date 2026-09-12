@@ -9,10 +9,13 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
+import '../application/student_form_controller.dart';
 import '../data/payment.dart';
+import '../data/student_admission.dart';
 import '../data/student_profile.dart';
 import '../data/student_repository.dart';
 import 'add_payment_dialog.dart';
+import 'change_batch_dialog.dart';
 
 class StudentProfileScreen extends ConsumerWidget {
   const StudentProfileScreen({super.key, required this.studentUid});
@@ -60,9 +63,21 @@ class _ProfileBody extends ConsumerWidget {
 
   final StudentProfile student;
 
+  Future<void> _toggleActive(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(studentFormControllerProvider)
+          .setActive(student, !student.active);
+    } on StudentFormFailure catch (failure) {
+      messenger.showSnackBar(SnackBar(content: Text(failure.message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final paymentsAsync = ref.watch(studentPaymentsProvider(student.uid));
+    final admissionsAsync = ref.watch(studentAdmissionsProvider(student.uid));
 
     return Center(
       child: ConstrainedBox(
@@ -70,17 +85,34 @@ class _ProfileBody extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
-            Text(
-              student.name,
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            Text(
-              student.active ? 'Active' : 'Inactive',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: student.active
-                    ? null
-                    : Theme.of(context).colorScheme.error,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _PhotoAvatar(photoUrl: student.photoUrl),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        student.name,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      if (student.admissionNumber.isNotEmpty)
+                        Text('Admission no. ${student.admissionNumber}'),
+                      Text(
+                        student.active ? 'Active' : 'Inactive',
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(
+                              color: student.active
+                                  ? null
+                                  : Theme.of(context).colorScheme.error,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: AppSpacing.md),
             Row(
@@ -103,17 +135,22 @@ class _ProfileBody extends ConsumerWidget {
                 ),
               ],
             ),
+            const SizedBox(height: AppSpacing.md),
+            AppButton(
+              label: student.active ? 'Deactivate student' : 'Activate student',
+              variant: AppButtonVariant.secondary,
+              onPressed: () => _toggleActive(context, ref),
+            ),
             const SizedBox(height: AppSpacing.lg),
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Personal details',
+                    'Student information',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  _InfoRow(label: "Father's name", value: student.fatherName),
                   _InfoRow(
                     label: 'Date of birth',
                     value: '${student.dateOfBirth.toLocal()}'.split(' ').first,
@@ -122,7 +159,6 @@ class _ProfileBody extends ConsumerWidget {
                     label: 'Gender',
                     value: _genderLabel(student.gender.name),
                   ),
-                  _InfoRow(label: 'Address', value: student.address),
                 ],
               ),
             ),
@@ -132,29 +168,11 @@ class _ProfileBody extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Academic details',
+                    'Parent & contact',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  _InfoRow(label: 'Class', value: student.className),
-                  _InfoRow(label: 'Board', value: student.board),
-                  _InfoRow(
-                    label: 'Academic session',
-                    value: student.academicSession,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Contact',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
+                  _InfoRow(label: "Father's name", value: student.fatherName),
                   _InfoRow(
                     label: 'Primary mobile',
                     value: student.primaryMobile,
@@ -165,6 +183,43 @@ class _ProfileBody extends ConsumerWidget {
                       label: 'Secondary mobile',
                       value: student.secondaryMobile!,
                     ),
+                  _InfoRow(label: 'Address', value: student.address),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Academic information',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            showChangeBatchDialog(context, student: student),
+                        child: const Text('Change batch'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _InfoRow(label: 'Class', value: student.className),
+                  _InfoRow(label: 'Board', value: student.board),
+                  _InfoRow(
+                    label: 'Academic session',
+                    value: student.academicSession,
+                  ),
+                  _InfoRow(
+                    label: 'Admission date',
+                    value: '${student.admissionDate.toLocal()}'
+                        .split(' ')
+                        .first,
+                  ),
                 ],
               ),
             ),
@@ -174,8 +229,29 @@ class _ProfileBody extends ConsumerWidget {
               error: (error, stackTrace) => AppCard(
                 child: ErrorView(message: 'Could not load payments.\n$error'),
               ),
-              data: (payments) =>
-                  _FeeSummaryCard(student: student, payments: payments),
+              data: (payments) => _FeeSummaryCard(
+                student: student,
+                payments: payments,
+                admissions: admissionsAsync.valueOrNull ?? const [],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Account information',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _InfoRow(label: 'Account ID', value: student.accountId),
+                  _InfoRow(
+                    label: 'Account status',
+                    value: student.active ? 'Active' : 'Inactive',
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             Row(
@@ -233,22 +309,49 @@ class _ProfileBody extends ConsumerWidget {
   }
 }
 
+class _PhotoAvatar extends StatelessWidget {
+  const _PhotoAvatar({required this.photoUrl});
+
+  final String? photoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    if (photoUrl == null || photoUrl!.isEmpty) {
+      return const CircleAvatar(radius: 32, child: Icon(Icons.person));
+    }
+    return CircleAvatar(
+      radius: 32,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+      backgroundImage: NetworkImage(photoUrl!),
+      onBackgroundImageError: (_, _) {},
+    );
+  }
+}
+
 class _FeeSummaryCard extends StatelessWidget {
-  const _FeeSummaryCard({required this.student, required this.payments});
+  const _FeeSummaryCard({
+    required this.student,
+    required this.payments,
+    required this.admissions,
+  });
 
   final StudentProfile student;
   final List<Payment> payments;
+  final List<StudentAdmission> admissions;
 
   @override
   Widget build(BuildContext context) {
     final paid = totalPaid(payments);
     final remaining = due(student, payments);
+    final currentAdmission = admissions
+        .where((a) => a.admissionId == student.currentAdmissionId)
+        .firstOrNull;
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Fee summary', style: Theme.of(context).textTheme.titleLarge),
+          Text('Fee agreement', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: AppSpacing.sm),
           _InfoRow(
             label: 'Standard fee',
@@ -260,12 +363,29 @@ class _FeeSummaryCard extends StatelessWidget {
           ),
           if (student.discount != 0)
             _InfoRow(
-              label: 'Discount / adjustment',
+              label: 'Discount / difference',
               value: '₹${student.discount.toStringAsFixed(0)}',
             ),
           if (student.feeReason != null && student.feeReason!.isNotEmpty)
-            _InfoRow(label: 'Reason', value: student.feeReason!),
+            _InfoRow(label: 'Remark', value: student.feeReason!),
           _InfoRow(label: 'Payment plan', value: student.paymentPlan.label),
+          if (student.paymentPlan == PaymentPlan.installment &&
+              currentAdmission != null &&
+              currentAdmission.installments.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Installment schedule',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            for (final item in currentAdmission.installments)
+              _InfoRow(
+                label: item.label,
+                value:
+                    '₹${item.amount.toStringAsFixed(0)} - '
+                    'due ${'${item.dueDate.toLocal()}'.split(' ').first} '
+                    '(${item.status.label})',
+              ),
+          ],
           const Divider(height: AppSpacing.lg),
           _InfoRow(label: 'Total paid', value: '₹${paid.toStringAsFixed(0)}'),
           _InfoRow(

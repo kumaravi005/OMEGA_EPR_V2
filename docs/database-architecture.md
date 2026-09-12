@@ -211,19 +211,49 @@ teachers/{uid}                  keyed the same as the matching users/{uid}
                                                   Class 7->Hindi
   createdAt, updatedAt
 
-students/{uid}                  keyed the same as the matching users/{uid}
+students/{uid}                  keyed the same as the matching users/{uid} -
+                                  the student's STABLE identity + a
+                                  denormalized snapshot of their CURRENT
+                                  admission (see "Student admission
+                                  (Set 11)" below for why these two are
+                                  kept as separate concepts)
   uid, accountId
+  admissionNumber   string   stable, unique, assigned once at admission
+                              (Set 11 - see "Admission numbers" below);
+                              '' on a pre-Set-11 document
   name, fatherName, dateOfBirth, gender, address
-  className, board, batchId, academicSession
+  photoUrl       string | null   a pasted external image URL - same
+                                  pattern as gallery/banner/logo images
+                                  (Storage isn't enabled - see
+                                  docs/firebase-setup.md)
+  className, board, batchId, academicSession   display strings, resolved
+                                  from master data at admission/transfer
+                                  time (Set 11) - never hand-typed
+  academicSessionId, classId    string   the authoritative references
+                                  (Set 11) - references academicSessions/
+                                  classes (Set 9); '' on a pre-Set-11
+                                  document (see Batch's identical
+                                  `isLinkedToMasterData` convention)
+  boardId        string | null   references boards/{boardId} (Set 9)
+  boardCustomText string | null  the actual name when boardId's board is
+                                  "Others"
   primaryMobile, secondaryMobile (optional)
-  standardFee    number   snapshot of the batch's fee at admission time -
-                           reference only, never used in calculations
+  standardFee    number   snapshot of the CURRENT admission's standard
+                           fee - reference only, never used in
+                           calculations
   finalFee       number   the figure actually agreed - THIS is what every
                            payment/due calculation uses (see "Fee model"
                            below)
   feeReason      string | null   required whenever finalFee != standardFee;
                                   permanently stored, never silently dropped
   paymentPlan    "monthly" | "installment"
+  admissionDate  timestamp   date of the CURRENT admission (initial
+                              admission, or the most recent batch
+                              transfer) - not this document's own
+                              createdAt, which never changes
+  currentAdmissionId  string   points at the students/{uid}/admissions
+                                document these fields were last synced
+                                from; '' on a pre-Set-11 document
   active         bool
   createdAt, updatedAt
 
@@ -234,6 +264,29 @@ students/{uid}                  keyed the same as the matching users/{uid}
     remark     string | null
     createdAt  timestamp
     createdBy  string (admin's uid)
+
+  students/{uid}/admissions/{admissionId}   one record per admission EVENT
+                                              (initial admission, or a later
+                                              batch transfer) - see "Student
+                                              admission (Set 11)" below.
+                                              Immutable once created except
+                                              for `active` being flipped off
+                                              when superseded - never
+                                              deleted.
+    studentUid, academicSessionId, classId, batchId
+    boardId, boardCustomText     (both optional, same meaning as above)
+    standardFee, finalFee, feeReason, paymentPlan   a full snapshot of the
+                                                      fee agreement at the
+                                                      time of THIS admission
+    installments   [{ label, amount, dueDate, status }, ...]   only
+                    populated when paymentPlan == "installment"
+                    (InstallmentScheduleItem - see Batch fee
+                    configuration (Set 10))
+    admissionDate  timestamp
+    active         bool   true for the current admission; false once a
+                           later admission supersedes it
+    configuredByUid   string (the admin who configured this admission)
+    createdAt, updatedAt
 
 batches/{batchId}
   name
@@ -278,37 +331,87 @@ toggling `active`) on such a historical batch keeps working unchanged; a
 full edit-form re-save naturally migrates the document once an admin
 opens and saves it, since the form always supplies every field.
 
-### Standard fee vs. final agreed fee - and where this is headed
+### Standard fee vs. final agreed fee
 
 `standardMonthlyFee`/`standardInstallmentFee` on a batch are the
 **template** figures for that batch, not tied to any one student - they
-must never be edited to reflect a single student's discount. The
-existing `students/{uid}` record already keeps its own snapshot
+must never be edited to reflect a single student's discount. Every
+`students/{uid}/admissions/{admissionId}` record keeps its own snapshot
 (`standardFee`, `finalFee`, `feeReason`) precisely so a discount never
 touches the batch (see "Fee model" below).
 
-Set 10 adds two pure, deliberately **unpersisted** Dart models -
-`NegotiatedFee` and `InstallmentScheduleItem` (both in
-`lib/features/batches/data/`) - as the reusable shape a future, richer
-Student Admission set can adopt without redesigning this boundary again:
+`Batch.standardFeeFor({required bool isInstallment})` is the one shared
+lookup `StudentFormScreen` (new admission), `ChangeBatchDialog` (a batch
+transfer) and any future admission-adjacent screen call, rather than
+duplicating the monthly-vs-installment branch. `InstallmentScheduleItem`
+(`label`, `amount`, `dueDate`, `status`) is embedded directly in
+`StudentAdmission.installments` - see "Student admission (Set 11)" below.
 
-- `NegotiatedFee`: `standardFee` (snapshot at negotiation time),
-  `finalFee`, `discountAmount` (computed), `isInstallmentPlan`, `remark`,
-  `effectiveDate`, `configuredByUid`, `createdAt`/`updatedAt`. A superset
-  of today's `standardFee`/`finalFee`/`feeReason` trio on `students/{uid}`.
-- `InstallmentScheduleItem`: `label`, `amount`, `dueDate`, `status`
-  (`InstallmentStatus.pending`/`paid`) - a per-student, customizable
-  installment schedule, distinct from the batch's own single
-  `standardInstallmentFee` figure.
+### Student admission (Set 11)
 
-Neither model has a repository, a Firestore collection, or security
-rules yet - they exist only as tested value objects
-(`toMap`/`fromMap` round-trips) so that whichever future set implements
-full Student Admission can reuse the shape instead of inventing it under
-time pressure. `Batch.standardFeeFor({required bool isInstallment})` is
-the one shared lookup both today's `StudentFormScreen` and any future
-admission flow should call, rather than duplicating the
-monthly-vs-installment branch.
+Two Firestore-backed models cover a student:
+
+- `StudentProfile` (`students/{uid}`) - the student's STABLE identity
+  (name, DOB, gender, photo, father's name, contacts, address,
+  `admissionNumber`, `active`) plus a denormalized **snapshot of their
+  CURRENT admission** (session/class/batch/board, standard/final fee,
+  payment plan, admission date). This is what every existing screen
+  (list, profile, fee dues, payment due calculation) reads - no N+1
+  subcollection reads needed for the common case of "what is this
+  student's current situation".
+- `StudentAdmission` (`students/{uid}/admissions/{admissionId}`) - one
+  **immutable-once-created** record per admission event: the initial
+  admission, or a later batch transfer. This is the durable history a
+  student who returns in a future academic session, or moves batches,
+  needs - without ever creating a duplicate person record or silently
+  rewriting a past fee agreement.
+
+`StudentFormController` keeps both in sync:
+
+- `admitStudent(...)` creates the Firebase Auth account (via the same
+  `AccountProvisioningService` secondary-Firebase-app pattern already
+  used for teacher accounts - a throwaway secondary app instance avoids
+  signing the admin out of their own session), the `students/{uid}`
+  profile, and its first `students/{uid}/admissions/{admissionId}`
+  record together, then increments the chosen batch's `studentCount`.
+- `updateStudent(...)` edits identity/contact fields and the board only
+  - it never touches `academicSessionId`/`classId`/`batchId`/the fee
+    agreement, so a casual profile edit can never rewrite admission
+    history (Set 11 spec: "do not silently rewrite historical admission
+    financial values").
+- `changeBatch(...)` is the only way session/class/batch/fee change
+  after admission: it flips the previous admission's `active` to
+  `false` (preserved, never rewritten or deleted), writes a brand-new
+  `StudentAdmission` with its own fee snapshot/remark/installments,
+  updates the profile's denormalized fields to match, and adjusts both
+  batches' `studentCount` (`FieldValue.increment` - no read-modify-write
+  race, since Firestore resolves the increment server-side before the
+  security rule sees `request.resource.data.studentCount`).
+- `setActive(...)` toggles both `students/{uid}.active` and the matching
+  `users/{uid}.active` together, so a deactivated student can no longer
+  start a new login session (`selfSessionUpdateIsValid` already requires
+  `resource.data.active == true` to claim one) - their historical
+  admission/payment records are never touched or hidden from an admin.
+
+`firestore.rules`' `studentUpdateIsValid()` tolerates the ABSENCE of
+every Set-11-added field, exactly like `batchUpdateIsValid()` (Set 10):
+a pre-Set-11 student document has none of them, so `setActive`'s partial
+`.update()` keeps working on an old document unchanged, while a full
+admission/edit save (which always supplies every field) is fully
+validated.
+
+### Admission numbers
+
+`admissionNumber` is generated once, at admission, by `SequenceService`
+(`lib/core/services/sequence_service.dart`) - a small reusable "hand out
+the next integer for a named sequence" helper backed by one counter
+document at `counters/students` (`{ nextNumber, updatedAt }`), read and
+incremented in a single Firestore client-side transaction (no Cloud
+Function needed) so two admissions submitted at nearly the same moment
+can never collide. `formatAdmissionNumber(n)` turns the raw integer into
+`"STU0001"`-style text - a separate pure function so the format is
+tested without touching Firestore. `firestore.rules` only lets
+`nextNumber` increase, never decrease or repeat.
 
 ### Fee model
 
@@ -329,17 +432,23 @@ Every payment/due calculation (`totalPaid`, `due`, `dueLabel` in
 what "future fee calculations must use the student's final agreed fee"
 means in practice. `due` can go negative (student has paid more than
 `finalFee`); `dueLabel` renders that as "Advance ₹X" rather than a
-confusing negative "Due".
+confusing negative "Due". As of Set 11 these top-level `standardFee`/
+`finalFee`/`feeReason`/`paymentPlan` fields are always the CURRENT
+admission's values (kept in sync by `admitStudent`/`changeBatch`) -
+payments themselves are never split per-admission, since a student only
+ever has one active admission at a time.
 
-### Why payments are their own subcollection, not a top-level collection
+### Why payments and admissions are their own subcollections, not top-level collections
 
-`students/{uid}/payments` scopes naturally to rules (`isAdmin() ||
-isSelf(studentId)`, same as the student's own document) and to queries
-(the fee-dues screen never needs to query payments *across* students -
-it filters `students`, then reads each matching student's own payment
-subcollection). No composite index is needed anywhere in Set 3: every
-list is fetched whole and filtered/sorted client-side, which is fine at
-this project's scale (~200 students).
+`students/{uid}/payments` and `students/{uid}/admissions` both scope
+naturally to rules (`isAdmin() || isSelf(studentId)`, same as the
+student's own document) and to queries (the fee-dues screen never needs
+to query payments *across* students - it filters `students`, then reads
+each matching student's own payment subcollection; nothing ever needs to
+list admissions across every student either). No composite index is
+needed anywhere for either: every list is fetched whole and
+filtered/sorted client-side, which is fine at this project's scale
+(~200 students).
 
 ### Call / WhatsApp
 
@@ -769,6 +878,16 @@ above:
   teacher has **no** access to payment data at all, matching "teacher
   cannot modify fees" (and, more strongly, cannot even read them). Only
   admin may `create` (never update/delete - append-only).
+- `students/{uid}/admissions` (Set 11): `isAdmin() || isSelf(studentId)`
+  only - same "teacher has no fee access" posture as payments, stricter
+  than the parent `students` document (which a teacher CAN read). Only
+  admin may `create`; the only `update` ever allowed is flipping `active`
+  to `false` when a newer admission supersedes this one - every
+  financial/academic figure is otherwise permanent once created.
+- `counters` (Set 11): admin-only `get`/`create`/`update`, `list` denied
+  outright (nothing ever needs to enumerate counters, only read one by
+  its known id) - see "Admission numbers" above. `nextNumber` may only
+  ever increase.
 - `batches`: any signed-in account may read (it's a shared reference
   catalogue, not personal data); only admin may write.
 - `attendance`: admin-only to write; a student may `get`/`list` only

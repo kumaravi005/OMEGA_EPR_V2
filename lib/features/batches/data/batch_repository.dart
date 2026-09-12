@@ -54,3 +54,23 @@ final activeBatchesForClassProvider = Provider.family<List<Batch>, String>((
       ref.watch(activeBatchesProvider).valueOrNull ?? const <Batch>[];
   return batches.where((batch) => batch.classId == classId).toList();
 });
+
+/// Active batches belonging to BOTH [academicSessionId] and [classId] -
+/// the "Session -> Class -> only matching batches" filter Student
+/// Admission (Set 11) needs. A plain, pure function (not a provider) so
+/// it's directly unit-testable and reusable from both the admission form
+/// and the batch-transfer dialog. Returns nothing until both are chosen.
+List<Batch> batchesForSessionAndClass(
+  List<Batch> activeBatches, {
+  required String? academicSessionId,
+  required String? classId,
+}) {
+  if (academicSessionId == null || classId == null) return const [];
+  return activeBatches
+      .where(
+        (batch) =>
+            batch.academicSessionId == academicSessionId &&
+            batch.classId == classId,
+      )
+      .toList();
+}

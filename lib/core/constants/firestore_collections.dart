@@ -45,4 +45,9 @@ abstract final class FirestoreCollections {
   // plan); `classes` and `boards` were not anticipated then.
   static const classes = 'classes';
   static const boards = 'boards';
+
+  // Added in Set 11 - a tiny collection of atomic sequence counters (see
+  // SequenceService), currently only `counters/students` for admission
+  // numbers. Not a general-purpose settings/meta collection.
+  static const counters = 'counters';
 }

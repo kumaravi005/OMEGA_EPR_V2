@@ -180,15 +180,22 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Student admission + fee records (Set 3): admin-managed only. A
+    // Student admission + fee records (Set 3, extended Set 11 with the
+    // Set 9/10 master-data links, an admission number, a photo URL, and
+    // a pointer to the current admission's history record - see
+    // `students/{studentId}/admissions` below). Admin-managed only. A
     // student/parent may read their own record but never write it.
     // `standardFee` is a snapshot for reference; `finalFee` is what
-    // every payment/due calculation actually uses.
+    // every payment/due calculation actually uses. `className`/`board`/
+    // `academicSession` are display strings resolved from master data at
+    // admission/transfer time (Set 11) - `academicSessionId`/`classId`/
+    // `boardId` are the authoritative references.
     function studentFields() {
       return [
-        'uid', 'accountId', 'name', 'fatherName', 'dateOfBirth', 'gender', 'address', 'className', 'board',
-        'batchId', 'academicSession', 'primaryMobile', 'secondaryMobile', 'standardFee', 'finalFee', 'feeReason',
-        'paymentPlan', 'active', 'createdAt', 'updatedAt'
+        'uid', 'accountId', 'admissionNumber', 'name', 'fatherName', 'dateOfBirth', 'gender', 'photoUrl',
+        'address', 'className', 'board', 'batchId', 'academicSession', 'academicSessionId', 'classId', 'boardId',
+        'boardCustomText', 'primaryMobile', 'secondaryMobile', 'standardFee', 'finalFee', 'feeReason',
+        'paymentPlan', 'admissionDate', 'currentAdmissionId', 'active', 'createdAt', 'updatedAt'
       ];
     }
 
@@ -196,32 +203,56 @@ service cloud.firestore {
       let data = request.resource.data;
       return data.uid == studentId
         && data.accountId is string
+        && data.admissionNumber is string && data.admissionNumber.size() > 0
         && data.name is string && data.name.size() >= 2
         && data.fatherName is string
         && data.dateOfBirth is timestamp
         && data.gender in ['male', 'female', 'other']
+        && (data.photoUrl == null || data.photoUrl is string)
         && data.address is string
         && data.className is string
         && data.board is string
         && data.batchId is string
         && data.academicSession is string
+        && data.academicSessionId is string && data.academicSessionId.size() > 0
+        && data.classId is string && data.classId.size() > 0
+        && (data.boardId == null || data.boardId is string)
+        && (data.boardCustomText == null || data.boardCustomText is string)
         && data.primaryMobile is string && data.primaryMobile.size() >= 6
         && data.standardFee is number && data.standardFee >= 0
         && data.finalFee is number && data.finalFee >= 0
         && data.paymentPlan in ['monthly', 'installment']
+        && data.admissionDate is timestamp
+        && data.currentAdmissionId is string && data.currentAdmissionId.size() > 0
         && data.active == true
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
         && data.keys().hasOnly(studentFields());
     }
 
+    // Tolerates the ABSENCE of every Set-11-added field, exactly like
+    // `batchUpdateIsValid` (Set 10) - a pre-Set-11 student document has
+    // none of them, so a partial `.update()` (e.g. `setActive` toggling
+    // just `active`) must keep working without first forcing a full
+    // edit-form migration, while a full edit-form/admission save (which
+    // always supplies every field) is still fully validated.
     function studentUpdateIsValid() {
-      return request.resource.data.uid == resource.data.uid
-        && request.resource.data.accountId == resource.data.accountId
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.finalFee is number && request.resource.data.finalFee >= 0
-        && request.resource.data.standardFee is number && request.resource.data.standardFee >= 0
-        && request.resource.data.keys().hasOnly(studentFields());
+      let data = request.resource.data;
+      let keys = data.keys();
+      return data.uid == resource.data.uid
+        && data.accountId == resource.data.accountId
+        && data.createdAt == resource.data.createdAt
+        && data.finalFee is number && data.finalFee >= 0
+        && data.standardFee is number && data.standardFee >= 0
+        && (!keys.hasAny(['admissionNumber']) || (data.admissionNumber is string && data.admissionNumber.size() > 0))
+        && (!keys.hasAny(['photoUrl']) || data.photoUrl == null || data.photoUrl is string)
+        && (!keys.hasAny(['academicSessionId']) || data.academicSessionId is string)
+        && (!keys.hasAny(['classId']) || data.classId is string)
+        && (!keys.hasAny(['boardId']) || data.boardId == null || data.boardId is string)
+        && (!keys.hasAny(['boardCustomText']) || data.boardCustomText == null || data.boardCustomText is string)
+        && (!keys.hasAny(['admissionDate']) || data.admissionDate is timestamp)
+        && (!keys.hasAny(['currentAdmissionId']) || data.currentAdmissionId is string)
+        && keys.hasOnly(studentFields());
     }
 
     function newPaymentIsValid() {
@@ -232,6 +263,47 @@ service cloud.firestore {
         && data.createdAt is timestamp
         && data.createdBy is string
         && data.keys().hasOnly(['amount', 'date', 'mode', 'remark', 'createdAt', 'createdBy']);
+    }
+
+    // Admission/enrollment history (Set 11): one immutable-once-created
+    // record per admission event (initial admission, or a later batch
+    // transfer) - kept separate from the student's own identity so a
+    // historical fee agreement is never overwritten by a later change
+    // (see docs/database-architecture.md). The only update ever allowed
+    // afterward is flipping `active` to false when a newer admission
+    // supersedes this one - every financial/academic figure on it is
+    // otherwise permanent.
+    function admissionFields() {
+      return [
+        'studentUid', 'academicSessionId', 'classId', 'batchId', 'boardId', 'boardCustomText', 'standardFee',
+        'finalFee', 'feeReason', 'paymentPlan', 'installments', 'admissionDate', 'active', 'configuredByUid',
+        'createdAt', 'updatedAt'
+      ];
+    }
+
+    function newAdmissionIsValid(studentId) {
+      let data = request.resource.data;
+      return data.studentUid == studentId
+        && data.academicSessionId is string && data.academicSessionId.size() > 0
+        && data.classId is string && data.classId.size() > 0
+        && data.batchId is string && data.batchId.size() > 0
+        && (data.boardId == null || data.boardId is string)
+        && (data.boardCustomText == null || data.boardCustomText is string)
+        && data.standardFee is number && data.standardFee >= 0
+        && data.finalFee is number && data.finalFee >= 0
+        && (data.feeReason == null || data.feeReason is string)
+        && data.paymentPlan in ['monthly', 'installment']
+        && data.installments is list
+        && data.admissionDate is timestamp
+        && data.active is bool
+        && data.configuredByUid is string
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(admissionFields());
+    }
+
+    function admissionUpdateIsValid() {
+      return changedKeys().hasOnly(['active', 'updatedAt']) && request.resource.data.active is bool;
     }
 
     match /students/{studentId} {
@@ -254,6 +326,17 @@ service cloud.firestore {
         allow list: if isAdmin() || isSelf(studentId);
         allow create: if isAdmin() && newPaymentIsValid();
         allow update, delete: if false;
+      }
+
+      // A student/parent may see their own admission history (e.g. past
+      // sessions/batches); never write it - see admissionUpdateIsValid
+      // above for the one thing an admin may change after creation.
+      match /admissions/{admissionId} {
+        allow get: if isAdmin() || isSelf(studentId);
+        allow list: if isAdmin() || isSelf(studentId);
+        allow create: if isAdmin() && newAdmissionIsValid(studentId);
+        allow update: if isAdmin() && admissionUpdateIsValid();
+        allow delete: if false;
       }
     }
 
@@ -898,6 +981,32 @@ service cloud.firestore {
     match /subjects/{subjectId} {
       allow get, list: if isSignedIn();
       allow create, update: if isAdmin() && newSubjectIsValid();
+      allow delete: if false;
+    }
+
+    // Atomic sequence counters (Set 11) - currently only `counters/students`,
+    // read-then-incremented in one transaction by SequenceService to hand
+    // out unique admission numbers without a Cloud Function. `nextNumber`
+    // may only ever increase, never be set backwards or reused - `list`
+    // is denied outright since nothing ever needs to enumerate counters,
+    // only read one by its known id.
+    function newCounterIsValid() {
+      return request.resource.data.nextNumber is number && request.resource.data.nextNumber >= 1
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.keys().hasOnly(['nextNumber', 'updatedAt']);
+    }
+
+    function counterUpdateIsValid() {
+      return request.resource.data.nextNumber is number && request.resource.data.nextNumber > resource.data.nextNumber
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.keys().hasOnly(['nextNumber', 'updatedAt']);
+    }
+
+    match /counters/{counterId} {
+      allow get: if isAdmin();
+      allow list: if false;
+      allow create: if isAdmin() && newCounterIsValid();
+      allow update: if isAdmin() && counterUpdateIsValid();
       allow delete: if false;
     }
 

@@ -9,14 +9,25 @@ import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../../data/models/gender.dart';
+import '../../academics/data/academics_repositories.dart';
+import '../../academics/data/board.dart';
+import '../../auth/application/auth_providers.dart';
 import '../../batches/data/batch.dart';
 import '../../batches/data/batch_repository.dart';
+import '../../batches/data/installment_schedule_item.dart';
 import '../application/student_form_controller.dart';
 import '../data/student_profile.dart';
 import '../data/student_repository.dart';
+import 'installment_entry_dialog.dart';
 
-/// Admit a new student, or edit an existing one. Pass [studentUid] to
-/// edit; omit it to admit a new student.
+/// Admit a new student, or edit an existing one's identity/contact
+/// details. Pass [studentUid] to edit; omit it to admit a new student.
+///
+/// Academic session/class/batch and the fee agreement can only be SET
+/// here at admission time - once a student is admitted, changing them
+/// goes through the separate "Change batch" action (see
+/// `ChangeBatchDialog`) instead of this form, so a historical fee
+/// agreement is never silently overwritten (Set 11 spec).
 class StudentFormScreen extends ConsumerWidget {
   const StudentFormScreen({super.key, this.studentUid});
 
@@ -24,33 +35,27 @@ class StudentFormScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final batchesAsync = ref.watch(activeBatchesProvider);
+    if (studentUid == null) {
+      return const Scaffold(
+        body: SafeArea(child: _StudentForm(existing: null)),
+      );
+    }
 
+    final studentsAsync = ref.watch(allStudentsProvider);
     return Scaffold(
       body: SafeArea(
-        child: batchesAsync.when(
-          loading: () => const LoadingView(message: 'Loading batches...'),
+        child: studentsAsync.when(
+          loading: () => const LoadingView(),
           error: (error, stackTrace) =>
-              ErrorView(message: 'Could not load batches.\n$error'),
-          data: (batches) {
-            if (studentUid == null) {
-              return _StudentForm(existing: null, batches: batches);
+              ErrorView(message: 'Could not load student.\n$error'),
+          data: (students) {
+            final existing = students
+                .where((s) => s.uid == studentUid)
+                .firstOrNull;
+            if (existing == null) {
+              return const ErrorView(message: 'Student not found.');
             }
-            final studentsAsync = ref.watch(allStudentsProvider);
-            return studentsAsync.when(
-              loading: () => const LoadingView(),
-              error: (error, stackTrace) =>
-                  ErrorView(message: 'Could not load student.\n$error'),
-              data: (students) {
-                final existing = students
-                    .where((s) => s.uid == studentUid)
-                    .firstOrNull;
-                if (existing == null) {
-                  return const ErrorView(message: 'Student not found.');
-                }
-                return _StudentForm(existing: existing, batches: batches);
-              },
-            );
+            return _StudentForm(existing: existing);
           },
         ),
       ),
@@ -59,10 +64,9 @@ class StudentFormScreen extends ConsumerWidget {
 }
 
 class _StudentForm extends ConsumerStatefulWidget {
-  const _StudentForm({required this.existing, required this.batches});
+  const _StudentForm({required this.existing});
 
   final StudentProfile? existing;
-  final List<Batch> batches;
 
   @override
   ConsumerState<_StudentForm> createState() => _StudentFormState();
@@ -77,20 +81,17 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
   late final _nameController = TextEditingController(
     text: widget.existing?.name ?? '',
   );
+  late final _photoUrlController = TextEditingController(
+    text: widget.existing?.photoUrl ?? '',
+  );
   late final _fatherNameController = TextEditingController(
     text: widget.existing?.fatherName ?? '',
   );
   late final _addressController = TextEditingController(
     text: widget.existing?.address ?? '',
   );
-  late final _classController = TextEditingController(
-    text: widget.existing?.className ?? '',
-  );
-  late final _boardController = TextEditingController(
-    text: widget.existing?.board ?? '',
-  );
-  late final _sessionController = TextEditingController(
-    text: widget.existing?.academicSession ?? '',
+  late final _boardCustomController = TextEditingController(
+    text: widget.existing?.boardCustomText ?? '',
   );
   late final _primaryMobileController = TextEditingController(
     text: widget.existing?.primaryMobile ?? '',
@@ -107,9 +108,13 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
 
   DateTime? _dateOfBirth;
   Gender _gender = Gender.male;
+  String? _sessionId;
+  String? _classId;
   String? _selectedBatchId;
+  String? _boardId;
   double _standardFee = 0;
   PaymentPlan _paymentPlan = PaymentPlan.monthly;
+  final List<InstallmentScheduleItem> _installments = [];
 
   bool _obscurePassword = true;
   bool _isSubmitting = false;
@@ -124,18 +129,15 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
     _gender = widget.existing?.gender ?? Gender.male;
     _paymentPlan = widget.existing?.paymentPlan ?? PaymentPlan.monthly;
     _standardFee = widget.existing?.standardFee ?? 0;
-    _selectedBatchId =
-        widget.existing?.batchId ??
-        (widget.batches.isNotEmpty ? widget.batches.first.batchId : null);
-    if (!_isEditing) _recomputeStandardFee();
+    _boardId = widget.existing?.boardId;
     _finalFeeController.addListener(_onFinalFeeChanged);
   }
 
   /// The standard fee depends on BOTH the selected batch and the chosen
   /// payment plan - a batch has separate monthly/installment fees (see
   /// [Batch]), so switching either one recomputes it.
-  void _recomputeStandardFee() {
-    final batch = widget.batches
+  void _recomputeStandardFee(List<Batch> batches) {
+    final batch = batches
         .where((b) => b.batchId == _selectedBatchId)
         .firstOrNull;
     if (batch == null) return;
@@ -145,6 +147,7 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
     // Auto-populate the final fee to match the standard fee - admin can
     // still adjust it below (that's the discount workflow).
     _finalFeeController.text = _standardFee.toStringAsFixed(0);
+    if (batch.boardId != null) _boardId = batch.boardId;
   }
 
   void _onFinalFeeChanged() => setState(() {});
@@ -154,11 +157,10 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
     _accountIdController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
+    _photoUrlController.dispose();
     _fatherNameController.dispose();
     _addressController.dispose();
-    _classController.dispose();
-    _boardController.dispose();
-    _sessionController.dispose();
+    _boardCustomController.dispose();
     _primaryMobileController.dispose();
     _secondaryMobileController.dispose();
     _finalFeeController.removeListener(_onFinalFeeChanged);
@@ -167,19 +169,35 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
     super.dispose();
   }
 
-  void _onBatchSelected(String? batchId) {
-    if (batchId == null) return;
+  void _onSessionSelected(String? sessionId) {
     setState(() {
-      _selectedBatchId = batchId;
-      if (!_isEditing) _recomputeStandardFee();
+      _sessionId = sessionId;
+      _selectedBatchId = null;
+      _standardFee = 0;
     });
   }
 
-  void _onPaymentPlanSelected(PaymentPlan? plan) {
+  void _onClassSelected(String? classId) {
+    setState(() {
+      _classId = classId;
+      _selectedBatchId = null;
+      _standardFee = 0;
+    });
+  }
+
+  void _onBatchSelected(String? batchId, List<Batch> matchingBatches) {
+    if (batchId == null) return;
+    setState(() {
+      _selectedBatchId = batchId;
+      _recomputeStandardFee(matchingBatches);
+    });
+  }
+
+  void _onPaymentPlanSelected(PaymentPlan? plan, List<Batch> matchingBatches) {
     if (plan == null) return;
     setState(() {
       _paymentPlan = plan;
-      if (!_isEditing) _recomputeStandardFee();
+      _recomputeStandardFee(matchingBatches);
     });
   }
 
@@ -194,23 +212,72 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
     if (picked != null) setState(() => _dateOfBirth = picked);
   }
 
-  Future<void> _submit() async {
+  Future<void> _addInstallment() async {
+    final item = await showInstallmentEntryDialog(context);
+    if (item != null) setState(() => _installments.add(item));
+  }
+
+  /// Merges the given master-data list with a currently selected id (even
+  /// if that entry has since been deactivated), so editing an older
+  /// record never silently drops its existing selection from a dropdown.
+  List<T> _selectableOptions<T>(
+    List<T> active,
+    List<T> all,
+    String Function(T) idOf,
+    String? selectedId,
+  ) {
+    if (selectedId == null || active.any((item) => idOf(item) == selectedId)) {
+      return active;
+    }
+    final existing = all.where((item) => idOf(item) == selectedId).firstOrNull;
+    return existing == null ? active : [...active, existing];
+  }
+
+  String _resolveBoardDisplayName(Board? board, String customText) {
+    if (board == null) return '';
+    return board.name == 'Others' ? customText.trim() : board.name;
+  }
+
+  Future<void> _submit(List<Board> boards) async {
     final form = _formKey.currentState;
     if (form == null || !form.validate()) return;
     if (_dateOfBirth == null) {
       setState(() => _errorMessage = 'Date of birth is required.');
       return;
     }
-    if (_selectedBatchId == null) {
-      setState(() => _errorMessage = 'Select a batch.');
-      return;
+
+    final selectedBoard = boards.where((b) => b.boardId == _boardId).firstOrNull;
+    final boardDisplayName = _resolveBoardDisplayName(
+      selectedBoard,
+      _boardCustomController.text,
+    );
+
+    if (!_isEditing) {
+      if (_sessionId == null || _classId == null || _selectedBatchId == null) {
+        setState(
+          () => _errorMessage = 'Select an academic session, class and batch.',
+        );
+        return;
+      }
     }
 
-    final finalFee = double.parse(_finalFeeController.text);
-    if (finalFee != _standardFee && _feeReasonController.text.trim().isEmpty) {
+    final finalFee = _isEditing
+        ? widget.existing!.finalFee
+        : double.parse(_finalFeeController.text);
+    if (!_isEditing &&
+        finalFee != _standardFee &&
+        _feeReasonController.text.trim().isEmpty) {
       setState(
         () => _errorMessage =
-            'A reason is required when the final fee differs from the standard fee.',
+            'A remark is required when the final fee differs from the standard fee.',
+      );
+      return;
+    }
+    if (!_isEditing &&
+        _paymentPlan == PaymentPlan.installment &&
+        _installments.isEmpty) {
+      setState(
+        () => _errorMessage = 'Add at least one installment.',
       );
       return;
     }
@@ -225,9 +292,6 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
       final secondaryMobile = _secondaryMobileController.text.trim().isEmpty
           ? null
           : _secondaryMobileController.text;
-      final feeReason = _feeReasonController.text.trim().isEmpty
-          ? null
-          : _feeReasonController.text;
 
       if (_isEditing) {
         await controller.updateStudent(
@@ -236,39 +300,77 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
           fatherName: _fatherNameController.text,
           dateOfBirth: _dateOfBirth!,
           gender: _gender,
+          photoUrl: _photoUrlController.text,
           address: _addressController.text,
-          className: _classController.text,
-          board: _boardController.text,
-          batchId: _selectedBatchId!,
-          academicSession: _sessionController.text,
           primaryMobile: _primaryMobileController.text,
           secondaryMobile: secondaryMobile,
-          standardFee: _standardFee,
-          finalFee: finalFee,
-          feeReason: feeReason,
-          paymentPlan: _paymentPlan,
+          boardId: _boardId,
+          boardCustomText: _boardCustomController.text,
+          boardDisplayName: boardDisplayName,
         );
-      } else {
-        await controller.admitStudent(
-          accountId: _accountIdController.text,
-          password: _passwordController.text,
-          name: _nameController.text,
-          fatherName: _fatherNameController.text,
-          dateOfBirth: _dateOfBirth!,
-          gender: _gender,
-          address: _addressController.text,
-          className: _classController.text,
-          board: _boardController.text,
-          batchId: _selectedBatchId!,
-          academicSession: _sessionController.text,
-          primaryMobile: _primaryMobileController.text,
-          secondaryMobile: secondaryMobile,
-          standardFee: _standardFee,
-          finalFee: finalFee,
-          feeReason: feeReason,
-          paymentPlan: _paymentPlan,
-        );
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        return;
       }
+
+      final sessions = ref.read(allAcademicSessionsProvider).valueOrNull ?? [];
+      final classes = ref.read(activeSchoolClassesProvider).valueOrNull ?? [];
+      final sessionName =
+          sessions.where((s) => s.sessionId == _sessionId).firstOrNull?.name ??
+          '';
+      final className =
+          classes.where((c) => c.classId == _classId).firstOrNull?.name ?? '';
+      final adminUid = ref.read(currentUserAccountProvider).valueOrNull?.uid;
+
+      final feeReason = _feeReasonController.text.trim().isEmpty
+          ? null
+          : _feeReasonController.text;
+
+      final result = await controller.admitStudent(
+        accountId: _accountIdController.text,
+        password: _passwordController.text,
+        name: _nameController.text,
+        fatherName: _fatherNameController.text,
+        dateOfBirth: _dateOfBirth!,
+        gender: _gender,
+        photoUrl: _photoUrlController.text,
+        address: _addressController.text,
+        academicSessionId: _sessionId!,
+        academicSessionName: sessionName,
+        classId: _classId!,
+        className: className,
+        batchId: _selectedBatchId!,
+        boardId: _boardId,
+        boardCustomText: _boardCustomController.text,
+        boardDisplayName: boardDisplayName,
+        primaryMobile: _primaryMobileController.text,
+        secondaryMobile: secondaryMobile,
+        standardFee: _standardFee,
+        finalFee: finalFee,
+        feeReason: feeReason,
+        paymentPlan: _paymentPlan,
+        installments: _installments,
+        configuredByUid: adminUid ?? '',
+      );
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Student admitted'),
+          content: Text(
+            'Admission number: ${result.admissionNumber}\n'
+            'Account ID: ${result.accountId}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
       if (!mounted) return;
       Navigator.of(context).pop();
     } on StudentFormFailure catch (failure) {
@@ -280,13 +382,20 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
 
   @override
   Widget build(BuildContext context) {
+    final activeBoardsAsync = ref.watch(activeBoardsProvider);
+    final allBoardsAsync = ref.watch(allBoardsProvider);
+    final boards = allBoardsAsync.valueOrNull ?? const <Board>[];
+    final activeBoards = activeBoardsAsync.valueOrNull ?? const <Board>[];
+    final selectedBoard = boards.where((b) => b.boardId == _boardId).firstOrNull;
+    final isOthersBoard = selectedBoard?.name == 'Others';
+
     final discount =
         _standardFee -
         (double.tryParse(_finalFeeController.text) ?? _standardFee);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Edit student' : 'Admit student'),
+        title: Text(_isEditing ? 'Edit student' : 'New admission'),
       ),
       body: Center(
         child: ConstrainedBox(
@@ -309,10 +418,269 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
                       const SizedBox(height: AppSpacing.md),
                     ],
                     Text(
-                      'Login credentials',
+                      'Student information',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      controller: _nameController,
+                      label: 'Student name *',
+                      enabled: !_isSubmitting,
+                      validator: (value) => Validators.required(
+                        value,
+                        message: 'Student name is required',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        _dateOfBirth == null
+                            ? 'Date of birth'
+                            : 'Date of birth: ${_dateOfBirth!.toLocal()}'
+                                  .split(' ')
+                                  .first,
+                      ),
+                      trailing: const Icon(Icons.calendar_today_outlined),
+                      onTap: _isSubmitting ? null : _pickDateOfBirth,
+                    ),
+                    DropdownButtonFormField<Gender>(
+                      initialValue: _gender,
+                      decoration: const InputDecoration(
+                        labelText: 'Gender *',
+                      ),
+                      items: Gender.values
+                          .map(
+                            (gender) => DropdownMenuItem(
+                              value: gender,
+                              child: Text(_genderLabel(gender)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _isSubmitting
+                          ? null
+                          : (value) =>
+                                setState(() => _gender = value ?? _gender),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      controller: _photoUrlController,
+                      label: 'Photo URL (optional - paste an image link)',
+                      enabled: !_isSubmitting,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Text(
+                      'Parent & contact',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      controller: _fatherNameController,
+                      label: "Father's name",
+                      enabled: !_isSubmitting,
+                      validator: (value) => Validators.required(
+                        value,
+                        message: "Father's name is required",
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      controller: _primaryMobileController,
+                      label: 'Primary mobile *',
+                      enabled: !_isSubmitting,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) =>
+                          Validators.phone(value, label: 'Primary mobile'),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      controller: _secondaryMobileController,
+                      label: 'Secondary mobile (optional)',
+                      enabled: !_isSubmitting,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) => Validators.phone(
+                        value,
+                        isRequired: false,
+                        label: 'Secondary mobile',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      controller: _addressController,
+                      label: 'Address',
+                      enabled: !_isSubmitting,
+                      validator: (value) => Validators.required(
+                        value,
+                        message: 'Address is required',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Text(
+                      'Academic information',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    if (_isEditing)
+                      _ReadOnlyAcademicSummary(existing: widget.existing!)
+                    else
+                      _AcademicPickers(
+                        sessionId: _sessionId,
+                        classId: _classId,
+                        selectedBatchId: _selectedBatchId,
+                        isSubmitting: _isSubmitting,
+                        onSessionChanged: _onSessionSelected,
+                        onClassChanged: _onClassSelected,
+                        onBatchChanged: _onBatchSelected,
+                      ),
+                    const SizedBox(height: AppSpacing.sm),
+                    activeBoardsAsync.when(
+                      loading: () => const SizedBox.shrink(),
+                      error: (error, stackTrace) => const SizedBox.shrink(),
+                      data: (_) => DropdownButtonFormField<String?>(
+                        key: ValueKey('board-$_boardId'),
+                        initialValue: _boardId,
+                        decoration: const InputDecoration(
+                          labelText: 'Board (optional)',
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('Not specified'),
+                          ),
+                          for (final board in _selectableOptions(
+                            activeBoards,
+                            boards,
+                            (b) => b.boardId,
+                            _boardId,
+                          ))
+                            DropdownMenuItem<String?>(
+                              value: board.boardId,
+                              child: Text(board.name),
+                            ),
+                        ],
+                        onChanged: _isSubmitting
+                            ? null
+                            : (value) => setState(() => _boardId = value),
+                      ),
+                    ),
+                    if (isOthersBoard) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      AppTextField(
+                        controller: _boardCustomController,
+                        label: 'Board name (since "Others" was selected)',
+                        enabled: !_isSubmitting,
+                        validator: (value) => Validators.required(
+                          value,
+                          message: 'Enter the board name',
+                        ),
+                      ),
+                    ],
+                    if (!_isEditing) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        'Fee & payment information',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Builder(
+                        builder: (context) {
+                          final batches =
+                              ref.watch(activeBatchesProvider).valueOrNull ??
+                              const <Batch>[];
+                          final matching = batchesForSessionAndClass(
+                            batches,
+                            academicSessionId: _sessionId,
+                            classId: _classId,
+                          );
+                          return DropdownButtonFormField<PaymentPlan>(
+                            initialValue: _paymentPlan,
+                            decoration: const InputDecoration(
+                              labelText: 'Payment plan',
+                            ),
+                            items: PaymentPlan.values
+                                .map(
+                                  (plan) => DropdownMenuItem(
+                                    value: plan,
+                                    child: Text(plan.label),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: _isSubmitting
+                                ? null
+                                : (value) =>
+                                      _onPaymentPlanSelected(value, matching),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        'Standard fee (${_paymentPlan.label.toLowerCase()}, from batch): '
+                        '₹${_standardFee.toStringAsFixed(0)}',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      AppTextField(
+                        controller: _finalFeeController,
+                        label: 'Final agreed fee',
+                        enabled: !_isSubmitting,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        validator: (value) =>
+                            Validators.amount(value, label: 'Final agreed fee'),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        discount == 0
+                            ? 'No discount'
+                            : 'Discount/adjustment: ₹${discount.toStringAsFixed(0)}',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      AppTextField(
+                        controller: _feeReasonController,
+                        label:
+                            'Remark (required if fee differs from standard)',
+                        enabled: !_isSubmitting,
+                      ),
+                      if (_paymentPlan == PaymentPlan.installment) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          'Installment schedule',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        for (final item in _installments)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              '${item.label} - ₹${item.amount.toStringAsFixed(0)}',
+                            ),
+                            subtitle: Text(
+                              'Due ${item.dueDate.toLocal()}'.split(' ').first,
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : () => setState(
+                                      () => _installments.remove(item),
+                                    ),
+                            ),
+                          ),
+                        TextButton.icon(
+                          onPressed: _isSubmitting ? null : _addInstallment,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add installment'),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        'Account information',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
+                    if (_isEditing) const SizedBox(height: AppSpacing.lg),
                     AppTextField(
                       controller: _accountIdController,
                       label: 'Account ID',
@@ -340,208 +708,10 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
                       ),
                     ],
                     const SizedBox(height: AppSpacing.lg),
-                    Text(
-                      'Personal details',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _nameController,
-                      label: 'Name',
-                      enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(
-                        value,
-                        message: 'Name is required',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _fatherNameController,
-                      label: "Father's name",
-                      enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(
-                        value,
-                        message: "Father's name is required",
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        _dateOfBirth == null
-                            ? 'Date of birth'
-                            : 'Date of birth: ${_dateOfBirth!.toLocal()}'
-                                  .split(' ')
-                                  .first,
-                      ),
-                      trailing: const Icon(Icons.calendar_today_outlined),
-                      onTap: _isSubmitting ? null : _pickDateOfBirth,
-                    ),
-                    DropdownButtonFormField<Gender>(
-                      initialValue: _gender,
-                      decoration: const InputDecoration(labelText: 'Gender'),
-                      items: Gender.values
-                          .map(
-                            (gender) => DropdownMenuItem(
-                              value: gender,
-                              child: Text(_genderLabel(gender)),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: _isSubmitting
-                          ? null
-                          : (value) =>
-                                setState(() => _gender = value ?? _gender),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _addressController,
-                      label: 'Address',
-                      enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(
-                        value,
-                        message: 'Address is required',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    Text(
-                      'Academic details',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _classController,
-                      label: 'Class',
-                      enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(
-                        value,
-                        message: 'Class is required',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _boardController,
-                      label: 'Board',
-                      enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(
-                        value,
-                        message: 'Board is required',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    if (widget.batches.isEmpty)
-                      Text(
-                        'No active batches yet. Create one under Batches first.',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      )
-                    else
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedBatchId,
-                        decoration: const InputDecoration(labelText: 'Batch'),
-                        items: widget.batches
-                            .map(
-                              (batch) => DropdownMenuItem(
-                                value: batch.batchId,
-                                child: Text(batch.name),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: _isSubmitting ? null : _onBatchSelected,
-                      ),
-                    const SizedBox(height: AppSpacing.sm),
-                    DropdownButtonFormField<PaymentPlan>(
-                      initialValue: _paymentPlan,
-                      decoration: const InputDecoration(
-                        labelText: 'Payment plan',
-                      ),
-                      items: PaymentPlan.values
-                          .map(
-                            (plan) => DropdownMenuItem(
-                              value: plan,
-                              child: Text(plan.label),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: _isSubmitting ? null : _onPaymentPlanSelected,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _sessionController,
-                      label: 'Academic session',
-                      hintText: 'e.g. 2026-27',
-                      enabled: !_isSubmitting,
-                      validator: (value) => Validators.required(
-                        value,
-                        message: 'Academic session is required',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    Text(
-                      'Contact',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _primaryMobileController,
-                      label: 'Primary mobile',
-                      enabled: !_isSubmitting,
-                      keyboardType: TextInputType.phone,
-                      validator: (value) =>
-                          Validators.phone(value, label: 'Primary mobile'),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _secondaryMobileController,
-                      label: 'Secondary mobile (optional)',
-                      enabled: !_isSubmitting,
-                      keyboardType: TextInputType.phone,
-                      validator: (value) => Validators.phone(
-                        value,
-                        isRequired: false,
-                        label: 'Secondary mobile',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    Text('Fee', style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'Standard fee (${_paymentPlan.label.toLowerCase()}, from batch): '
-                      '₹${_standardFee.toStringAsFixed(0)}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _finalFeeController,
-                      label: 'Final agreed fee',
-                      enabled: !_isSubmitting,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      validator: _validateAmount,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      discount == 0
-                          ? 'No discount'
-                          : 'Discount/adjustment: ₹${discount.toStringAsFixed(0)}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _feeReasonController,
-                      label:
-                          'Reason / remark (required if fee differs from standard)',
-                      enabled: !_isSubmitting,
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
                     AppButton(
                       label: _isEditing ? 'Save' : 'Admit student',
                       isLoading: _isSubmitting,
-                      onPressed: widget.batches.isEmpty && !_isEditing
-                          ? null
-                          : _submit,
+                      onPressed: () => _submit(boards),
                     ),
                   ],
                 ),
@@ -575,14 +745,6 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
     return null;
   }
 
-  String? _validateAmount(String? value) {
-    final requiredError = Validators.required(value, message: 'Required');
-    if (requiredError != null) return requiredError;
-    final parsed = double.tryParse(value!);
-    if (parsed == null || parsed < 0) return 'Enter a valid amount';
-    return null;
-  }
-
   String _genderLabel(Gender gender) {
     switch (gender) {
       case Gender.male:
@@ -592,5 +754,159 @@ class _StudentFormState extends ConsumerState<_StudentForm> {
       case Gender.other:
         return 'Other';
     }
+  }
+}
+
+/// Session -> class -> (only matching batches) cascading pickers for a
+/// new admission (Set 11 spec section 8) - inactive batches are never
+/// offered, since [activeBatchesProvider] already excludes them.
+class _AcademicPickers extends ConsumerWidget {
+  const _AcademicPickers({
+    required this.sessionId,
+    required this.classId,
+    required this.selectedBatchId,
+    required this.isSubmitting,
+    required this.onSessionChanged,
+    required this.onClassChanged,
+    required this.onBatchChanged,
+  });
+
+  final String? sessionId;
+  final String? classId;
+  final String? selectedBatchId;
+  final bool isSubmitting;
+  final ValueChanged<String?> onSessionChanged;
+  final ValueChanged<String?> onClassChanged;
+  final void Function(String?, List<Batch>) onBatchChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessionsAsync = ref.watch(allAcademicSessionsProvider);
+    final classesAsync = ref.watch(activeSchoolClassesProvider);
+    final batchesAsync = ref.watch(activeBatchesProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        sessionsAsync.when(
+          loading: () => const SizedBox.shrink(),
+          error: (error, stackTrace) => const SizedBox.shrink(),
+          data: (sessions) => DropdownButtonFormField<String>(
+            initialValue: sessionId,
+            decoration: const InputDecoration(
+              labelText: 'Academic session *',
+            ),
+            items: [
+              for (final session in sessions)
+                DropdownMenuItem(
+                  value: session.sessionId,
+                  child: Text(session.name),
+                ),
+            ],
+            onChanged: isSubmitting ? null : onSessionChanged,
+            validator: (value) =>
+                value == null ? 'Select an academic session' : null,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        classesAsync.when(
+          loading: () => const SizedBox.shrink(),
+          error: (error, stackTrace) => const SizedBox.shrink(),
+          data: (classes) => DropdownButtonFormField<String>(
+            initialValue: classId,
+            decoration: const InputDecoration(labelText: 'Class *'),
+            items: [
+              for (final schoolClass in classes)
+                DropdownMenuItem(
+                  value: schoolClass.classId,
+                  child: Text(schoolClass.name),
+                ),
+            ],
+            onChanged: isSubmitting ? null : onClassChanged,
+            validator: (value) => value == null ? 'Select a class' : null,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        batchesAsync.when(
+          loading: () => const SizedBox.shrink(),
+          error: (error, stackTrace) => const SizedBox.shrink(),
+          data: (batches) {
+            final matching = batchesForSessionAndClass(
+              batches,
+              academicSessionId: sessionId,
+              classId: classId,
+            );
+            if (sessionId == null || classId == null) {
+              return const Text(
+                'Select a session and class to see matching batches.',
+              );
+            }
+            if (matching.isEmpty) {
+              return Text(
+                'No active batches for this session/class yet.',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              );
+            }
+            return DropdownButtonFormField<String>(
+              key: ValueKey('batch-$sessionId-$classId'),
+              initialValue: matching.any((b) => b.batchId == selectedBatchId)
+                  ? selectedBatchId
+                  : null,
+              decoration: const InputDecoration(labelText: 'Batch *'),
+              items: [
+                for (final batch in matching)
+                  DropdownMenuItem(value: batch.batchId, child: Text(batch.name)),
+              ],
+              onChanged: isSubmitting
+                  ? null
+                  : (value) => onBatchChanged(value, matching),
+              validator: (value) => value == null ? 'Select a batch' : null,
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// Read-only academic summary shown while editing a student - session/
+/// class/batch/fee only ever change via "Change batch" on the profile
+/// screen, never through this form.
+class _ReadOnlyAcademicSummary extends ConsumerWidget {
+  const _ReadOnlyAcademicSummary({required this.existing});
+
+  final StudentProfile existing;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final batches = ref.watch(allBatchesProvider).valueOrNull ?? const [];
+    final batchName = batches
+        .where((b) => b.batchId == existing.batchId)
+        .firstOrNull
+        ?.name;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).dividerColor),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Session: ${existing.academicSession}'),
+          Text('Class: ${existing.className}'),
+          Text('Batch: ${batchName ?? existing.batchId}'),
+          const SizedBox(height: 4),
+          Text(
+            'To change the batch, class, session or fee agreement, use '
+            '"Change batch" from the student\'s profile.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
   }
 }

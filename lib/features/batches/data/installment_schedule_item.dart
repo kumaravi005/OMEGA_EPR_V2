@@ -14,18 +14,16 @@ enum InstallmentStatus {
   String get label => this == InstallmentStatus.paid ? 'Paid' : 'Pending';
 }
 
-/// One row of a future student-specific installment schedule (e.g.
-/// "Admission - Rs. 2000 - due 10 April"). A batch only ever configures
-/// a single *standard* installment/course fee
-/// (`Batch.standardInstallmentFee`) - this is the reusable shape a
-/// future Student Admission set can use to break a student's own
-/// installment plan into a custom sequence of amounts/dates without
-/// that customization ever touching the batch's standard configuration.
+/// One row of a student's installment schedule (e.g. "Admission -
+/// Rs. 2000 - due 10 April"). A batch only ever configures a single
+/// *standard* installment/course fee (`Batch.standardInstallmentFee`) -
+/// this is what lets a student's own installment plan break that into a
+/// custom sequence of amounts/dates without touching the batch's
+/// standard configuration. Embedded directly in `StudentAdmission.
+/// installments` (Set 11) - see docs/database-architecture.md.
 ///
-/// Not a [FirestoreDocument] on purpose - same reasoning as
-/// [NegotiatedFee]: there is no admission record to attach a schedule
-/// to yet in Set 10, so this is a plain value object (with fromMap/
-/// toMap ready) for a future set to adopt directly.
+/// Not a [FirestoreDocument] on its own - it only ever exists nested
+/// inside a `StudentAdmission` document, never as a document of its own.
 class InstallmentScheduleItem {
   const InstallmentScheduleItem({
     required this.label,

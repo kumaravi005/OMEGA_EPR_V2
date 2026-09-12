@@ -3,6 +3,7 @@ import '../../../core/constants/firestore_collections.dart';
 import '../../../core/services/firebase_providers.dart';
 import '../../../data/repositories/firestore_repository.dart';
 import 'payment.dart';
+import 'student_admission.dart';
 import 'student_profile.dart';
 
 final studentRepositoryProvider = Provider<FirestoreRepository<StudentProfile>>(
@@ -63,6 +64,37 @@ final studentPaymentsProvider = StreamProvider.family<List<Payment>, String>((
             payments.toList()..sort((a, b) => b.date.compareTo(a.date)),
       );
 });
+
+/// One student's admission history, at `students/{uid}/admissions` - see
+/// [StudentAdmission] for why this is kept separate from the student's
+/// own current-snapshot fields on [StudentProfile].
+final studentAdmissionRepositoryProvider =
+    Provider.family<FirestoreRepository<StudentAdmission>, String>((
+      ref,
+      studentUid,
+    ) {
+      return FirestoreRepository<StudentAdmission>(
+        firestore: ref.watch(firestoreProvider),
+        collectionPath:
+            '${FirestoreCollections.students}/$studentUid/admissions',
+        fromFirestore: StudentAdmission.fromMap,
+        toFirestore: (admission) => admission.toMap(),
+      );
+    });
+
+/// Newest admission first - the first entry is the student's current
+/// admission whenever [StudentProfile.currentAdmissionId] and this stream
+/// agree (they're written together, see `StudentFormController`).
+final studentAdmissionsProvider =
+    StreamProvider.family<List<StudentAdmission>, String>((ref, studentUid) {
+      return ref
+          .watch(studentAdmissionRepositoryProvider(studentUid))
+          .watchAll()
+          .map(
+            (admissions) => admissions.toList()
+              ..sort((a, b) => b.admissionDate.compareTo(a.admissionDate)),
+          );
+    });
 
 double totalPaid(List<Payment> payments) =>
     payments.fold(0, (sum, payment) => sum + payment.amount);
