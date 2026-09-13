@@ -85,6 +85,23 @@ final myNoticesProvider = StreamProvider<List<Notice>>((ref) {
       .map((notices) => notices.toList()..sort(_byRecency));
 });
 
+/// Every notice an unauthenticated public visitor may see (Set 18) -
+/// published AND explicitly marked [Notice.isPublic], nothing else.
+/// Query-constrained on both fields (plain equality on each), matching
+/// `notices`' public `get`/`list` rule branch exactly - see
+/// docs/database-architecture.md's "Public notices (Set 18)". Unlike
+/// [myNoticesProvider], this needs no signed-in account at all.
+final publicNoticesProvider = StreamProvider<List<Notice>>((ref) {
+  return ref
+      .watch(noticeRepositoryProvider)
+      .watchWhere(
+        (query) => query
+            .where('status', isEqualTo: 'published')
+            .where('isPublic', isEqualTo: true),
+      )
+      .map((notices) => notices.toList()..sort(_byRecency));
+});
+
 int _byRecency(Notice a, Notice b) {
   final aDate = a.publishedAt ?? a.createdAt;
   final bDate = b.publishedAt ?? b.createdAt;

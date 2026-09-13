@@ -10,6 +10,9 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../enquiries/presentation/request_callback_dialog.dart';
 import '../../enquiries/presentation/submit_enquiry_dialog.dart';
+import '../../notices/data/notice.dart';
+import '../../notices/data/notice_repository.dart';
+import '../../notices/presentation/public_notice_dialog.dart';
 import '../data/institute_profile.dart';
 import '../data/public_content_repositories.dart';
 import 'ad_popup.dart';
@@ -49,12 +52,14 @@ class PublicHomeScreen extends ConsumerWidget {
                     _HeroSection(
                       instituteName: instituteName,
                       tagline: profileAsync.valueOrNull?.tagline,
+                      logoUrl: profileAsync.valueOrNull?.logoUrl,
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     const _BannersSection(),
                     const _UpcomingBatchesSection(),
                     const _GallerySection(),
                     const _AnnouncementsSection(),
+                    const _PublicNoticesSection(),
                     _AboutSection(about: profileAsync.valueOrNull?.about),
                     _ContactSection(profile: profileAsync.valueOrNull),
                     const SizedBox(height: AppSpacing.md),
@@ -104,15 +109,31 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _HeroSection extends StatelessWidget {
-  const _HeroSection({required this.instituteName, required this.tagline});
+  const _HeroSection({
+    required this.instituteName,
+    required this.tagline,
+    required this.logoUrl,
+  });
 
   final String instituteName;
   final String? tagline;
+  final String? logoUrl;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
+        if (logoUrl != null && logoUrl!.isNotEmpty) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            child: Image.network(
+              logoUrl!,
+              height: 96,
+              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
         Text(
           instituteName,
           style: Theme.of(context).textTheme.headlineLarge,
@@ -327,9 +348,15 @@ class _ContactSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final phone = profile?.contactPhone;
+    final secondaryPhone = profile?.secondaryPhone;
     final email = profile?.contactEmail;
     final address = profile?.address;
-    if (phone == null && email == null && address == null) {
+    final website = profile?.website;
+    if (phone == null &&
+        secondaryPhone == null &&
+        email == null &&
+        address == null &&
+        website == null) {
       return const SizedBox.shrink();
     }
 
@@ -343,6 +370,7 @@ class _ContactSection extends StatelessWidget {
             children: [
               if (address != null) Text(address),
               if (email != null) Text(email),
+              if (website != null) Text(website),
               if (phone != null) ...[
                 Text(phone),
                 const SizedBox(height: AppSpacing.sm),
@@ -367,9 +395,54 @@ class _ContactSection extends StatelessWidget {
                   ],
                 ),
               ],
+              if (secondaryPhone != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  children: [
+                    Expanded(child: Text(secondaryPhone)),
+                    AppButton(
+                      label: 'Call',
+                      icon: Icons.call_outlined,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: () => callNumber(secondaryPhone),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _PublicNoticesSection extends ConsumerWidget {
+  const _PublicNoticesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final noticesAsync = ref.watch(publicNoticesProvider);
+    final notices = noticesAsync.valueOrNull ?? const <Notice>[];
+    if (notices.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SectionTitle('Notices'),
+        for (final notice in notices)
+          AppCard(
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(notice.title),
+              subtitle: Text(
+                notice.type == NoticeType.other
+                    ? (notice.otherTypeLabel ?? notice.type.label)
+                    : notice.type.label,
+              ),
+              onTap: () => showPublicNoticeDialog(context, notice),
+            ),
+          ),
       ],
     );
   }

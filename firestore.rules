@@ -682,7 +682,8 @@ service cloud.firestore {
     function noticeFields() {
       return [
         'title', 'message', 'type', 'otherTypeLabel', 'audience', 'scope', 'academicSessionId', 'classId',
-        'batchId', 'targetKey', 'status', 'createdBy', 'createdAt', 'updatedAt', 'publishedAt', 'expiresAt'
+        'batchId', 'targetKey', 'status', 'createdBy', 'createdAt', 'updatedAt', 'publishedAt', 'expiresAt',
+        'isPublic'
       ];
     }
 
@@ -736,6 +737,12 @@ service cloud.firestore {
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
         && (data.expiresAt == null || data.expiresAt is timestamp)
+        // Public-site visibility (Set 18) - admin may opt a notice in at
+        // creation time (the create dialog's "Show on public website"
+        // switch) or afterward via `noticePublicVisibilityUpdateIsValid`
+        // below; either way it's a plain admin-controlled boolean, never
+        // implied by status/audience.
+        && data.isPublic is bool
         && data.keys().hasOnly(noticeFields());
     }
 
@@ -763,6 +770,7 @@ service cloud.firestore {
         && data.type is string && data.type.size() > 0
         && (data.otherTypeLabel == null || data.otherTypeLabel is string)
         && (data.expiresAt == null || data.expiresAt is timestamp)
+        && data.isPublic is bool
         && data.updatedAt is timestamp
         && noticeIdentityUnchanged(data, old)
         && data.keys().hasOnly(noticeFields());
@@ -777,6 +785,7 @@ service cloud.firestore {
         && data.title == old.title && data.message == old.message
         && data.type == old.type && data.otherTypeLabel == old.otherTypeLabel
         && data.expiresAt == old.expiresAt
+        && data.isPublic == old.isPublic
         && data.updatedAt is timestamp
         && noticeIdentityUnchanged(data, old)
         && data.keys().hasOnly(noticeFields());
@@ -791,13 +800,27 @@ service cloud.firestore {
         && data.title == old.title && data.message == old.message
         && data.type == old.type && data.otherTypeLabel == old.otherTypeLabel
         && data.expiresAt == old.expiresAt
+        && data.isPublic == old.isPublic
         && data.updatedAt is timestamp
         && noticeIdentityUnchanged(data, old)
         && data.keys().hasOnly(noticeFields());
     }
 
+    // Toggling public-site visibility only (Set 18) - reachable at ANY
+    // status, unlike edit/publish/close above, since "only Admin can
+    // change public visibility" is never described as tied to the
+    // draft/published/closed lifecycle. A partial `.update()`
+    // (`changedKeys()`, not `data.keys().hasOnly(...)`), matching
+    // `testUpdateIsValid`'s identical "restricted partial update" shape.
+    function noticePublicVisibilityUpdateIsValid() {
+      return changedKeys().hasOnly(['isPublic', 'updatedAt'])
+        && request.resource.data.isPublic is bool
+        && request.resource.data.updatedAt is timestamp;
+    }
+
     function noticeUpdateIsValid() {
-      return noticeEditIsValid() || noticePublishIsValid() || noticeCloseIsValid();
+      return noticeEditIsValid() || noticePublishIsValid() || noticeCloseIsValid()
+        || noticePublicVisibilityUpdateIsValid();
     }
 
     // This project has no separate parent account - a parent signs in
@@ -828,10 +851,19 @@ service cloud.firestore {
     }
 
     match /notices/{noticeId} {
+      // The last disjunct needs no sign-in at all (Set 18) - an
+      // unauthenticated visitor may read a notice that is BOTH
+      // `published` AND explicitly `isPublic`, nothing else (never a
+      // draft, never a private notice, regardless of audience/scope).
+      // `publicNoticesProvider` always queries `.where('status', ==,
+      // 'published').where('isPublic', ==, true)` (two plain equality
+      // fields) so this branch is provable for that query shape - see
+      // docs/database-architecture.md's "Public notices (Set 18)".
       allow get, list: if isAdmin()
         || (isTeacher() && resource.data.status == 'published' && resource.data.targetKey in ['all', 'teachers'])
         || (resource.data.status == 'published' && isStudentCaller()
-          && resource.data.targetKey in studentNoticeTargetKeys());
+          && resource.data.targetKey in studentNoticeTargetKeys())
+        || (resource.data.status == 'published' && resource.data.isPublic == true);
       allow create: if isAdmin() && newNoticeIsValid();
       allow update: if isAdmin() && noticeUpdateIsValid();
       allow delete: if false;
@@ -1112,21 +1144,59 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Admission enquiries and callback requests (Set 5): submitted by an
+    // Visitor enquiries (Set 5, extended Set 18): submitted by an
     // unauthenticated public visitor - `create` needs no sign-in, only a
     // well-formed payload. Only admin may read or manage them afterwards
     // (there is deliberately no "telecaller" role - see the spec).
+    // `enquiryType` (Set 18) distinguishes an admission enquiry from a
+    // "request a callback" - one collection, one form of visitor intent,
+    // not two unrelated database systems (Set 18 section 15); `classId`/
+    // `boardId` (Set 18) reference the existing Set 9 master data instead
+    // of free text, required only for `enquiryType == 'admission'` (a
+    // callback request is intentionally lighter-weight and needs
+    // neither). `className`/`board` alongside them are resolved display
+    // strings, the same "id + display name" snapshot convention used
+    // everywhere else in this project (e.g. `AcademicWork.subjectId`/
+    // `.subject`). `boardCustomText` is set only when `boardId` is
+    // "others". Field-length caps and a freshness check on `createdAt`
+    // (Set 18 section 20's lightweight anti-abuse, since this project has
+    // no Cloud Functions/App Check to do more) are this collection's only
+    // defense against a malformed or abusive unauthenticated payload -
+    // `get`/`list`/`update`/`delete` all stay admin-only exactly as
+    // before, and a visitor can never set `status` to anything but the
+    // initial value.
+    function enquiryFields() {
+      return [
+        'name', 'guardianName', 'enquiryType', 'classId', 'className', 'boardId', 'board', 'boardCustomText',
+        'primaryPhone', 'secondaryPhone', 'message', 'status', 'createdAt', 'updatedAt'
+      ];
+    }
+
+    function enquiryTimestampIsFresh(data) {
+      return data.createdAt > request.time - duration.value(10, 'm')
+        && data.createdAt < request.time + duration.value(10, 'm');
+    }
+
     function newEnquiryIsValid() {
       let data = request.resource.data;
-      return data.name is string && data.name.size() > 0
-        && data.primaryPhone is string && data.primaryPhone.size() >= 6
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && (data.guardianName == null || (data.guardianName is string && data.guardianName.size() <= 100))
+        && data.enquiryType in ['admission', 'callback']
+        && (data.classId == null || (data.classId is string && data.classId.size() > 0))
+        && (data.className == null || (data.className is string && data.className.size() <= 60))
+        && (data.boardId == null || (data.boardId is string && data.boardId.size() > 0))
+        && (data.board == null || (data.board is string && data.board.size() <= 60))
+        && (data.boardCustomText == null || (data.boardCustomText is string && data.boardCustomText.size() <= 60))
+        && (data.enquiryType != 'admission'
+          || (data.classId is string && data.className is string && data.boardId is string))
+        && data.primaryPhone is string && data.primaryPhone.size() >= 6 && data.primaryPhone.size() <= 20
+        && (data.secondaryPhone == null || (data.secondaryPhone is string && data.secondaryPhone.size() <= 20))
+        && (data.message == null || (data.message is string && data.message.size() <= 1000))
         && data.status == 'newEnquiry'
         && data.createdAt is timestamp
+        && enquiryTimestampIsFresh(data)
         && data.updatedAt is timestamp
-        && data.keys().hasOnly([
-          'name', 'guardianName', 'className', 'board', 'primaryPhone', 'secondaryPhone', 'message', 'status',
-          'createdAt', 'updatedAt'
-        ]);
+        && data.keys().hasOnly(enquiryFields());
     }
 
     function enquiryUpdateIsValid() {
@@ -1141,6 +1211,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Legacy callback requests (Set 5, pre-Set-18) - kept exactly as
+    // shipped, read-only history. Set 18 moves the "request a callback"
+    // form to write into `enquiries` (`enquiryType: 'callback'`) above
+    // instead, so no NEW documents are created here going forward; this
+    // collection and its admin screen remain solely so requests already
+    // collected before Set 18 stay visible, per "preserve working
+    // functionality" / "historical data must remain available".
     function newCallbackRequestIsValid() {
       let data = request.resource.data;
       return data.name is string && data.name.size() > 0
@@ -1216,15 +1293,25 @@ service cloud.firestore {
 
     // Academic master data (Set 9): academic sessions, classes, boards,
     // subjects. All four are "shared reference catalogues" like
-    // `batches` - not personal data, so any signed-in account may read;
-    // only admin may write. None allow `delete` - "prefer deactivation/
-    // archiving instead of destructive deletion" (Set 9's data-safety
-    // requirement) - an `active` flag is the only way to retire an
-    // entry. "Only one active academic session" is enforced client-side
-    // via an atomic WriteBatch (see AcademicSessionController), not
-    // here - a rule can't inspect sibling documents to enforce a
-    // collection-wide invariant, and getting this wrong has no security
-    // consequence (a display inconsistency, not unauthorized access).
+    // `batches` - not personal data - only admin may write. None allow
+    // `delete` - "prefer deactivation/archiving instead of destructive
+    // deletion" (Set 9's data-safety requirement) - an `active` flag is
+    // the only way to retire an entry. "Only one active academic
+    // session" is enforced client-side via an atomic WriteBatch (see
+    // AcademicSessionController), not here - a rule can't inspect
+    // sibling documents to enforce a collection-wide invariant, and
+    // getting this wrong has no security consequence (a display
+    // inconsistency, not unauthorized access).
+    //
+    // `classes` and `boards` specifically are public (Set 18 section
+    // 21) - the public admission-enquiry form needs to populate its
+    // Class/Board pickers without requiring sign-in, and both
+    // collections contain only safe catalogue data (a name, a sort
+    // order, an active flag, and - for classes - a list of internal
+    // subject ids that are themselves just names, nothing personal or
+    // administrative). `academicSessions`/`subjects` stay signed-in-only
+    // exactly as before - the public enquiry form has no use for either,
+    // so neither is widened "automatically".
     function newAcademicSessionIsValid() {
       let data = request.resource.data;
       return data.name is string && data.name.size() > 0
@@ -1254,7 +1341,7 @@ service cloud.firestore {
     }
 
     match /classes/{classId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if true;
       allow create, update: if isAdmin() && newSchoolClassIsValid();
       allow delete: if false;
     }
@@ -1269,7 +1356,7 @@ service cloud.firestore {
     }
 
     match /boards/{boardId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if true;
       allow create, update: if isAdmin() && newBoardIsValid();
       allow delete: if false;
     }

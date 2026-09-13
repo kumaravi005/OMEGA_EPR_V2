@@ -990,14 +990,29 @@ announcements/{announcementId}
   title, body, active, createdAt, updatedAt
 
 enquiries/{enquiryId}                    created by an unauthenticated
-                                           visitor - see "Public writes"
-  name, guardianName (optional), className, board (optional)
-  primaryPhone, secondaryPhone (optional), message (optional)
+                                           visitor - see "Public writes";
+                                           extended Set 18 with
+                                           enquiryType + master-data refs
+  name, guardianName (optional)
+  enquiryType   "admission" | "callback" - see "One collection, one
+                 enquiryType field" below
+  classId, className (both required for "admission", both null for
+            "callback" - classId references `classes`, className is the
+            resolved display name, same id+name snapshot convention as
+            elsewhere in this project)
+  boardId, board (required for "admission", null for "callback" -
+           boardId references `boards`)
+  boardCustomText (optional - set only when boardId is "others")
+  primaryPhone, secondaryPhone (optional), message (optional, <=1000 chars)
   status   "newEnquiry" | "contacted" | "followUp" | "admissionDone" |
             "notInterested"   admin-managed only
   createdAt, updatedAt
 
-callbackRequests/{callbackRequestId}     same visitor-write shape as enquiries
+callbackRequests/{callbackRequestId}     LEGACY (Set 5, pre-Set-18) -
+                                           read-only history; no new
+                                           documents are written here -
+                                           see "One collection, one
+                                           enquiryType field" below
   name, phone, message (optional)
   status   "newRequest" | "contacted"
   createdAt, updatedAt
@@ -1039,9 +1054,84 @@ visitor who has no account submit one. The trade-off is contained
 narrowly: `newEnquiryIsValid()`/`newCallbackRequestIsValid()` require the
 exact expected field shape and `status` to start at the initial value
 (`newEnquiry`/`newRequest`) - a submission can't smuggle in an arbitrary
-status or extra fields. `get`/`list`/`update` stay admin-only, and
+status or extra fields, and can never set `status` itself to anything but
+that initial value (Set 18 section 20's "do not allow public users to
+choose enquiry status"). `get`/`list`/`update` stay admin-only, and
 `delete` is never allowed on either collection (same append-then-manage
 shape as everything else in this project - nothing is ever hard-deleted).
+
+**Set 18's lightweight anti-abuse additions** (no CAPTCHA, no App Check,
+no Cloud Functions - this project has none of those and Set 18 doesn't
+add any): `newEnquiryIsValid()` now also caps every string field's length
+(name <=100, guardian name <=100, class/board display name <=60, phone
+numbers <=20, message <=1000) and bounds `createdAt` to within 10 minutes
+of `request.time` (`enquiryTimestampIsFresh`) - close enough to "use
+server timestamps where possible" without introducing
+`FieldValue.serverTimestamp()` as a one-off pattern nowhere else in this
+project uses (every other collection stamps `Timestamp.fromDate(DateTime.now())`
+client-side; this rewrites nothing about that convention, it just makes
+the rule additionally distrust a submission that lies about its own
+clock by more than a few minutes). Deliberately NOT attempted: any form
+of duplicate-submission detection beyond the trivial "the dialog's own
+`_isSubmitting`/`_submitted` state stops a second tap on the same open
+form" - Set 18 section 17 explicitly warns against "aggressive duplicate
+detection that could reject legitimate enquiries," and a visitor
+legitimately submitting twice (different phone, a genuine follow-up, ...)
+must never be blocked.
+
+### One collection, one `enquiryType` field, not two databases (Set 18)
+
+Set 5 originally built two separate, near-identical public-write
+collections: `enquiries` (name/guardian/class/board/phones/message) and
+`callbackRequests` (name/phone/message only). Set 18 asks for "a
+dedicated visitor enquiry system" with callback requests differentiated
+by an `enquiryType` field rather than a second unrelated database - the
+same "one reusable model with a `type` field" principle Set 16 already
+applied to homework/assignments. Rather than delete `callbackRequests`
+and risk losing whatever real visitor submissions it already collected
+in production (unlike Set 16's homework/assignments, which were
+confirmed empty before being retired), Set 18 takes the additive path:
+
+- `EnquiryType.admission` and `EnquiryType.callback` are now both
+  represented on `Enquiry` (`enquiryType` field, defaulting to
+  `admission` when absent - every pre-Set-18 `enquiries` document was,
+  by construction, an admission enquiry).
+- `RequestCallbackDialog`'s "Request a callback" button now calls
+  `EnquiryController.submitCallbackRequest`, which writes into
+  `enquiries` with `enquiryType: 'callback'` and no class/board fields -
+  "keep the public enquiry form simple" (section 9) means a callback
+  request stays exactly as lightweight as before (name, phone, optional
+  message), it just lands in the shared collection now.
+- `callbackRequests` itself, and its admin screen (`CallbackRequestsScreen`,
+  relabeled "Callback requests (history)" in the dashboard), are kept
+  exactly as shipped and read-only-in-spirit going forward: nothing in
+  the app writes a new document there anymore, but every request
+  collected before Set 18 remains visible and manageable - "historical
+  enquiries should remain available" (section 11) applies just as much
+  to this transition as to any single enquiry's own status history.
+- The admin `EnquiriesScreen` (Set 18: renamed from "Admission enquiries"
+  to "Visitor enquiries" in the dashboard) gained a type filter
+  (All/Admission/Callback) alongside its new search/class/board/status
+  filters, so both kinds of visitor intent are manageable from one place
+  going forward.
+
+### Class/Board master-data references on an enquiry (Set 18)
+
+`classId`/`boardId` reference the Set 9 `classes`/`boards` collections
+instead of Set 5's original free-text `className`/`board` - "Class must
+use the existing Class master data... Do not create another board
+master" (sections 9-10). `className`/`board` remain on the document as
+resolved display-name snapshots (the same id+name convention as
+`AcademicWork.subjectId`/`.subject` elsewhere), required only when
+`enquiryType == 'admission'` - a callback request has neither. The Board
+picker's three options are exactly `CBSE`/`BSEB`/`Others` (Set 9's own
+academic-config seed already creates precisely these three, with
+deterministic ids `cbse`/`bseb`/`others` - Set 18 needed no board-master
+changes at all, and does not use the label "Bihar Board" anywhere);
+picking "Others" reveals a free-text `boardCustomText` field, mirroring
+`Batch`/`StudentAdmission`'s existing `boardId`+`boardCustomText`
+pattern exactly. `Enquiry.boardDisplay` resolves which of the two to
+show (`boardCustomText` when set, otherwise `board`).
 
 ### Public reads: gallery/banners/upcomingBatches/advertisements/announcements/institutes
 
@@ -1052,7 +1142,58 @@ they can still see inactive/draft content while managing it).
 `institutes/main` has no `active` field at all - it's a singleton
 profile, always meant to be visible, so it's simply `allow get, list: if
 true`. Every `create`/`update` on all six requires `isAdmin()`; `delete`
-is never allowed anywhere in this group either.
+is never allowed anywhere in this group either. Set 18 additionally
+surfaces `logoUrl`/`secondaryPhone`/`website` (all already present on
+`InstituteProfile` since Set 9, just never rendered anywhere) on the
+public home page's hero/contact sections - no schema change, a pure UI
+gap that happened to exist since before Set 18.
+
+### Public read access to Class/Board master data (Set 18)
+
+The public admission-enquiry form needs to populate its Class/Board
+pickers without requiring sign-in (section 21), so `classes`/`boards`
+(Set 9) now allow `get`/`list` to anyone (`allow get, list: if true`,
+same as the six public-content collections above), widened from the
+original `isSignedIn()`. This is safe because both collections hold only
+catalogue data with nothing personal or administrative in it - a class's
+`name`/`sortOrder`/`active`/`subjectIds` (itself just a list of other
+catalogue documents' ids) and a board's `name`/`active`. `academicSessions`
+and `subjects` are deliberately left exactly as they were
+(`isSignedIn()`-only) - the public enquiry form has no use for either,
+so "do not make all master data public automatically" (section 21) means
+only the two collections an actual public form needs are widened.
+
+### Public batch visibility: reusing `upcomingBatches`, not touching `batches` (Set 18)
+
+Set 18 section 4 asks for a "clear public visibility control" on
+batches, suggesting a new `publicVisible`-style field "if the current
+batch model does not already provide one." Inspecting the existing
+architecture first (as the set's own working rules require) shows Set 5
+already solved exactly this problem, differently and more safely:
+`upcomingBatches` is a **separate**, admin-curated marketing collection
+(`title`/`className`/`board`/`academicSession`/`startDate`/`timing`/
+`description`/`admissionStatus`/`active`), never auto-synced from the
+real `batches` collection, and already publicly readable (`active`
+only). The real `batches` collection stays exactly as it was -
+`isSignedIn()`-only, containing `academicSessionId`/`classId`/`boardId`
+(internal references), `standardMonthlyFee`/`standardInstallmentFee`,
+and `studentCount` - none of which Set 18 wants exposed even for a
+"public" batch ("do not expose internal ids... internal administrative
+fields... negotiated student fees").
+
+Adding a `publicVisible` flag directly to `batches` would mean either
+exposing those internal/administrative fields too (Firestore rules are
+document-level, not field-level - see "Security posture" below) or
+inventing a field-projection mechanism this project has no Cloud
+Function to run. `upcomingBatches` already achieves the spec's actual
+goal - visitors see class/board/session/start-date/timing/admission-
+status for whichever intake admin has chosen to advertise - without any
+of that risk, since admin manually types each public listing rather than
+flipping a switch on a real enrollment record. Set 18 therefore makes
+**no changes** to `Batch`/`batches` at all: this is "if an existing
+feature conflicts with this specification, inspect it first and
+preserve working functionality" (the working rules) applied literally -
+the existing, safer solution already satisfies the requirement.
 
 ### The "once per session" ad popup
 
@@ -1333,24 +1474,34 @@ above:
   never allowed. Admin `get`/`list` unconstrained; a teacher only
   `published` notices with `targetKey in ['all', 'teachers']`; a
   student/parent only `published` notices whose `targetKey` matches
-  their own current class/batch/broadcast. `users/{uid}/noticeReadStates`
-  is `isSelf(userId)`-scoped `get`/`list`/`create` only - never `update`
+  their own current class/batch/broadcast; an UNAUTHENTICATED visitor
+  only `published` notices with `isPublic == true` (Set 18 - see "Public
+  notices (Set 18)" below). `users/{uid}/noticeReadStates` is
+  `isSelf(userId)`-scoped `get`/`list`/`create` only - never `update`
   (immutable once created) - so one user can never see or change
   another's read state.
 - `gallery`/`banners`/`upcomingBatches`/`advertisements`/`announcements`/
   `institutes`: public read of active content (see "Public reads" above);
   admin-only write.
-- `enquiries`/`callbackRequests`: public, unauthenticated `create`;
-  admin-only read/update; `delete` never allowed (see "Public writes"
-  above).
+- `enquiries` (Set 5, extended Set 18): public, unauthenticated `create`
+  only (length-capped, freshness-checked - see "Set 18's lightweight
+  anti-abuse additions" above); admin-only `get`/`list`/`update`
+  (`status` transitions only); `delete` never allowed. `callbackRequests`
+  (Set 5): identical access shape, but LEGACY - nothing writes new
+  documents there since Set 18 (see "One collection, one `enquiryType`
+  field" above).
 - `reportTemplates`/`reportLayoutTemplates`: admin-only read/create/
   update **and** delete (see "Saved export templates" and "Report layout
   templates" above - the two collections in this project where
   client-side delete is actually allowed).
-- `academicSessions`/`classes`/`boards`/`subjects` (Set 9): any signed-in
-  account may read (shared reference catalogues, like `batches`);
-  only admin may `create`/`update`; `delete` is never allowed (see
-  "Academic master data" above).
+- `academicSessions`/`subjects` (Set 9): any signed-in account may read
+  (shared reference catalogues, like `batches`); only admin may
+  `create`/`update`; `delete` is never allowed (see "Academic master
+  data" above). `classes`/`boards` (Set 9, widened Set 18): PUBLIC read
+  (`allow get, list: if true`) - the public admission-enquiry form needs
+  both without requiring sign-in, and neither holds anything beyond safe
+  catalogue data (see "Public read access to Class/Board master data
+  (Set 18)" above). Write rules for all four are unchanged.
 - Every other planned collection (`fees`, `auditLogs`, ...) stays fully
   closed until the phase that implements it, so access rules are never
   written against guessed requirements.
@@ -1702,3 +1853,109 @@ already carries exactly what a push payload needs (`title`, `message`,
 Blaze) could watch for that transition and fan out FCM messages using
 the very same `targetKey` grouping this document already computes -
 nothing about the current model would need to change to support that.
+
+### Public notices (Set 18)
+
+Set 18 section 6 asks to "reuse the existing Set 17 notice architecture
+conceptually, but do NOT expose private notices" - a single new field,
+`isPublic` (default `false`), entirely independent of `audience`/
+`scope`/`targetKey`, which continue to govern visibility to signed-in
+admin/teacher/student/parent accounts exactly as Set 17 left them. An
+unauthenticated visitor may read a notice only when it is BOTH
+`status == 'published'` AND `isPublic == true` - never a draft, never a
+private notice, regardless of what audience/scope it was originally
+authored for. `publicNoticesProvider` queries
+`.where('status', ==, 'published').where('isPublic', ==, true)` (two
+plain equality fields), matching the new public `get`/`list` rule branch
+exactly - the same query-shape discipline as every other role-scoped
+notice query.
+
+**Admin control**: a `SwitchListTile` ("Show on public website") on both
+`CreateNoticeDialog` and `NoticeDetailsScreen` calls
+`NoticeController.setPublicVisibility`, a small partial `.update()`
+(`changedKeys().hasOnly(['isPublic', 'updatedAt'])`, matching
+`testUpdateIsValid`'s established "restricted partial update" shape)
+reachable at ANY status - unlike edit/publish/close, "only Admin can
+change public visibility" is never described as tied to the
+draft/published/closed lifecycle, so an admin may flip it on a draft,
+a live published notice, or a closed one alike (though only a
+`published` one is ever actually fetchable by a public visitor).
+
+**What the public UI does NOT show**: `NoticeDetailsScreen`'s
+"Targeting" card (audience/session/class/batch) is now gated on the
+viewer being signed in at all (`currentUserAccountProvider` non-null),
+not just on role - an anonymous visitor reaching this same screen for a
+public notice never sees it. `createdBy` was never rendered on this
+screen for any role to begin with. One honest limitation, stated rather
+than glossed over: Firestore security rules are document-level, not
+field-level (same limitation already noted for `students` in "Security
+posture" below), so the raw document a public visitor's `get`/`list`
+returns still technically contains `createdBy`/`targetKey`/`audience`/
+`scope`/`classId`/`batchId` - this project has no Cloud Function to
+strip fields server-side, and none of those values are exploitable
+(opaque internal ids, and an admin's own uid, not another user's private
+data). The public-facing UI (`_PublicNoticesSection` on the public home
+page, and `showPublicNoticeDialog`) simply never renders any of it,
+matching how every other public-content collection in this project
+(`gallery`/`banners`/`announcements`/...) already works - a public
+document is expected to be simple enough that nothing sensitive lives in
+it, not that Firestore itself redacts fields.
+
+**Distinct from `announcements` (Set 5)**: the public home page now has
+both an "Announcements" section (`announcements` collection - always
+public by construction, a simple admin bulletin with no internal
+targeting model at all) and a "Notices" section (a curated, `isPublic`
+subset of the same typed/categorized Notices system admin/teacher/
+student/parent use internally). They serve overlapping purposes by
+design - Set 18 does not merge, replace, or deprecate `announcements`,
+since doing so isn't asked for and `announcements` remains simpler for
+a purely public-facing bulletin than authoring a full `Notice` and
+remembering to flip `isPublic` on.
+
+## Public vs. private data boundary, summarized (Set 18)
+
+Set 18's core requirement (sections 1, 18, 19) is that the public,
+no-login area can never reach private ERP data, enforced by
+`firestore.rules` itself - never by client-side filtering alone. Every
+collection an unauthenticated visitor can touch, gathered in one place:
+
+| Collection | Unauthenticated access | Why it's safe |
+|---|---|---|
+| `institutes` | `get`/`list` (singleton) | Public branding/contact info by design (Set 5) |
+| `gallery`/`banners`/`upcomingBatches`/`advertisements`/`announcements` | `get`/`list` where `active == true` | Admin-curated marketing content, no personal data (Set 5) |
+| `classes`/`boards` | `get`/`list`, unconditional | Catalogue names only - needed for the public enquiry form (Set 18) |
+| `notices` | `get`/`list` where `status == 'published' AND isPublic == true` | Admin explicitly opts each notice in (Set 18) |
+| `enquiries`/`callbackRequests` | `create` only, narrowly validated | The visitor's own submission - never read back, never listed (Set 5/18) |
+
+Every OTHER collection - `users`, `teachers`, `students` (profiles,
+`payments`, `admissions`), `batches`, `attendance`, `teacherAttendance`,
+`academicWork`, `tests`, `testResults`, `academicSessions`, `subjects`,
+`reportTemplates`, `reportLayoutTemplates`, `counters` - has no
+unauthenticated branch in its rules at all, and the catch-all
+`match /{document=**} { allow read, write: if false; }` at the bottom of
+`firestore.rules` denies anything not explicitly matched above it. This
+is the same document-level, rules-enforced model every previous set has
+used - Set 18 adds new PUBLIC branches to two collections
+(`classes`/`boards`) and one already-authenticated collection
+(`notices`, gaining an `isPublic` branch), and touches nothing else's
+access rules. No student profile, admission, fee, attendance record,
+test, mark, result, private notice, or teacher record gained any new
+exposure.
+
+**No visitor account, no automatic admission** (sections 16, 26):
+submitting an enquiry or callback request creates exactly one
+`enquiries` document and nothing else - no Firebase Auth user, no
+`users`/`students` document, no batch enrollment, no fee agreement. The
+only way a visitor becomes a student is the existing, entirely manual
+Set 11 Student Admission flow, run by an admin from the admin app; Set
+18 builds no conversion/import workflow from an enquiry into that flow,
+per its own explicit scope boundary ("do not implement conversion
+workflow in Set 18 unless it already exists safely" - it doesn't).
+
+**No paid services, no Cloud Functions** (as in every prior set): every
+Set 18 addition - `isPublic` on notices, `classId`/`boardId`/
+`enquiryType` on enquiries, the public `classes`/`boards` read rule -
+is enforced entirely by `firestore.rules`, evaluated by Firestore itself
+at no additional cost on the Spark plan. Anti-abuse (length caps, a
+`createdAt` freshness bound) is likewise pure Firestore Rules logic, not
+a CAPTCHA/App Check/Cloud Function integration.

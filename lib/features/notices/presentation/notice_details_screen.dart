@@ -7,9 +7,12 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
+import '../../academics/data/academic_session.dart';
 import '../../academics/data/academics_repositories.dart';
+import '../../academics/data/school_class.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../auth/data/user_account.dart';
+import '../../batches/data/batch.dart';
 import '../../batches/data/batch_repository.dart';
 import '../application/notice_controller.dart';
 import '../data/notice.dart';
@@ -91,9 +94,25 @@ class _DetailsBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sessions = ref.watch(allAcademicSessionsProvider).valueOrNull ?? [];
-    final classes = ref.watch(allSchoolClassesProvider).valueOrNull ?? [];
-    final batches = ref.watch(allBatchesProvider).valueOrNull ?? [];
+    // An anonymous public visitor (see the public notices section on the
+    // public home page) reaches this same screen for a notice that is
+    // both published and `isPublic` - they must never see internal
+    // targeting/academic-scope information (Set 18 section 7), so that
+    // whole card is gated on being signed in at all, not just on role.
+    final isSignedIn = ref.watch(currentUserAccountProvider).valueOrNull != null;
+    // `academicSessions`/`batches` still require sign-in (unlike
+    // `classes`/`boards`, which Set 18 made public) - only watch them for
+    // a signed-in viewer, so an anonymous public visitor never issues a
+    // query firestore.rules would reject anyway.
+    final sessions = isSignedIn
+        ? ref.watch(allAcademicSessionsProvider).valueOrNull ?? []
+        : const <AcademicSession>[];
+    final classes = isSignedIn
+        ? ref.watch(allSchoolClassesProvider).valueOrNull ?? []
+        : const <SchoolClass>[];
+    final batches = isSignedIn
+        ? ref.watch(allBatchesProvider).valueOrNull ?? []
+        : const <Batch>[];
 
     final sessionName = sessions.where((s) => s.sessionId == notice.academicSessionId).firstOrNull?.name;
     final className = classes.where((c) => c.classId == notice.classId).firstOrNull?.name;
@@ -137,22 +156,24 @@ class _DetailsBody extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Targeting', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: AppSpacing.sm),
-                  _InfoRow(label: 'Audience', value: notice.audience.label),
-                  if (notice.scope != NoticeScope.institute) ...[
-                    if (sessionName != null) _InfoRow(label: 'Session', value: sessionName),
-                    if (className != null) _InfoRow(label: 'Class', value: className),
-                    if (batchName != null) _InfoRow(label: 'Batch', value: batchName),
+            if (isSignedIn) ...[
+              const SizedBox(height: AppSpacing.md),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Targeting', style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: AppSpacing.sm),
+                    _InfoRow(label: 'Audience', value: notice.audience.label),
+                    if (notice.scope != NoticeScope.institute) ...[
+                      if (sessionName != null) _InfoRow(label: 'Session', value: sessionName),
+                      if (className != null) _InfoRow(label: 'Class', value: className),
+                      if (batchName != null) _InfoRow(label: 'Batch', value: batchName),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
+            ],
             const SizedBox(height: AppSpacing.md),
             AppCard(
               child: Column(
@@ -170,6 +191,19 @@ class _DetailsBody extends ConsumerWidget {
               ),
             ),
             if (isAdmin) ...[
+              const SizedBox(height: AppSpacing.md),
+              AppCard(
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Show on public website'),
+                  subtitle: const Text(
+                    'Visible to visitors without signing in, once published.',
+                  ),
+                  value: notice.isPublic,
+                  onChanged: (value) =>
+                      _act(context, ref, (c) => c.setPublicVisibility(notice, value)),
+                ),
+              ),
               const SizedBox(height: AppSpacing.lg),
               if (notice.status == NoticeStatus.draft) ...[
                 AppButton(

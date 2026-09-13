@@ -126,6 +126,14 @@ enum NoticeStatus {
 /// display-only snapshot (current class/batch membership already
 /// determines visibility - see "Current vs historical context" in the
 /// docs), never part of targeting itself.
+///
+/// [isPublic] (Set 18) is an entirely separate, admin-only-settable
+/// switch that additionally exposes an already-[NoticeStatus.published]
+/// notice to unauthenticated public visitors - it does not replace or
+/// interact with [targetKey]/[audience]/[scope], which still govern
+/// visibility to signed-in admin/teacher/student/parent accounts exactly
+/// as before. See `publicNoticesProvider` and docs/database-
+/// architecture.md's "Public notices (Set 18)".
 class Notice implements FirestoreDocument {
   const Notice({
     required this.noticeId,
@@ -145,6 +153,7 @@ class Notice implements FirestoreDocument {
     required this.updatedAt,
     this.publishedAt,
     this.expiresAt,
+    this.isPublic = false,
   });
 
   factory Notice.fromMap(String id, Map<String, dynamic> map) {
@@ -156,6 +165,10 @@ class Notice implements FirestoreDocument {
       otherTypeLabel: map['otherTypeLabel'] as String?,
       audience: NoticeAudience.fromValue(map['audience'] as String),
       scope: NoticeScope.fromValue(map['scope'] as String),
+      // Defaults to false on a pre-Set-18 notice document, which predates
+      // this field entirely - never publicly visible until an admin
+      // explicitly opts it in (see `setPublicVisibility`).
+      isPublic: map['isPublic'] as bool? ?? false,
       academicSessionId: map['academicSessionId'] as String?,
       classId: map['classId'] as String?,
       batchId: map['batchId'] as String?,
@@ -210,6 +223,11 @@ class Notice implements FirestoreDocument {
   /// still legitimately visible; expiry just stops it being "active").
   final DateTime? expiresAt;
 
+  /// Admin-only visibility switch to the unauthenticated public site
+  /// (Set 18) - see class doc comment. Defaults to `false`; never implied
+  /// by [status] or [audience].
+  final bool isPublic;
+
   bool isExpired(DateTime now) => expiresAt != null && now.isAfter(expiresAt!);
 
   @override
@@ -234,6 +252,7 @@ class Notice implements FirestoreDocument {
       'updatedAt': Timestamp.fromDate(updatedAt),
       'publishedAt': publishedAt == null ? null : Timestamp.fromDate(publishedAt!),
       'expiresAt': expiresAt == null ? null : Timestamp.fromDate(expiresAt!),
+      'isPublic': isPublic,
     };
   }
 

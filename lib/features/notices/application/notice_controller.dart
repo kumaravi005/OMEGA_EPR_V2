@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/application/auth_providers.dart';
 import '../data/notice.dart';
@@ -40,6 +41,7 @@ class NoticeController {
     String? batchId,
     DateTime? expiresAt,
     required NoticeStatus status,
+    bool isPublic = false,
   }) async {
     if (title.trim().isEmpty) {
       throw const NoticeFailure('Title is required.');
@@ -99,6 +101,7 @@ class NoticeController {
           updatedAt: now,
           publishedAt: status == NoticeStatus.published ? now : null,
           expiresAt: expiresAt,
+          isPublic: isPublic,
         ),
       );
     } catch (error) {
@@ -153,6 +156,7 @@ class NoticeController {
           updatedAt: DateTime.now(),
           publishedAt: existing.publishedAt,
           expiresAt: expiresAt,
+          isPublic: existing.isPublic,
         ),
       );
     } catch (error) {
@@ -189,6 +193,7 @@ class NoticeController {
           updatedAt: now,
           publishedAt: now,
           expiresAt: existing.expiresAt,
+          isPublic: existing.isPublic,
         ),
       );
     } catch (_) {
@@ -225,10 +230,29 @@ class NoticeController {
           updatedAt: DateTime.now(),
           publishedAt: existing.publishedAt,
           expiresAt: existing.expiresAt,
+          isPublic: existing.isPublic,
         ),
       );
     } catch (_) {
       throw const NoticeFailure('Could not close this notice. Please try again.');
+    }
+  }
+
+  /// Toggles public-site visibility only (Set 18) - independent of
+  /// [NoticeStatus] and reachable at any status, unlike `edit`/`publish`/
+  /// `close`. A partial `.update()` (not a full rewrite), matching
+  /// `noticePublicVisibilityUpdateIsValid` in firestore.rules, which
+  /// restricts it to exactly `isPublic`/`updatedAt`.
+  Future<void> setPublicVisibility(Notice existing, bool isPublic) async {
+    try {
+      await _ref.read(noticeRepositoryProvider).updateFields(
+        existing.noticeId,
+        {'isPublic': isPublic, 'updatedAt': Timestamp.now()},
+      );
+    } catch (_) {
+      throw const NoticeFailure(
+        'Could not update public visibility. Please try again.',
+      );
     }
   }
 }

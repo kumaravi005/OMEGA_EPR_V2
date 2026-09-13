@@ -28,6 +28,7 @@ import 'features/auth/presentation/login_screen.dart';
 import 'features/batches/presentation/batch_list_screen.dart';
 import 'features/enquiries/presentation/callback_requests_screen.dart';
 import 'features/enquiries/presentation/enquiries_screen.dart';
+import 'features/enquiries/presentation/enquiry_details_screen.dart';
 import 'features/notices/presentation/my_notices_screen.dart';
 import 'features/notices/presentation/notice_details_screen.dart';
 import 'features/notices/presentation/notices_list_screen.dart';
@@ -251,6 +252,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.adminEnquiries,
         builder: (context, state) => const EnquiriesScreen(),
+      ),
+      GoRoute(
+        path: '${AppRoutes.adminEnquiries}/:enquiryId',
+        builder: (context, state) =>
+            EnquiryDetailsScreen(enquiryId: state.pathParameters['enquiryId']!),
       ),
       GoRoute(
         path: AppRoutes.adminCallbackRequests,

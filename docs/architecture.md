@@ -280,60 +280,89 @@ lib/
                              timestamps, translate failures", so one class
                              covers all of them rather than six near-empty
                              ones).
-      presentation/          PublicHomeScreen (hero, banners, upcoming
-                             batches, gallery, announcements, about,
-                             contact w/ call+WhatsApp, enquiry/callback
-                             buttons - each section hides itself when
-                             empty), AdPopupTrigger (the once-per-session ad
-                             popup, see below), presentation/admin/ (one
-                             list+dialog screen per content type).
-    enquiries/ (Set 5)       Admission enquiries + callback requests from
-                             visitors - no login required to submit, admin-
-                             only to view/manage. No telecaller role exists;
-                             admin handles all enquiry/callback management.
-      data/                  Enquiry, CallbackRequest models (+ their status
-                             enums) and repositories.
-      application/           EnquiryController - submitEnquiry/
-                             submitCallbackRequest (public, unauthenticated)
-                             and updateStatus for each (admin-only).
-      presentation/          EnquiriesScreen, CallbackRequestsScreen (admin,
-                             with call/WhatsApp + a status dropdown),
-                             SubmitEnquiryDialog, RequestCallbackDialog
-                             (public, reachable from PublicHomeScreen).
+      presentation/          PublicHomeScreen (hero incl. logo, banners,
+                             upcoming batches, gallery, announcements,
+                             public notices (Set 18 - a curated `notices`
+                             subset, see below), about, contact w/
+                             call+WhatsApp+secondary phone+website,
+                             enquiry/callback buttons - each section hides
+                             itself when empty), AdPopupTrigger (the
+                             once-per-session ad popup, see below),
+                             presentation/admin/ (one list+dialog screen
+                             per content type). Set 18 added no new public
+                             batch-visibility mechanism - `upcomingBatches`
+                             already solved that in Set 5 (see docs/
+                             database-architecture.md's "Public batch
+                             visibility (Set 18)").
+    enquiries/ (Set 5, extended Set 18) Visitor enquiries (admission +
+                             callback, one collection with an `enquiryType`
+                             field - Set 18 section 15) from unauthenticated
+                             visitors, admin-managed afterward. No
+                             telecaller role exists; admin handles all
+                             enquiry/callback management directly.
+      data/                  Enquiry (+ `EnquiryType`, `classId`/`boardId`
+                             referencing Set 9 master data, `boardDisplay`),
+                             CallbackRequest (Set 5, now legacy-only - see
+                             below) models and repositories.
+      application/           EnquiryController - submitEnquiry (admission,
+                             requires class/board), submitCallbackRequest
+                             (callback - writes into the SAME `enquiries`
+                             collection now, not `callbackRequests`), plus
+                             length/phone-format validation and
+                             updateStatus/updateCallbackStatus (admin-only).
+      presentation/          EnquiriesScreen (admin: search by name/phone +
+                             type/class/board/status filters, Set 18),
+                             EnquiryDetailsScreen (Set 18: visitor info +
+                             call buttons + status dropdown),
+                             CallbackRequestsScreen ("(history)" - Set 5,
+                             pre-Set-18 requests only, nothing writes here
+                             anymore), SubmitEnquiryDialog (now with
+                             Class/Board pickers), RequestCallbackDialog
+                             (both public, reachable from PublicHomeScreen).
     notifications/ (Set 5)   A shared, read-only notification feed for every
                              signed-in role.
       presentation/          NotificationsScreen - reads myNotificationsProvider
                              (core/services/notification_event.dart);
                              firestore.rules does the actual per-user
                              targeting, not the screen.
-    notices/ (Set 17)        Admin-authored, targeted, published/closed
-                             Notices - NOT the same feature as
-                             `notifications/` above (that's the Set 4/5
-                             auto-generated event trail; this is admin-
-                             created content with a real lifecycle and
-                             per-user read state). See docs/database-
-                             architecture.md's "Notices (Set 17)" section
-                             for the full targeting/security design.
+    notices/ (Set 17, extended Set 18) Admin-authored, targeted,
+                             published/closed Notices - NOT the same
+                             feature as `notifications/` above (that's the
+                             Set 4/5 auto-generated event trail; this is
+                             admin-created content with a real lifecycle
+                             and per-user read state). See docs/database-
+                             architecture.md's "Notices (Set 17)" and
+                             "Public notices (Set 18)" sections for the
+                             full targeting/security design.
       data/                  Notice model (+ `targetKey`, the single
                              derived field every visibility check keys
-                             off, and `isExpired(now)`, computed on
-                             demand, never stored), NoticeReadState
+                             off; `isExpired(now)`, computed on demand,
+                             never stored; `isPublic` - Set 18, an admin-
+                             only public-site visibility switch, entirely
+                             independent of `targetKey`), NoticeReadState
                              (`users/{uid}/noticeReadStates/{noticeId}` -
-                             absence means unread) + repository providers.
+                             absence means unread) + repository providers
+                             (incl. `publicNoticesProvider` - Set 18,
+                             unauthenticated-safe).
       application/           NoticeController (create, edit - draft only,
                              publish, close - a one-way Draft -> Published
                              -> Closed lifecycle, unlike AcademicWork's
-                             freely-reversible status).
+                             freely-reversible status; setPublicVisibility
+                             - Set 18, reachable at any status).
       presentation/          NoticesListScreen (admin: search + type/
-                             audience/status filters), CreateNoticeDialog,
-                             NoticeDetailsScreen (shared by every role -
-                             admin gets edit/publish/close, everyone else
-                             sees the same layout read-only and opening it
-                             marks the notice read), MyNoticesScreen
+                             audience/status filters), CreateNoticeDialog
+                             (now with a "Show on public website" switch),
+                             NoticeDetailsScreen (shared by every role,
+                             AND an anonymous public visitor for a public
+                             notice - the Targeting card is hidden unless
+                             signed in; admin gets edit/publish/close +
+                             the public-visibility switch), MyNoticesScreen
                              (teacher/student/parent's own inbox - a
                              parent sees exactly what the associated
                              student account sees, since this project has
-                             no separate parent login).
+                             no separate parent login), PublicNoticeDialog
+                             (Set 18 - the public-site read view, title/
+                             type/message/date only).
     reports/ (Set 6)         Admin export/report screens - each one builds
                              its own data (its own filters/columns/
                              sorting), then hands a plain `ExportDataset`
@@ -800,6 +829,19 @@ exact schema.
   architecture.md for the full reasoning either way.
 - A telecaller role - enquiry/callback management is admin-only by
   explicit requirement (Set 5).
+- An enquiry-to-admission conversion workflow (Set 18's own scope
+  boundary: "do not implement conversion workflow in Set 18 unless it
+  already exists safely" - it doesn't). Submitting a visitor enquiry or
+  callback request never creates a Firebase Auth user, a `users`/
+  `students` document, a batch enrollment, or a fee agreement - the only
+  way a visitor becomes a student remains the existing, fully manual
+  Set 11 Student Admission flow, run by an admin from the admin app.
+- A `publicVisible`-style field on the real `batches` collection - Set 18
+  inspected the existing architecture first and found `upcomingBatches`
+  (Set 5) already solves "let admin choose which batches the public
+  sees" more safely (a separate curated marketing collection, never
+  auto-synced from real enrollment data) - see docs/database-
+  architecture.md's "Public batch visibility (Set 18)".
 - A "grade" export column - the Set 6 spec explicitly says not to invent
   a grading system, and none is configured anywhere else in this project
   to reuse. Rank/total/percentage are implemented; grade is left for a

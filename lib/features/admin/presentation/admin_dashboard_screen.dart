@@ -78,12 +78,12 @@ class AdminDashboardScreen extends ConsumerWidget {
                 ),
                 NavTile(
                   icon: Icons.contact_phone_outlined,
-                  label: 'Admission enquiries',
+                  label: 'Visitor enquiries',
                   onTap: () => context.push(AppRoutes.adminEnquiries),
                 ),
                 NavTile(
                   icon: Icons.call_outlined,
-                  label: 'Callback requests',
+                  label: 'Callback requests (history)',
                   onTap: () => context.push(AppRoutes.adminCallbackRequests),
                 ),
                 NavTile(

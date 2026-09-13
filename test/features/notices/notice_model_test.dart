@@ -9,6 +9,7 @@ Notice _notice({
   String? classId,
   String? batchId,
   DateTime? expiresAt,
+  bool isPublic = false,
 }) {
   final now = DateTime(2026, 4, 1);
   return Notice(
@@ -32,6 +33,7 @@ Notice _notice({
     updatedAt: now,
     publishedAt: status == NoticeStatus.draft ? null : now,
     expiresAt: expiresAt,
+    isPublic: isPublic,
   );
 }
 
@@ -151,6 +153,37 @@ void main() {
       final notice = _notice(expiresAt: DateTime(2026, 1, 10));
       expect(notice.toMap().containsKey('isExpired'), isFalse);
       expect(notice.toMap().containsKey('expired'), isFalse);
+    });
+  });
+
+  group('isPublic (Set 18)', () {
+    test('defaults to false', () {
+      final notice = _notice();
+      expect(notice.isPublic, isFalse);
+    });
+
+    test('round-trips through toMap/fromMap when true', () {
+      final notice = _notice(isPublic: true);
+      final restored = Notice.fromMap(notice.noticeId, notice.toMap());
+      expect(restored.isPublic, isTrue);
+    });
+
+    test('defaults to false on a pre-Set-18 document that predates the field', () {
+      final notice = _notice();
+      final map = notice.toMap()..remove('isPublic');
+      final restored = Notice.fromMap(notice.noticeId, map);
+      expect(restored.isPublic, isFalse);
+    });
+
+    test('is independent of audience/scope/targetKey - a class-scoped notice can still be public', () {
+      final notice = _notice(
+        audience: NoticeAudience.students,
+        scope: NoticeScope.byClass,
+        classId: 'class9',
+        isPublic: true,
+      );
+      expect(notice.isPublic, isTrue);
+      expect(notice.targetKey, 'students:class:class9');
     });
   });
 }

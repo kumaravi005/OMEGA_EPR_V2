@@ -41,6 +41,7 @@ class _CreateNoticeDialogState extends ConsumerState<_CreateNoticeDialog> {
   String? _batchId;
   DateTime? _expiresAt;
   NoticeStatus _status = NoticeStatus.published;
+  bool _isPublic = false;
   bool _isSubmitting = false;
   String? _errorMessage;
 
@@ -96,6 +97,7 @@ class _CreateNoticeDialogState extends ConsumerState<_CreateNoticeDialog> {
         batchId: _audienceIsScopable && _scope == NoticeScope.byBatch ? _batchId : null,
         expiresAt: _expiresAt,
         status: _status,
+        isPublic: _isPublic,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -305,6 +307,17 @@ class _CreateNoticeDialogState extends ConsumerState<_CreateNoticeDialog> {
                   onChanged: _isSubmitting
                       ? null
                       : (value) => setState(() => _status = value ?? _status),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Show on public website'),
+                  subtitle: const Text(
+                    'Visible to visitors without signing in, once published.',
+                  ),
+                  value: _isPublic,
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) => setState(() => _isPublic = value),
                 ),
               ],
             ),

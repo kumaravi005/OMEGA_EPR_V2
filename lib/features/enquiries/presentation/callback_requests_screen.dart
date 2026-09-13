@@ -9,6 +9,11 @@ import '../application/enquiry_controller.dart';
 import '../data/callback_request.dart';
 import '../data/enquiry_repository.dart';
 
+/// History of callback requests collected before Set 18 - new "request a
+/// callback" submissions now write into `enquiries` instead (see
+/// `EnquiryController.submitCallbackRequest`), so this screen and its
+/// backing `callbackRequests` collection show only requests collected
+/// before that change, preserved for admin history rather than migrated.
 class CallbackRequestsScreen extends ConsumerWidget {
   const CallbackRequestsScreen({super.key});
 
@@ -17,7 +22,7 @@ class CallbackRequestsScreen extends ConsumerWidget {
     final requestsAsync = ref.watch(allCallbackRequestsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Callback requests')),
+      appBar: AppBar(title: const Text('Callback requests (history)')),
       body: SafeArea(
         child: requestsAsync.when(
           loading: () => const LoadingView(),
