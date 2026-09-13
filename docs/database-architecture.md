@@ -1251,7 +1251,8 @@ not created, never edited after the fact.
 ```
 reportTemplates/{templateId}
   name       string    e.g. "Basic Student List"
-  module     "studentExport" | "feeDuesExport" | "testResultExport"
+  module     "studentExport" | "feeDuesExport" | "testResultExport" |
+              "paymentReport"   (last value added Set 20)
   config     map       free-form - whatever the owning export screen put
                         there (selected columns, filters, sort, format,
                         orientation); not interpreted or validated by
@@ -2224,3 +2225,164 @@ checkout, no webhook, no subscription billing, and none of Razorpay/
 Stripe/PayPal appear anywhere in this project's dependencies. Recording
 a payment is a plain Firestore write, same cost (free, Spark plan) as
 every other write in this project.
+
+## Reports & Exports (Set 20)
+
+Set 20 adds no new Firestore collections at all - every report reads
+data that Sets 3/9/13/14/15/19 already write, through providers that
+already exist (or a trivial variant of one). This section documents
+what each report reads from, and the one real correctness fix Set 20
+made along the way.
+
+### No duplicate business data, by construction
+
+- **Student Data Export** reads `students` (via `allStudentsProvider`)
+  and combines it with Set 19's `feePayments`/legacy `payments` for the
+  paid/due columns - exactly the same `combinedTotalPaid`/
+  `combinedBalanceDue` helpers every other fee-aware screen uses.
+- **Fee Due Report** reads Set 19's `allStudentFeeSummariesProvider`
+  directly - the exact same computed rollup (`admission`, `totalPaid`,
+  `balanceDue`, `status`) `FeeManagementScreen` already shows on screen.
+  No second fee-status calculation exists anywhere in this codebase.
+- **Payment Report** reads `feePayments` (`allFeePaymentsProvider`,
+  already admin-unconstrained since Set 19) directly, resolving display
+  names (student/class/batch/collected-by) from `students`/`classes`/
+  `batches`/`users` - never a denormalized copy of any of those.
+- **Test Result Export** reads `tests`/`testResults` (`allTests`,
+  `allResults`, both already admin-readable since Set 14) and computes
+  through Set 15's `computeSubjectResults`/`computeCombinedResults` -
+  see "The Test Result Export bug, and its fix" below.
+- **Attendance reports** (student/teacher) read `attendance`/
+  `teacherAttendance` through the already-existing
+  `StudentAttendanceReportScreen`/`TeacherAttendanceReportScreen` (Set
+  13), computing through `computeAttendanceStats` - the export action
+  added in Set 20 builds its `ExportDataset` from the SAME rows the
+  screen already renders, not a second query or a second calculation.
+
+Nothing here is cached, stored, or recalculated with a new formula -
+"reports must use current source data at generation time... do not
+cache financial totals or ranking results permanently" (section 22) is
+satisfied because every report is generated fresh, on demand, from a
+live read, exactly like every export since Set 6.
+
+### The Test Result Export bug, and its fix
+
+Before Set 20, `TestResultExportScreen`'s subject-wise and multi-subject
+modes computed each student's combined percentage via
+`combineMarks(marksPerTest, maxMarks)` (`core/utils/marks_combiner.dart`),
+where `marksPerTest` was built as
+`allResults.where(...).firstOrNull?.obtainedMarks` - a `null` there
+could mean EITHER "this student was marked absent for this test"
+(`TestResult.isAbsent == true`, `obtainedMarks == null` by the Set 14
+invariant) OR "no `TestResult` document exists yet" (never marked at
+all). `combineMarks` does not distinguish the two - a `null` entry just
+contributes 0 to the total while its max marks still count toward the
+denominator - so EVERY student received a computed percentage and a
+competition rank, including one who was absent from (or never marked
+for) one of the combined tests. This directly contradicted the rule Set
+15 exists to enforce ("absent is not zero... incomplete results must
+not receive a misleading rank") - the on-screen `TestResultScreen`/
+`CombinedResultScreen` already got this right via
+`computeSubjectResults`/`computeCombinedResults`
+(`features/results/data/result_calculator.dart`), but the EXPORT screen
+had its own, older, less rigorous calculation that predated Set 15
+entirely (`TestResultExportScreen` is a Set 6 screen; `result_calculator.dart`
+is Set 15).
+
+**The fix**: all three modes (`_buildSpecificTest`, `_buildSubjectWise`,
+`_buildMultiSubject`) now call `computeSubjectResults`/
+`computeCombinedResults` directly and render from the resulting
+`SubjectResultRow`/`CombinedResultRow` objects (`.cell`/`.cells` for
+per-test marks, `.percentage`/`.rank`/`.totalObtained` already `null`
+whenever the row isn't `ResultStatus.complete`). `computeCombinedResults`
+turned out to already be the right tool for BOTH subject-wise (several
+tests, one subject) and multi-subject (one test per subject) modes -
+the engine only ever asks "does this student have a complete mark in
+every one of these tests", never why they were chosen together, so one
+function call serves both without any mode-specific branching.
+`combineMarks` itself wasn't removed - `computeCombinedResults` still
+uses it internally, once a row is already known to be complete - only
+the EXPORT screen's own direct, ungated call to it was removed. Sorting
+for display (by percentage or by name, admin's choice) happens AFTER
+rank is computed and attaches to each row object, so re-sorting for
+presentation never changes what rank a row reports (ranking is
+order-independent by construction - see `rankByPercentage`).
+
+### Fee Due Report: one screen, two purposes
+
+Sections 4 ("dedicated fee dues report" with Paid/Partially Paid/Due/
+Overdue status filtering) and 5 ("telecaller/staff print report" with
+admin-controlled columns) describe the same underlying data - a
+student's fee position - with different column emphasis. Rather than
+build two report screens against the same `allStudentFeeSummariesProvider`
+(a "second competing implementation" by section 28's own definition),
+`FeeDueReportScreen` is one screen: session/class/batch/board/status
+filters plus a full `ColumnPicker` over `FeeReportColumns` (identity,
+academic, contact, and fee-figure columns together), with two one-tap
+presets - `defaultFeeDueKeys` (status-forward) and
+`defaultStaffContactKeys` (contact-forward, adds Last Payment Date and
+Remark) - so either "shape" is one tap away without needing a second
+screen. `FeeReportRow.status`/`.balanceDue`/`.totalPaid`/`.lastPaymentDate`
+all come straight from `StudentFeeSummary` (Set 19) or a small pure
+addition to it (`lastPaymentDate` - see below); nothing here recomputes
+a fee figure.
+
+`lastPaymentDate` (`features/fees/data/fee_calculator.dart`) is the one
+genuinely new pure calculation Set 20 added: the most recent date across
+active `FeePayment`s and every legacy payment (a reversed `FeePayment`
+is excluded, matching every other "reversed doesn't count" rule from Set
+19; the legacy subcollection has no reversal concept at all, so every
+legacy payment counts) - `null` when nothing has ever been paid. Added
+to `fee_calculator.dart` rather than duplicated inline in the report
+screen, per section 19's "if a calculation helper is missing, add one
+reusable helper instead of implementing the same calculation separately
+in multiple screens" - `StudentFeeSummary` (Set 19) now carries it too,
+so `FeeManagementScreen`'s admin list could show it in the future
+without a second calculation.
+
+### Payment Report
+
+`PaymentReportScreen` filters `feePayments` by session/class/batch
+(equality on the fields already snapshotted onto every `FeePayment` at
+creation - no join needed for FILTERING, only for display), a payment-
+date range, mode, an active/reversed toggle, and a student-name search
+(resolved via a one-shot `students` fetch). Reversed payments are
+included by default - the toggle exists to narrow the view, not to hide
+history by default, matching section 6's explicit "do not delete or
+hide historical payment records simply because they were reversed."
+"Collected By" resolves the recording admin's `uid` to a display name
+via a one-shot `users` fetch (already admin-`list`-able) - no new
+Firestore access pattern, no rule change needed.
+
+### Attendance report exports: extended, not duplicated
+
+`StudentAttendanceReportScreen`/`TeacherAttendanceReportScreen` (Set 13)
+already did 100% of the filtering and `computeAttendanceStats` work this
+report needs - Set 20 added an `ExportFormat` popup to each screen's
+`AppBar` and a small `_export()` method that builds an `ExportDataset`
+from the rows the SAME `build()` call already computed for on-screen
+display (cached in a plain field, `_lastRows`, updated every time
+`build()` recomputes them - not a second query, not a second
+calculation). No column picker, no orientation picker, and no report-
+layout-template integration were added to these two screens: the row
+shape is small and fixed (4-5 columns), so there's nothing meaningful
+for a column picker to choose, and letterhead branding was judged not
+worth the added UI for what's fundamentally a quick admin printout - a
+future set could still add `ReportLayoutPicker` here without any change
+to the underlying engine, exactly as the Set 7 architecture promised.
+
+### Security: nothing new to grant
+
+Every collection a Set 20 report reads was already `isAdmin()`-readable
+without constraint before Set 20 (`students`, `feePayments`, `tests`,
+`testResults`, `attendance`, `teacherAttendance`, `users`, `classes`,
+`batches`) - "reports should respect the same authorization boundaries
+as their source data" (section 21) required no rule changes at all,
+since every source collection's admin branch is role-only and was
+already provably safe for an unconstrained scan (see "Firestore
+query-shape requirement"). The only `firestore.rules` change in Set 20
+is adding `'paymentReport'` to `newReportTemplateIsValid()`'s allowed
+`module` values, for the new screen's saved-template support - nothing
+about who can read `reportTemplates` changed. No report screen is
+reachable from a student/teacher/parent route; the Reports Hub and every
+screen under it live exclusively under `/admin/reports/...`.

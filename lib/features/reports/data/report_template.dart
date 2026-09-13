@@ -6,7 +6,9 @@ import '../../../data/models/firestore_document.dart';
 enum ReportModule {
   studentExport,
   feeDuesExport,
-  testResultExport;
+  testResultExport,
+  // Added in Set 20.
+  paymentReport;
 
   static ReportModule fromValue(String value) {
     return ReportModule.values.firstWhere(

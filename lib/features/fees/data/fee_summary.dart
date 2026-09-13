@@ -16,6 +16,7 @@ class StudentFeeSummary {
     required this.totalPaid,
     required this.balanceDue,
     required this.status,
+    required this.lastPaymentDate,
   });
 
   final StudentProfile student;
@@ -27,6 +28,10 @@ class StudentFeeSummary {
   final double totalPaid;
   final double balanceDue;
   final FeeStatus? status;
+
+  /// `null` when nothing has ever been paid - see `lastPaymentDate` in
+  /// `fee_calculator.dart` (Set 20's Fee Due Report column).
+  final DateTime? lastPaymentDate;
 }
 
 /// Every student's [StudentFeeSummary], admin-only - powers
@@ -72,6 +77,7 @@ final allStudentFeeSummariesProvider = Provider<AsyncValue<List<StudentFeeSummar
     final legacyPayments = legacyAsync.valueOrNull ?? const [];
     final feePayments = allFeePayments.where((p) => p.studentId == student.uid).toList();
     final totalPaid = combinedTotalPaid(feePayments: feePayments, legacyPayments: legacyPayments);
+    final lastPaid = lastPaymentDate(feePayments: feePayments, legacyPayments: legacyPayments);
 
     if (admission == null) {
       rows.add(
@@ -81,6 +87,7 @@ final allStudentFeeSummariesProvider = Provider<AsyncValue<List<StudentFeeSummar
           totalPaid: totalPaid,
           balanceDue: 0,
           status: null,
+          lastPaymentDate: lastPaid,
         ),
       );
       continue;
@@ -102,6 +109,7 @@ final allStudentFeeSummariesProvider = Provider<AsyncValue<List<StudentFeeSummar
           totalPaid: totalPaid,
           installmentRows: installmentRows,
         ),
+        lastPaymentDate: lastPaid,
       ),
     );
   }

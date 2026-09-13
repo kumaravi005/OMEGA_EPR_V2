@@ -1,11 +1,17 @@
+import '../../../core/utils/date_key.dart';
 import '../../student/data/student_profile.dart';
 import '../presentation/widgets/column_picker.dart';
 
 /// One student's data, resolved once (name/fee fields from [StudentProfile]
-/// plus [paid]/[due] computed from their payment history and [batchName]
-/// resolved from the batch catalogue) - shared by the student-list export
-/// and the fee-dues export, which differ only in filters/defaults, not in
-/// what a "student row" contains.
+/// plus [paid]/[due] computed from their combined payment history - Set
+/// 19's `feePayments` ledger plus any legacy history - and [batchName]
+/// resolved from the batch catalogue) - the row shape `StudentExportScreen`
+/// (Set 20's general "Student Data Export") builds. The Set 19 fee-status-
+/// aware report (Paid/Partially Paid/Due/Overdue, installment-aware) is a
+/// separate screen, `FeeDueReportScreen`, built on `StudentFeeSummary`
+/// instead - see docs/database-architecture.md's "Reports & Exports
+/// (Set 20)" for why these stayed two purpose-built screens rather than
+/// one screen trying to do both.
 class StudentReportRow {
   const StudentReportRow({
     required this.student,
@@ -20,11 +26,11 @@ class StudentReportRow {
   final double due;
 }
 
-/// The shared column catalogue both student-shaped exports (student list,
-/// fee dues) pick from - "admin decides which columns appear" is
-/// implemented once here, not per screen.
+/// The column catalogue `StudentExportScreen` picks from - "admin decides
+/// which columns appear" (Set 20 section 2).
 abstract final class StudentReportColumns {
   static const all = [
+    ColumnOption('admissionNumber', 'Admission number'),
     ColumnOption('name', 'Name'),
     ColumnOption('fatherName', 'Father name'),
     ColumnOption('accountId', 'Account ID'),
@@ -34,12 +40,17 @@ abstract final class StudentReportColumns {
     ColumnOption('academicSession', 'Session'),
     ColumnOption('primaryMobile', 'Primary mobile'),
     ColumnOption('secondaryMobile', 'Secondary mobile'),
+    ColumnOption('address', 'Address'),
+    ColumnOption('dateOfBirth', 'Date of birth'),
+    ColumnOption('gender', 'Gender'),
+    ColumnOption('standardFee', 'Standard fee'),
     ColumnOption('finalFee', 'Final fee'),
     ColumnOption('paid', 'Paid'),
     ColumnOption('due', 'Due'),
   ];
 
   static const defaultStudentExportKeys = {
+    'admissionNumber',
     'name',
     'fatherName',
     'className',
@@ -48,15 +59,6 @@ abstract final class StudentReportColumns {
     'secondaryMobile',
     'finalFee',
     'paid',
-    'due',
-  };
-
-  static const defaultFeeDuesKeys = {
-    'name',
-    'fatherName',
-    'className',
-    'primaryMobile',
-    'secondaryMobile',
     'due',
   };
 
@@ -75,6 +77,8 @@ abstract final class StudentReportColumns {
   static String _cell(StudentReportRow data, String key) {
     final student = data.student;
     switch (key) {
+      case 'admissionNumber':
+        return student.admissionNumber.isEmpty ? '-' : student.admissionNumber;
       case 'name':
         return student.name;
       case 'fatherName':
@@ -93,6 +97,18 @@ abstract final class StudentReportColumns {
         return student.primaryMobile;
       case 'secondaryMobile':
         return student.secondaryMobile ?? '-';
+      case 'address':
+        return student.address;
+      case 'dateOfBirth':
+        return dateKey(student.dateOfBirth);
+      case 'gender':
+        return switch (student.gender.name) {
+          'male' => 'Male',
+          'female' => 'Female',
+          _ => 'Other',
+        };
+      case 'standardFee':
+        return 'Rs. ${student.standardFee.toStringAsFixed(0)}';
       case 'finalFee':
         return 'Rs. ${student.finalFee.toStringAsFixed(0)}';
       case 'paid':

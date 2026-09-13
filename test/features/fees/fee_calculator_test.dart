@@ -31,12 +31,12 @@ FeePayment _payment({
   );
 }
 
-Payment _legacyPayment(double amount) {
+Payment _legacyPayment(double amount, {DateTime? date}) {
   final now = DateTime(2026, 1, 1);
   return Payment(
     paymentId: 'legacy1',
     amount: amount,
-    date: now,
+    date: date ?? now,
     mode: PaymentMode.cash,
     remark: null,
     createdAt: now,
@@ -109,6 +109,45 @@ void main() {
         legacyPayments: const [],
       );
       expect(due, 0);
+    });
+  });
+
+  group('lastPaymentDate', () {
+    test('is null when nothing has ever been paid', () {
+      expect(
+        lastPaymentDate(feePayments: const [], legacyPayments: const []),
+        isNull,
+      );
+    });
+
+    test('picks the most recent date across both new and legacy payments', () {
+      final result = lastPaymentDate(
+        feePayments: [_payment(paymentDate: DateTime(2026, 3, 1))],
+        legacyPayments: [_legacyPayment(1000, date: DateTime(2026, 4, 15))],
+      );
+      expect(result, DateTime(2026, 4, 15));
+    });
+
+    test('excludes a reversed payment even if it is the most recent one', () {
+      final result = lastPaymentDate(
+        feePayments: [
+          _payment(paymentDate: DateTime(2026, 3, 1)),
+          _payment(
+            paymentDate: DateTime(2026, 5, 1),
+            status: FeePaymentRecordStatus.reversed,
+          ),
+        ],
+        legacyPayments: const [],
+      );
+      expect(result, DateTime(2026, 3, 1));
+    });
+
+    test('every legacy payment counts - that collection has no reversal concept', () {
+      final result = lastPaymentDate(
+        feePayments: const [],
+        legacyPayments: [_legacyPayment(500, date: DateTime(2026, 2, 1))],
+      );
+      expect(result, DateTime(2026, 2, 1));
     });
   });
 

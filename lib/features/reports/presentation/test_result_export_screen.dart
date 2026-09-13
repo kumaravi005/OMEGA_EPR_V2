@@ -7,12 +7,11 @@ import '../../../core/export/report_branding.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/date_key.dart';
 import '../../../core/utils/error_formatting.dart';
-import '../../../core/utils/marks_combiner.dart';
-import '../../../core/utils/ranking.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../batches/data/batch_repository.dart';
 import '../../report_templates/data/report_layout_template_repository.dart';
 import '../../report_templates/presentation/widgets/report_layout_picker.dart';
+import '../../results/data/result_calculator.dart';
 import '../../student/data/student_profile.dart';
 import '../../student/data/student_repository.dart';
 import '../../tests/data/test_definition.dart';
@@ -31,10 +30,13 @@ enum TestReportMode {
 
 /// Test result export - three modes (specific test / subject-wise /
 /// multi-subject combined), each producing its own column shape, but all
-/// sharing the same batch/roster resolution, the same [rankByPercentage]
-/// ranking rule (also used by the Set 15 Results screens - see
-/// `features/results/data/result_calculator.dart`), and the same
-/// PDF/Excel/DOCX rendering via [ExportService].
+/// sharing the same batch/roster resolution, the same [computeSubjectResults]/
+/// [computeCombinedResults] calculation engine the Set 15 Results screens
+/// use on-screen (`features/results/data/result_calculator.dart` - Set 20
+/// refactored this export to call it directly instead of a separate,
+/// less rigorous ad-hoc calculation - see docs/database-architecture.md's
+/// "Reports & Exports (Set 20)"), and the same PDF/Excel/DOCX rendering
+/// via [ExportService].
 class TestResultExportScreen extends ConsumerStatefulWidget {
   const TestResultExportScreen({super.key});
 
@@ -295,6 +297,13 @@ class _TestResultExportScreenState
     }
   }
 
+  /// Reuses Set 15's `computeSubjectResults` - the exact same engine
+  /// `TestResultScreen` (`features/results/`) uses on-screen - instead of
+  /// re-deriving percentage/rank here (Set 20 sections 7-8, 19: "do not
+  /// duplicate ranking logic... reuse computeSubjectResults"). This also
+  /// fixes what the pre-Set-20 version of this method never had a bug in:
+  /// a single test's own `TestResult.isAbsent` was already correctly
+  /// distinct from "no result yet".
   ExportDataset _buildSpecificTest(
     List<StudentProfile> roster,
     List<TestResult> allResults,
@@ -302,25 +311,9 @@ class _TestResultExportScreenState
     ReportBranding? branding,
   ) {
     final test = allTests.firstWhere((t) => t.testId == _specificTestId);
-    final resultByStudent = {
-      for (final r in allResults.where((r) => r.testId == test.testId))
-        r.studentUid: r,
-    };
-
-    final entries = [
-      for (final student in roster)
-        (
-          student: student,
-          result: resultByStudent[student.uid],
-          percentage: resultByStudent[student.uid]?.percentage,
-        ),
-    ];
-    _sortEntries(
-      entries,
-      nameOf: (e) => e.student.name,
-      percentageOf: (e) => e.percentage,
-    );
-    final ranks = rankByPercentage(entries.map((e) => e.percentage).toList());
+    final results = allResults.where((r) => r.testId == test.testId).toList();
+    final rows = computeSubjectResults(test: test, students: roster, results: results);
+    _sortRows(rows, nameOf: (r) => r.student.name, percentageOf: (r) => r.percentage);
 
     return ExportDataset(
       title: 'Test Result - ${test.title}',
@@ -334,19 +327,13 @@ class _TestResultExportScreenState
         'Percentage',
       ],
       rows: [
-        for (var i = 0; i < entries.length; i++)
+        for (final row in rows)
           [
-            entries[i].student.name,
-            if (_includeRank) (ranks[i] == null ? '-' : '${ranks[i]}'),
-            entries[i].result == null
-                ? '-'
-                : entries[i].result!.isAbsent
-                ? 'Absent'
-                : entries[i].result!.obtainedMarks!.toStringAsFixed(1),
-            test.totalMarks.toStringAsFixed(0),
-            entries[i].percentage == null
-                ? '-'
-                : '${entries[i].percentage!.toStringAsFixed(1)}%',
+            row.student.name,
+            if (_includeRank) (row.rank == null ? '-' : '${row.rank}'),
+            _cellLabel(row.cell),
+            row.totalMarks.toStringAsFixed(0),
+            row.percentage == null ? '-' : '${row.percentage!.toStringAsFixed(1)}%',
           ],
       ],
       orientation: _orientation,
@@ -354,6 +341,16 @@ class _TestResultExportScreenState
     );
   }
 
+  /// Reuses Set 15's `computeCombinedResults` - mathematically identical
+  /// whether the several tests being combined are all the same subject
+  /// (this mode) or one per different subject (`_buildMultiSubject`
+  /// below); the engine only ever asks "does this student have a complete
+  /// mark in every one of these tests", never why they were chosen
+  /// together. This directly fixes the pre-Set-20 bug where
+  /// `combineMarks` alone (with no completeness gate) silently gave every
+  /// student here a percentage and a rank even when absent from one test
+  /// or never marked at all - see docs/database-architecture.md's
+  /// "Reports & Exports (Set 20)".
   ExportDataset _buildSubjectWise(
     List<StudentProfile> roster,
     List<TestResult> allResults,
@@ -363,36 +360,8 @@ class _TestResultExportScreenState
     final tests =
         allTests.where((t) => _subjectWiseTestIds.contains(t.testId)).toList()
           ..sort((a, b) => a.date.compareTo(b.date));
-    final maxMarks = [for (final test in tests) test.totalMarks];
-
-    final entries = [
-      for (final student in roster)
-        () {
-          final marksPerTest = [
-            for (final test in tests)
-              allResults
-                  .where(
-                    (r) =>
-                        r.testId == test.testId && r.studentUid == student.uid,
-                  )
-                  .firstOrNull
-                  ?.obtainedMarks,
-          ];
-          final combined = combineMarks(marksPerTest, maxMarks);
-          return (
-            student: student,
-            marksPerTest: marksPerTest,
-            total: combined.total,
-            percentage: combined.percentage,
-          );
-        }(),
-    ];
-    _sortEntries(
-      entries,
-      nameOf: (e) => e.student.name,
-      percentageOf: (e) => e.percentage,
-    );
-    final ranks = rankByPercentage(entries.map((e) => e.percentage).toList());
+    final rows = computeCombinedResults(tests: tests, students: roster, allResults: allResults);
+    _sortRows(rows, nameOf: (r) => r.student.name, percentageOf: (r) => r.percentage);
 
     return ExportDataset(
       title: 'Test Result - Subject-wise',
@@ -406,17 +375,15 @@ class _TestResultExportScreenState
         if (_includePercentage) 'Percentage',
       ],
       rows: [
-        for (var i = 0; i < entries.length; i++)
+        for (final row in rows)
           [
-            entries[i].student.name,
-            if (_includeRank) (ranks[i] == null ? '-' : '${ranks[i]}'),
-            for (final marks in entries[i].marksPerTest)
-              (marks == null ? '-' : marks.toStringAsFixed(1)),
-            if (_includeTotal) entries[i].total.toStringAsFixed(1),
+            row.student.name,
+            if (_includeRank) (row.rank == null ? '-' : '${row.rank}'),
+            for (final cell in row.cells) _cellLabel(cell),
+            if (_includeTotal)
+              (row.totalObtained == null ? '-' : row.totalObtained!.toStringAsFixed(1)),
             if (_includePercentage)
-              (entries[i].percentage == null
-                  ? '-'
-                  : '${entries[i].percentage!.toStringAsFixed(1)}%'),
+              (row.percentage == null ? '-' : '${row.percentage!.toStringAsFixed(1)}%'),
           ],
       ],
       orientation: _orientation,
@@ -424,6 +391,9 @@ class _TestResultExportScreenState
     );
   }
 
+  /// Same engine as [_buildSubjectWise] - see that method's doc comment.
+  /// Each subject's own real test (never a fabricated shared test id -
+  /// Set 20 sections 10, 12) is picked via [_subjectTestChoice].
   ExportDataset _buildMultiSubject(
     List<StudentProfile> roster,
     List<TestResult> allResults,
@@ -431,45 +401,12 @@ class _TestResultExportScreenState
     ReportBranding? branding,
   ) {
     final subjects = _multiSubjects.toList()..sort();
-    final testsBySubject = {
+    final tests = [
       for (final subject in subjects)
-        subject: allTests.firstWhere(
-          (t) => t.testId == _subjectTestChoice[subject],
-        ),
-    };
-    final maxMarks = [
-      for (final subject in subjects) testsBySubject[subject]!.totalMarks,
+        allTests.firstWhere((t) => t.testId == _subjectTestChoice[subject]),
     ];
-
-    final entries = [
-      for (final student in roster)
-        () {
-          final marksPerSubject = [
-            for (final subject in subjects)
-              allResults
-                  .where(
-                    (r) =>
-                        r.testId == testsBySubject[subject]!.testId &&
-                        r.studentUid == student.uid,
-                  )
-                  .firstOrNull
-                  ?.obtainedMarks,
-          ];
-          final combined = combineMarks(marksPerSubject, maxMarks);
-          return (
-            student: student,
-            marksPerSubject: marksPerSubject,
-            total: combined.total,
-            percentage: combined.percentage,
-          );
-        }(),
-    ];
-    _sortEntries(
-      entries,
-      nameOf: (e) => e.student.name,
-      percentageOf: (e) => e.percentage,
-    );
-    final ranks = rankByPercentage(entries.map((e) => e.percentage).toList());
+    final rows = computeCombinedResults(tests: tests, students: roster, allResults: allResults);
+    _sortRows(rows, nameOf: (r) => r.student.name, percentageOf: (r) => r.percentage);
 
     return ExportDataset(
       title: 'Test Result - Multi-subject Combined',
@@ -482,17 +419,15 @@ class _TestResultExportScreenState
         if (_includePercentage) 'Percentage',
       ],
       rows: [
-        for (var i = 0; i < entries.length; i++)
+        for (final row in rows)
           [
-            entries[i].student.name,
-            if (_includeRank) (ranks[i] == null ? '-' : '${ranks[i]}'),
-            for (final marks in entries[i].marksPerSubject)
-              (marks == null ? '-' : marks.toStringAsFixed(1)),
-            if (_includeTotal) entries[i].total.toStringAsFixed(1),
+            row.student.name,
+            if (_includeRank) (row.rank == null ? '-' : '${row.rank}'),
+            for (final cell in row.cells) _cellLabel(cell),
+            if (_includeTotal)
+              (row.totalObtained == null ? '-' : row.totalObtained!.toStringAsFixed(1)),
             if (_includePercentage)
-              (entries[i].percentage == null
-                  ? '-'
-                  : '${entries[i].percentage!.toStringAsFixed(1)}%'),
+              (row.percentage == null ? '-' : '${row.percentage!.toStringAsFixed(1)}%'),
           ],
       ],
       orientation: _orientation,
@@ -500,20 +435,31 @@ class _TestResultExportScreenState
     );
   }
 
-  /// Sorts by percentage descending (nulls - no result - last) when
-  /// requested, otherwise alphabetically by student name. Generic over
-  /// each mode's own row-entry record shape - they only need to expose a
-  /// name and a percentage.
-  void _sortEntries<T>(
-    List<T> entries, {
+  /// [SubjectCell.status]'s display text - "Absent" is never confused
+  /// with "-" (not yet entered), matching Set 14/15's own distinction.
+  String _cellLabel(SubjectCell cell) => switch (cell.status) {
+    CellStatus.present => cell.obtainedMarks!.toStringAsFixed(1),
+    CellStatus.absent => 'Absent',
+    CellStatus.missing => '-',
+  };
+
+  /// Sorts by percentage descending (nulls - absent/incomplete/no result -
+  /// last) when requested, otherwise alphabetically by student name.
+  /// Ranks were already computed (by `computeSubjectResults`/
+  /// `computeCombinedResults`, order-independent) before this ever runs,
+  /// so re-sorting for display never changes what rank a row shows.
+  /// Generic over [SubjectResultRow]/[CombinedResultRow] - they only need
+  /// to expose a name and a percentage.
+  void _sortRows<T>(
+    List<T> rows, {
     required String Function(T) nameOf,
     required double? Function(T) percentageOf,
   }) {
     if (!_sortByPercentage) {
-      entries.sort((a, b) => nameOf(a).compareTo(nameOf(b)));
+      rows.sort((a, b) => nameOf(a).compareTo(nameOf(b)));
       return;
     }
-    entries.sort((a, b) {
+    rows.sort((a, b) {
       final percentageA = percentageOf(a);
       final percentageB = percentageOf(b);
       if (percentageA == null && percentageB == null) {

@@ -214,7 +214,10 @@ lib/
                              list, staged + one Save action, admin),
                              Student/TeacherAttendanceReportScreen (admin
                              history: filters + a date range, per-
-                             student/teacher present/absent/percentage),
+                             student/teacher present/absent/percentage;
+                             Set 20 added a PDF/Excel/DOCX export action
+                             to each, reusing the same on-screen rows -
+                             no separate attendance-report export screen),
                              *AttendanceHistoryScreen (own view, teacher
                              and student each get one, both now show a
                              percentage).
@@ -412,27 +415,38 @@ lib/
                              no separate parent login), PublicNoticeDialog
                              (Set 18 - the public-site read view, title/
                              type/message/date only).
-    reports/ (Set 6)         Admin export/report screens - each one builds
-                             its own data (its own filters/columns/
-                             sorting), then hands a plain `ExportDataset`
-                             to the shared engine in `core/export/` for
-                             actual PDF/Excel/DOCX rendering. See "The
-                             export/report engine" below.
+    reports/ (Set 6, extended Set 20)   Admin export/report screens - each
+                             one builds its own data (its own filters/
+                             columns/sorting), then hands a plain
+                             `ExportDataset` to the shared engine in
+                             `core/export/` for actual PDF/Excel/DOCX
+                             rendering. See "The export/report engine"
+                             and "Reports & Exports, extended (Set 20)"
+                             below.
       data/                  ReportTemplate model + repository (saved
-                             export configurations), StudentReportColumns
-                             (the column catalogue shared by the student
-                             list and fee-dues exports - see
-                             docs/database-architecture.md).
+                             export configurations - `ReportModule` Set
+                             20 addition: `paymentReport`),
+                             StudentReportColumns (Student Data Export's
+                             column catalogue - 5 columns added in Set
+                             20), FeeReportColumns (Set 20 - Fee Due
+                             Report / staff contact list, built on Set
+                             19's `StudentFeeSummary`), PaymentReportColumns
+                             (Set 20 - built on Set 19's `FeePayment`).
       application/           ReportTemplateController (save/delete a
                              template).
-      presentation/          ReportsHubScreen (nav to the three export
-                             screens), StudentReportExportScreen (the one
-                             implementation behind both StudentExportScreen
-                             and FeeDuesExportScreen - they differ only in
-                             title/defaults/an extra "dues only" filter,
-                             not in how rows are built or rendered),
-                             TestResultExportScreen (all three test-report
-                             modes).
+      presentation/          ReportsHubScreen (Set 20: categorized -
+                             Students/Attendance/Tests & Results/Fees,
+                             not a flat list), StudentExportScreen +
+                             StudentReportExportScreen (Student Data
+                             Export only, as of Set 20 - see below),
+                             FeeDueReportScreen (Set 20, new - replaces
+                             the old FeeDuesExportScreen, which reused
+                             StudentReportExportScreen), PaymentReportScreen
+                             (Set 20, new), TestResultExportScreen (all
+                             three test-report modes, refactored in Set
+                             20 to call `computeSubjectResults`/
+                             `computeCombinedResults` directly instead of
+                             a separate ad-hoc calculation).
       presentation/widgets/  ColumnPicker, FormatPicker, OrientationPicker,
                              TemplateBar - shared controls every export
                              screen composes instead of reimplementing.
@@ -536,18 +550,18 @@ Printing.layoutPdf (PDF - print/save preview) | Share.shareXFiles (Excel/DOCX)
   report, not a reusable preference). `TemplateBar` is the one shared
   load/save/delete widget every export screen embeds.
 - **What's shared vs. what isn't, deliberately**: `StudentReportColumns`
-  (the column catalogue: name, father name, class, board, batch, session,
-  mobiles, final fee, paid, due) and `StudentReportExportScreen` (the
-  whole filter/column/sort/generate implementation) are shared by both
-  the student-list export and the fee-dues export - they're the same
-  underlying entity with different default filters. Test-result export
-  is genuinely a different data shape (marks/tests/subjects, not student
-  fields), so it has its own screen - but it reuses the same
+  and `StudentReportExportScreen` (the whole filter/column/sort/generate
+  implementation) power the general Student Data Export. Test-result
+  export is genuinely a different data shape (marks/tests/subjects, not
+  student fields), so it has its own screen - but it reuses the same
   `ExportDataset`/`ExportService`/`FormatPicker`/`OrientationPicker` as
-  everything else, and its ranking logic (`core/utils/ranking.dart`) and
-  combined-score math (`core/utils/marks_combiner.dart`) are pure,
-  independently unit-tested functions, not something reimplemented per
-  test-report mode.
+  everything else, and (as of Set 20 - see "Reports & Exports, extended
+  (Set 20)" below) calls Set 15's `computeSubjectResults`/
+  `computeCombinedResults` directly for its ranking/percentage/absent-
+  vs-incomplete logic, rather than a separate, less rigorous calculation
+  of its own. Fee dues (now "Fee Due Report") and payments each gained
+  their own Set 20 screen instead of being force-fit into the student
+  export's shape - see that section for why.
 
 Every feature folder above is populated with only what's actually been
 built. `fees` as its own module is still folded into `features/student/`
@@ -681,10 +695,109 @@ PdfReportBuilder / ExcelReportBuilder / DocxReportBuilder   <- same Set 6 builde
   screen to begin with, and adding a new export module was out of scope
   for "build the template system and connect it to the existing engine".
   The engine/template system is generic enough that an attendance export
-  added later would reuse both without changes.
+  added later would reuse both without changes - which is exactly what
+  Set 20 did (see "Reports & Exports, extended (Set 20)" below).
 - **Logo images are pasted URLs**, same as every other image field since
   Set 5 - Storage still isn't enabled (see docs/firebase-setup.md). No
   new decision here, just the established pattern applied again.
+
+## Reports & Exports, extended (Set 20)
+
+Set 20's brief was explicit: inspect what already exists before building
+anything, and it turned out most of "Reports & Exports" already existed
+(Sets 6-7's engine, hub, student/fee-dues/test-result export screens,
+report-layout templates) - so this set is almost entirely an
+EXTENSION/reorganization, not a new module, plus one real bug fix.
+
+- **The Reports Hub is now categorized** (`ReportsHubScreen`, section 1:
+  "organize into logical categories" - Students/Attendance/Tests &
+  Results/Fees) instead of a flat three-tile list. Every tile still
+  points at either an existing screen or a genuinely new one below - no
+  category is a placeholder for something unbuilt.
+- **Student Data Export gained its missing filters** (section 2's
+  "required filters" list): `StudentReportExportScreen` had only a
+  free-text "session contains" field and a batch dropdown; Class, Board,
+  Active-only, and a name/account-id search were simply missing. Added
+  in place (the screen already existed and already had the column
+  picker/format/orientation/template machinery - this is section 28's
+  "reuse it, refactor it, avoid maintaining two competing
+  implementations" applied literally). The session filter was also
+  upgraded from free-text-contains to a proper dropdown keyed by
+  `academicSessionId`, matching every session filter built since Set 18.
+  Five columns section 2 asks for and the catalogue didn't yet have
+  (`admissionNumber`, `address`, `dateOfBirth`, `gender`, `standardFee`)
+  were added to `StudentReportColumns` - nothing invented beyond what
+  `StudentProfile` already has (no "Mother's Name" column - that field
+  doesn't exist on `StudentProfile`, and section 2 says "only show
+  columns that actually exist").
+- **A REAL bug in the existing Test Result export was found and fixed**
+  (sections 7-8, 11, 19, 28): `TestResultExportScreen`'s subject-wise and
+  multi-subject modes called `combineMarks` (Set 6, pre-dating Set 15's
+  result engine) directly on each student's raw marks list, with no
+  "was this student absent/not-yet-marked" gate at all - since an
+  absent result's `obtainedMarks` and a simply-missing result both read
+  as `null` there, every student got a computed percentage AND a rank
+  regardless of whether they were absent from one test or never marked
+  in the first place. This silently violated the exact rule Set 15 was
+  built to enforce ("absent is not zero, incomplete never gets a
+  misleading rank"). Fixed by refactoring all three modes to call
+  `computeSubjectResults`/`computeCombinedResults`
+  (`features/results/data/result_calculator.dart`) directly - the same
+  engine `TestResultScreen`/`CombinedResultScreen` use on-screen - so
+  the export can never again drift out of sync with what "absent" and
+  "incomplete" mean elsewhere in the app. `core/utils/marks_combiner.dart`
+  is still used (internally, by `computeCombinedResults` itself), just
+  no longer called directly by the export screen.
+- **Fee Due Report is a new, separate screen** (`FeeDueReportScreen`,
+  sections 4-5), built directly on Set 19's `allStudentFeeSummariesProvider`
+  (never a new fee formula) rather than retrofitted into
+  `StudentReportExportScreen` - that screen has no concept of
+  installment-aware Overdue status, and forcing it to grow one for a
+  single report would have been a worse fit than a small, purpose-built
+  screen reusing the same column-picker/format/orientation/template
+  widgets. One screen, not two: section 5's "telecaller/staff print
+  report" is the exact same report with a different column selection
+  (two one-tap presets - `defaultFeeDueKeys`/`defaultStaffContactKeys` -
+  are offered, but the full `ColumnPicker` still applies), not a second
+  competing implementation.
+- **Payment Report is new** (`PaymentReportScreen`, section 6) -
+  necessarily so, since Set 19's `feePayments` postdates Set 6's export
+  work entirely. Filters and columns read directly off `FeePayment`
+  (session/class/batch id fields are already snapshotted on the payment
+  itself, so no student join is needed for filtering - only for
+  resolving display names). Reversed payments are never filtered out by
+  default - "reversed payments must remain visible with their status"
+  (section 6) is the default, with an optional Active/Reversed toggle
+  for when admin wants only one or the other.
+- **Attendance reports gained export, without a new screen** (section
+  20) - `StudentAttendanceReportScreen`/`TeacherAttendanceReportScreen`
+  (Set 13) already computed everything needed via `computeAttendanceStats`;
+  each gained a small AppBar export action that builds an `ExportDataset`
+  from the exact rows already on screen (cached from the same `build()`
+  that renders them, not recomputed) and hands it to `ExportService`.
+  This is deliberately NOT a new export screen with its own filter UI -
+  the existing screens' filters are reused as-is, avoiding a second,
+  parallel attendance-report implementation. These two did not get the
+  column-picker/format/template machinery the other reports have (a
+  fixed 4-5 column shape - Name/Admission No./Present/Absent/Percentage -
+  needs no column selection), and format choice is a simple popup
+  (PDF/Excel/DOCX) rather than the full `FormatPicker`/`OrientationPicker`
+  row, since orientation is never in question for this few columns.
+- **`ReportModule` gained `paymentReport`** (`features/reports/data/report_template.dart`)
+  for the new screen's saved-template support; `firestore.rules`'
+  `newReportTemplateIsValid()` was updated to accept it. The Fee Due
+  Report reuses the EXISTING `feeDuesExport` module value rather than a
+  new one, so any templates saved under the old `FeeDuesExportScreen`
+  still appear in the new screen's `TemplateBar` (their `config` shape
+  differs, but every field is read defensively with a fallback - the
+  same tolerance-of-missing-keys convention already used throughout this
+  project - so an old template just falls back to defaults for whatever
+  it doesn't recognize, never a crash).
+- **No new Firestore collections, no changed read-access rules**: every
+  report reads collections that already grant admin unconstrained
+  `list` (`students`, `feePayments`, `tests`/`testResults`, `attendance`/
+  `teacherAttendance`) - reports are pure reads, generated on demand, and
+  never write anything back or cache a result server-side.
 
 ## Set 8: integration, security and production hardening
 

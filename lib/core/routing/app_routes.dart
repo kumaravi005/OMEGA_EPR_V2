@@ -43,6 +43,7 @@ abstract final class AppRoutes {
   static const adminStudentExport = '/admin/reports/students';
   static const adminFeeDuesExport = '/admin/reports/fee-dues';
   static const adminTestResultExport = '/admin/reports/test-results';
+  static const adminPaymentReport = '/admin/reports/payments';
   static const adminReportTemplates = '/admin/report-templates';
   static const adminReportTemplateNew = '/admin/report-templates/new';
   static const adminConfiguration = '/admin/configuration';

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/export/export_dataset.dart';
+import '../../../core/export/export_format.dart';
+import '../../../core/export/export_service.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/date_key.dart';
+import '../../../core/utils/error_formatting.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
@@ -30,6 +35,49 @@ class _StudentAttendanceReportScreenState
   String? _batchId;
   late DateTime _from = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime _to = DateTime.now();
+
+  /// The rows [build] most recently rendered - cached (not recomputed
+  /// from scratch) so the export action uses exactly what's on screen,
+  /// without duplicating the filter logic in `build`'s `data:` callback.
+  List<({String name, String admissionNumber, AttendanceStats stats})> _lastRows = const [];
+  bool _isExporting = false;
+
+  Future<void> _export(ExportFormat format) async {
+    if (_lastRows.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No data to export for these filters.')),
+      );
+      return;
+    }
+    setState(() => _isExporting = true);
+    try {
+      final dataset = ExportDataset(
+        title: 'Student Attendance Report',
+        subtitle:
+            '${dateKey(_from)} - ${dateKey(_to)} | Total: ${_lastRows.length}',
+        columns: const ['Student', 'Admission No.', 'Present', 'Absent', 'Percentage'],
+        rows: [
+          for (final row in _lastRows)
+            [
+              row.name,
+              row.admissionNumber.isEmpty ? '-' : row.admissionNumber,
+              '${row.stats.present}',
+              '${row.stats.absent}',
+              row.stats.percentage == null ? '-' : '${row.stats.percentage!.toStringAsFixed(1)}%',
+            ],
+        ],
+      );
+      await const ExportService().export(dataset, format, fileName: 'student_attendance_report');
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyErrorText('Could not generate the export.\n$error'))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
 
   Future<void> _pickRange() async {
     final picked = await showDateRangePicker(
@@ -72,7 +120,21 @@ class _StudentAttendanceReportScreenState
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Student attendance history')),
+      appBar: AppBar(
+        title: const Text('Student attendance history'),
+        actions: [
+          PopupMenuButton<ExportFormat>(
+            enabled: !_isExporting,
+            icon: const Icon(Icons.file_download_outlined),
+            tooltip: 'Export',
+            onSelected: _export,
+            itemBuilder: (context) => [
+              for (final format in ExportFormat.values)
+                PopupMenuItem(value: format, child: Text(format.label)),
+            ],
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -217,6 +279,7 @@ class _StudentAttendanceReportScreenState
                   }).toList();
 
                   if (scoped.isEmpty) {
+                    _lastRows = const [];
                     return const EmptyView(
                       message: 'No attendance recorded for these filters.',
                     );
@@ -242,6 +305,7 @@ class _StudentAttendanceReportScreenState
                           );
                         }).toList()
                         ..sort((a, b) => a.name.compareTo(b.name));
+                  _lastRows = rows;
 
                   return ListView(
                     padding: const EdgeInsets.all(AppSpacing.md),

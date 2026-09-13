@@ -98,6 +98,38 @@ void main() {
     });
   });
 
+  group('Empty datasets (Set 20 section 26 - "do not crash when no data matches")', () {
+    ExportDataset empty() => ExportDataset(
+      title: 'No Students Found',
+      subtitle: 'Total: 0',
+      columns: const ['Name', 'Class', 'Due'],
+      rows: const [],
+    );
+
+    test('PdfReportBuilder produces a valid, non-empty PDF with zero rows', () async {
+      final bytes = await const PdfReportBuilder().build(empty());
+      expect(bytes, isNotEmpty);
+      expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+    });
+
+    test('ExcelReportBuilder produces a valid workbook with just a header row', () {
+      final bytes = const ExcelReportBuilder().build(empty());
+      final decoded = xls.Excel.decodeBytes(bytes);
+      final sheet = decoded.tables[decoded.tables.keys.first]!;
+      // title + subtitle + blank + header, no data rows.
+      expect(sheet.rows.length, 4);
+    });
+
+    test('DocxReportBuilder produces a valid document with just a header row', () {
+      final bytes = const DocxReportBuilder().build(empty());
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final documentXmlBytes =
+          archive.findFile('word/document.xml')!.content as List<int>;
+      final documentXml = XmlDocument.parse(String.fromCharCodes(documentXmlBytes));
+      expect(documentXml.findAllElements('w:tr').length, 1); // header row only
+    });
+  });
+
   group('PdfReportBuilder', () {
     test('produces a non-empty PDF for a small dataset', () async {
       final bytes = await const PdfReportBuilder().build(_smallDataset());

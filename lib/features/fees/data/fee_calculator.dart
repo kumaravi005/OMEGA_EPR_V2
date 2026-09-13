@@ -39,6 +39,24 @@ double combinedTotalPaid({
     totalActiveFeePaymentAmount(feePayments) +
     totalLegacyPaymentAmount(legacyPayments);
 
+/// The most recent payment date across BOTH sources (active `FeePayment`s
+/// only - a reversed payment is no longer "the last time money came in";
+/// every legacy payment counts, matching [combinedTotalPaid]) - `null`
+/// when nothing has ever been paid. Used by the Fee Due Report's "Last
+/// Payment Date" column (Set 20 section 5).
+DateTime? lastPaymentDate({
+  required List<FeePayment> feePayments,
+  required List<Payment> legacyPayments,
+}) {
+  final dates = [
+    for (final payment in feePayments)
+      if (payment.status == FeePaymentRecordStatus.active) payment.paymentDate,
+    for (final payment in legacyPayments) payment.date,
+  ];
+  if (dates.isEmpty) return null;
+  return dates.reduce((a, b) => a.isAfter(b) ? a : b);
+}
+
 /// Final Fee − valid/non-reversed payments (Set 19 section 14) - NEVER
 /// the student's original standard fee. Positive means still owed,
 /// negative means an overpayment/advance.

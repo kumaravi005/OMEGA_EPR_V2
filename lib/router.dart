@@ -42,7 +42,8 @@ import 'features/public/presentation/admin/upcoming_batches_screen.dart';
 import 'features/public/presentation/public_home_screen.dart';
 import 'features/report_templates/presentation/report_layout_templates_screen.dart';
 import 'features/report_templates/presentation/report_template_designer_screen.dart';
-import 'features/reports/presentation/fee_dues_export_screen.dart';
+import 'features/reports/presentation/fee_due_report_screen.dart';
+import 'features/reports/presentation/payment_report_screen.dart';
 import 'features/reports/presentation/reports_hub_screen.dart';
 import 'features/reports/presentation/student_export_screen.dart';
 import 'features/reports/presentation/test_result_export_screen.dart';
@@ -293,11 +294,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.adminFeeDuesExport,
-        builder: (context, state) => const FeeDuesExportScreen(),
+        builder: (context, state) => const FeeDueReportScreen(),
       ),
       GoRoute(
         path: AppRoutes.adminTestResultExport,
         builder: (context, state) => const TestResultExportScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminPaymentReport,
+        builder: (context, state) => const PaymentReportScreen(),
       ),
 
       GoRoute(

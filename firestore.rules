@@ -1332,7 +1332,7 @@ service cloud.firestore {
     function newReportTemplateIsValid() {
       let data = request.resource.data;
       return data.name is string && data.name.size() > 0
-        && data.module in ['studentExport', 'feeDuesExport', 'testResultExport']
+        && data.module in ['studentExport', 'feeDuesExport', 'testResultExport', 'paymentReport']
         && data.config is map
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
