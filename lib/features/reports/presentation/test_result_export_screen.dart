@@ -31,9 +31,10 @@ enum TestReportMode {
 
 /// Test result export - three modes (specific test / subject-wise /
 /// multi-subject combined), each producing its own column shape, but all
-/// sharing the same batch/roster resolution, the same [competitionRanks]
-/// ranking rule, and the same PDF/Excel/DOCX rendering via
-/// [ExportService].
+/// sharing the same batch/roster resolution, the same [rankByPercentage]
+/// ranking rule (also used by the Set 15 Results screens - see
+/// `features/results/data/result_calculator.dart`), and the same
+/// PDF/Excel/DOCX rendering via [ExportService].
 class TestResultExportScreen extends ConsumerStatefulWidget {
   const TestResultExportScreen({super.key});
 
@@ -319,7 +320,7 @@ class _TestResultExportScreenState
       nameOf: (e) => e.student.name,
       percentageOf: (e) => e.percentage,
     );
-    final ranks = _ranksFor(entries.map((e) => e.percentage).toList());
+    final ranks = rankByPercentage(entries.map((e) => e.percentage).toList());
 
     return ExportDataset(
       title: 'Test Result - ${test.title}',
@@ -391,7 +392,7 @@ class _TestResultExportScreenState
       nameOf: (e) => e.student.name,
       percentageOf: (e) => e.percentage,
     );
-    final ranks = _ranksFor(entries.map((e) => e.percentage).toList());
+    final ranks = rankByPercentage(entries.map((e) => e.percentage).toList());
 
     return ExportDataset(
       title: 'Test Result - Subject-wise',
@@ -468,7 +469,7 @@ class _TestResultExportScreenState
       nameOf: (e) => e.student.name,
       percentageOf: (e) => e.percentage,
     );
-    final ranks = _ranksFor(entries.map((e) => e.percentage).toList());
+    final ranks = rankByPercentage(entries.map((e) => e.percentage).toList());
 
     return ExportDataset(
       title: 'Test Result - Multi-subject Combined',
@@ -524,21 +525,6 @@ class _TestResultExportScreenState
     });
   }
 
-  /// Standard competition ranking by percentage - students with no result
-  /// (null percentage) are excluded from ranking entirely (shown as '-'),
-  /// rather than tying for the lowest rank.
-  List<int?> _ranksFor(List<double?> percentages) {
-    final ranked = percentages.whereType<double>().toList();
-    final rankByPercentage = <double, int>{};
-    final sortedDesc = [...ranked]..sort((a, b) => b.compareTo(a));
-    final competition = competitionRanks(sortedDesc);
-    for (var i = 0; i < sortedDesc.length; i++) {
-      rankByPercentage.putIfAbsent(sortedDesc[i], () => competition[i]);
-    }
-    return [
-      for (final p in percentages) p == null ? null : rankByPercentage[p],
-    ];
-  }
 }
 
 class _ModeSelector extends StatelessWidget {

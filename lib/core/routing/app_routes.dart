@@ -25,6 +25,9 @@ abstract final class AppRoutes {
   static const adminTeacherAttendanceHistory =
       '/admin/attendance/teachers/history';
   static const adminTests = '/admin/tests';
+  static const adminResults = '/admin/results';
+  static const adminTestResult = '/admin/results/test';
+  static const adminCombinedResult = '/admin/results/combined';
   static const adminGallery = '/admin/gallery';
   static const adminBanners = '/admin/banners';
   static const adminUpcomingBatches = '/admin/upcoming-batches';

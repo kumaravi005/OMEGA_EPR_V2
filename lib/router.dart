@@ -53,6 +53,9 @@ import 'features/teacher/presentation/teacher_form_screen.dart';
 import 'features/teacher/presentation/teacher_home_screen.dart';
 import 'features/teacher/presentation/teacher_list_screen.dart';
 import 'features/teacher/presentation/teacher_profile_screen.dart';
+import 'features/results/presentation/combined_result_screen.dart';
+import 'features/results/presentation/results_hub_screen.dart';
+import 'features/results/presentation/test_result_screen.dart';
 import 'features/tests/presentation/enter_marks_screen.dart';
 import 'features/tests/presentation/student_results_screen.dart';
 import 'features/tests/presentation/test_details_screen.dart';
@@ -192,6 +195,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '${AppRoutes.adminTests}/:testId/marks',
         builder: (context, state) =>
             EnterMarksScreen(testId: state.pathParameters['testId']!),
+      ),
+
+      GoRoute(
+        path: AppRoutes.adminResults,
+        builder: (context, state) => const ResultsHubScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminTestResult,
+        builder: (context, state) => const TestResultScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminCombinedResult,
+        builder: (context, state) => const CombinedResultScreen(),
       ),
 
       GoRoute(

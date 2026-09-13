@@ -211,6 +211,34 @@ lib/
                              an Absent toggle per student, one Save action),
                              StudentResultsScreen (own results, published
                              tests only, unchanged).
+    results/ (Set 15)       Results & Ranking - a read-only calculation
+                             layer over Set 14's `tests`/`testResults`,
+                             never a second marks database (nothing here
+                             is persisted; every screen re-derives its
+                             table from the same Test/Marks records on
+                             each load). Admin-only - not exposed to
+                             teacher or student routes.
+      data/                 result_calculator.dart: pure functions
+                             (`computeSubjectResults`,
+                             `computeCombinedResults`) and value types
+                             (`SubjectCell`/`CellStatus`, `ResultStatus`,
+                             `SubjectResultRow`, `CombinedResultRow`) -
+                             no Firestore calls, no UI, fully unit
+                             tested. Ranking itself lives in the shared
+                             `core/utils/ranking.dart`
+                             (`rankByPercentage`, null-aware on top of
+                             the existing `competitionRanks`), reused
+                             as-is by the Set 6 test-result export
+                             screen rather than duplicated.
+      presentation/         ResultsHubScreen, TestResultScreen (Session
+                             -> Class -> Batch -> Subject -> Test; serves
+                             both the hub's "Subject-wise Result" and
+                             "Test Result" entries, since a Set 14 test
+                             always belongs to exactly one subject),
+                             CombinedResultScreen (Session -> Class ->
+                             Batch, then check which subjects to combine
+                             and pick each one's own test - never a
+                             fabricated shared test id).
     public/ (Set 5)          The public, no-login-required area, plus the
                              admin screens that manage its content (gallery,
                              banners, upcoming batches, advertisements,

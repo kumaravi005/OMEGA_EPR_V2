@@ -63,8 +63,13 @@ class AdminDashboardScreen extends ConsumerWidget {
                 ),
                 NavTile(
                   icon: Icons.assignment_outlined,
-                  label: 'Tests & results',
+                  label: 'Tests',
                   onTap: () => context.push(AppRoutes.adminTests),
+                ),
+                NavTile(
+                  icon: Icons.leaderboard_outlined,
+                  label: 'Results',
+                  onTap: () => context.push(AppRoutes.adminResults),
                 ),
                 NavTile(
                   icon: Icons.contact_phone_outlined,

@@ -73,6 +73,21 @@ final testResultsForTestProvider =
           .map((results) => results.where((r) => r.testId == testId).toList());
     });
 
+/// Every test result, unfiltered - admin/teacher only (`testResults`'
+/// `list` rule grants both roles unconditionally, so this unconstrained
+/// `watchAll()` is safe - see docs/database-architecture.md's "Firestore
+/// query-shape requirement"). For the combined-result screen (Set 15),
+/// which needs results across SEVERAL tests at once and filters by
+/// `testId` membership client-side - a `StreamProvider.family` keyed by
+/// a `List<String>` would be unsound (lists don't have value equality,
+/// so a fresh list literal on every rebuild would never hit the same
+/// cache entry), so this is deliberately a single unconstrained stream
+/// instead, exactly like [testResultsForTestProvider] but for many
+/// tests instead of one.
+final allTestResultsProvider = StreamProvider<List<TestResult>>((ref) {
+  return ref.watch(testResultRepositoryProvider).watchAll();
+});
+
 /// One student's own result for one test - `null` until entered. Fetched
 /// by its deterministic id, so a student never needs `list` permission on
 /// `testResults` (see firestore.rules).

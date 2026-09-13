@@ -744,6 +744,105 @@ exact shape a future push sender or in-app notifications feed would
 consume. No UI reads this collection yet, so read access is admin-only
 for now (tightened/opened up once a consuming feature exists).
 
+## Results & ranking (Set 15)
+
+**No new collection.** Every Results screen re-derives its table from
+the exact same `tests`/`testResults` documents Set 14 already writes,
+in memory, on load - the spec's own "prefer calculated/derived result
+data" and "do not create a second independent marks database". This
+also means a result is only ever as stale as the underlying marks: there
+is no separate "final result" record that could drift out of sync with
+a later marks correction.
+
+### Absent vs. incomplete vs. complete
+
+`result_calculator.dart` (`lib/features/results/data/`) models exactly
+three states per student per subject/test, via `SubjectCell`/
+`CellStatus`:
+
+- **present** - a `TestResult` exists, `isAbsent` is `false`, a numeric
+  `obtainedMarks` - the only state that contributes a real percentage.
+- **absent** - a `TestResult` exists with `isAbsent: true` (Set 14) -
+  never treated as a zero score.
+- **missing** - no `TestResult` document exists yet for that
+  student/test - marks simply haven't been entered.
+
+`ResultStatus.fromCells` rolls one or more cells up into a single
+overall status - `complete` only when every cell is `present`; `absent`
+if any cell is `absent` (checked first: a deliberate absence is a more
+definite outcome than a merely not-yet-entered mark, so it takes
+priority when a student is both absent in one subject and missing marks
+in another); otherwise `incomplete`. A subject-wise result table
+(`computeSubjectResults`) has exactly one cell per row, so its
+`ResultStatus` is just that cell's own state; a combined result
+(`computeCombinedResults`) rolls up several cells (one per selected
+subject/test) into one status per student.
+
+### Why an absent/incomplete row's total, percentage and rank are all `null` (not partial numbers)
+
+For a `complete` row, `totalObtained`/`totalMaximum`/`percentage` are
+computed via the same `combineMarks` helper the Set 6 test-result export
+already used (`core/utils/marks_combiner.dart`) - sum of obtained marks
+over sum of each test's own `totalMarks` (never assumed equal across
+subjects). For an `absent`/`incomplete` row, all three are left `null`
+rather than computed with the missing subject(s) counted as zero - "do
+not calculate a misleading final percentage/rank" (Set 15 spec) is
+enforced by never computing one in the first place, not by hiding a
+computed value after the fact. The per-subject `cells` on a
+`CombinedResultRow` still report exactly what is known for each
+subject (a real mark, "Absent", or "-") even when the overall row can't
+be finalized - only the row-level summary is suppressed.
+
+### Ranking and ties
+
+`rankByPercentage` (`core/utils/ranking.dart`) is `competitionRanks`
+made null-aware: percentages are ranked with standard competition
+ranking (92%, 92%, 88% -> 1, 1, 3, never 1, 2, 3 - Set 15 spec), and any
+`null` percentage (absent or incomplete) is excluded from ranking
+entirely and gets `null` back, rather than tying for the lowest rank or
+receiving a placeholder number. This is the exact generalization of a
+private helper the Set 6 export screen already had
+(`_ranksFor`) - extracted into the shared utility and reused by both,
+so the ranking rule is written and tested exactly once (Set 15 spec:
+"do not duplicate calculation logic across multiple screens").
+
+### Result context and eligibility
+
+Every Results screen follows the same Session -> Class -> (matching
+active batches) cascade as Attendance (Set 13) and Test creation
+(Set 14), using `batchesForSessionAndClass` - no free-text session/
+class/batch/subject matching anywhere. The student roster for a result
+is the batch's active students, plus - exactly like the attendance and
+marks-entry screens - any student who already has a `TestResult` for
+the relevant test(s) but has since left the batch or gone inactive, so
+a historical result never silently disappears because of an unrelated
+later status change (Set 15 spec: "historical results must remain
+understandable even if a student becomes inactive").
+
+### Combined result: real per-subject tests, never a fabricated shared id
+
+A Set 14 test belongs to exactly one subject - there is no "assessment"
+concept spanning subjects. `CombinedResultScreen` reflects this
+directly: admin checks which subjects to combine, and for each one
+independently picks which of that subject's own tests to use (defaulting
+to its most recent one). `computeCombinedResults` takes a plain list of
+real `TestDefinition`s - one per selected subject - and never assumes or
+invents a shared test id across them (Set 15 spec: "do not fabricate a
+shared Test ID when the database has separate tests").
+
+### Security
+
+Results screens are admin-only routes (`/admin/results/...`) - not
+reachable from any teacher or student route - and read the same
+`tests`/`testResults` collections through the exact rules Set 14 already
+established (`isAdmin() || isTeacher()` for `list`, gated per-student
+publish check for a student's own `get`). No rule changes were needed
+for Set 15: nothing here writes anything, and the existing read rules
+already have no per-document dependency for the admin/teacher branches
+that this feature actually uses, so every list here is a plain
+unconstrained `watchAll()`, exactly like `allBatchesProvider`/
+`allStudentsProvider` elsewhere.
+
 ## Public content, enquiries, callback requests and notifications (Set 5)
 
 ```

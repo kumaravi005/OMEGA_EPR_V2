@@ -30,4 +30,22 @@ void main() {
       expect(competitionRanks([10, 90, 50]), [3, 1, 2]);
     });
   });
+
+  group('rankByPercentage', () {
+    test('ranks non-null percentages with competition ranking', () {
+      expect(rankByPercentage([90, 90, 85]), [1, 1, 3]);
+    });
+
+    test('excludes null percentages from ranking, returning null for them', () {
+      expect(rankByPercentage([90, null, 85]), [1, null, 2]);
+    });
+
+    test('an all-null list ranks nothing', () {
+      expect(rankByPercentage([null, null]), [null, null]);
+    });
+
+    test('handles an empty list', () {
+      expect(rankByPercentage(<double?>[]), <int?>[]);
+    });
+  });
 }
