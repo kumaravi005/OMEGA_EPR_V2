@@ -9,18 +9,29 @@ import '../../../core/widgets/loading_view.dart';
 import '../../academics/data/academic_session.dart';
 import '../../academics/data/academics_repositories.dart';
 import '../../academics/data/school_class.dart';
+import '../../auth/application/auth_providers.dart';
+import '../../auth/data/user_account.dart';
 import '../../batches/data/batch.dart';
 import '../../batches/data/batch_repository.dart';
 import '../../student/data/student_profile.dart';
 import '../../student/data/student_repository.dart';
+import '../../teacher_assignments/data/teacher_assignment.dart';
+import '../../teacher_assignments/data/teacher_assignment_repository.dart';
 import '../application/attendance_controller.dart';
 import '../data/attendance_repository.dart';
 import '../data/student_attendance_record.dart';
 
-/// Admin marks one common attendance record per batch/date, covering
-/// every student in the batch - never split by subject. Selection follows
-/// the spec's cascade: academic session -> class -> (only matching active
-/// batches) -> date -> student list.
+/// Marks one common attendance record per batch/date, covering every
+/// student in the batch - never split by subject (Set 13, unchanged by
+/// Set 23). Admin picks any session -> class -> (matching active
+/// batches); a signed-in teacher instead picks directly from their own
+/// active `TeacherAssignment` batch scopes (Set 23 sections 3-5) - there
+/// is no free session/class picker for a teacher, and no batch outside
+/// their assignments is ever offered. Attendance itself has no subject
+/// field (Set 13's own design, preserved - see
+/// `TeacherAssignment`'s doc comment on why Set 23 does not invent one),
+/// so a teacher's selection only needs to match session+batch, not
+/// subject.
 class MarkStudentAttendanceScreen extends ConsumerStatefulWidget {
   const MarkStudentAttendanceScreen({super.key});
 
@@ -102,6 +113,32 @@ class _MarkStudentAttendanceScreenState
 
   @override
   Widget build(BuildContext context) {
+    final account = ref.watch(currentUserAccountProvider).valueOrNull;
+    final isTeacher = account?.role == UserRole.teacher;
+
+    if (isTeacher) {
+      return _TeacherScopedBody(
+        teacherId: account!.uid,
+        sessionId: _sessionId,
+        classId: _classId,
+        batchId: _batchId,
+        date: _date,
+        isSubmitting: _isSubmitting,
+        errorMessage: _errorMessage,
+        statuses: _statuses,
+        onScopeChanged: (assignment) => setState(() {
+          _sessionId = assignment?.academicSessionId;
+          _classId = assignment?.classId;
+          _batchId = assignment?.batchId;
+        }),
+        onPickDate: _pickDate,
+        onStatusChanged: (uid, status) =>
+            setState(() => _statuses[uid] = status),
+        onPrefill: _prefillIfNeeded,
+        onSubmit: _submit,
+      );
+    }
+
     final sessionsAsync = ref.watch(allAcademicSessionsProvider);
     final classesAsync = ref.watch(activeSchoolClassesProvider);
     final batchesAsync = ref.watch(activeBatchesProvider);
@@ -178,6 +215,304 @@ class _MarkStudentAttendanceScreenState
           },
         ),
       ),
+    );
+  }
+}
+
+/// A signed-in teacher's version of the same screen: instead of Session
+/// -> Class -> Batch dropdowns, ONE dropdown built from
+/// `ownTeacherAssignmentsProvider` (Set 22's rule-constrained self-read),
+/// deduplicated by batch (`distinctActiveBatchScopes` - Set 23 section 5,
+/// since a teacher may hold more than one subject-assignment to the same
+/// batch and attendance itself has no subject). Everything below the
+/// picker - date, student list, save - is the identical `_Body`
+/// machinery the admin path uses, so there is exactly one attendance UI,
+/// not two.
+class _TeacherScopedBody extends ConsumerWidget {
+  const _TeacherScopedBody({
+    required this.teacherId,
+    required this.sessionId,
+    required this.classId,
+    required this.batchId,
+    required this.date,
+    required this.isSubmitting,
+    required this.errorMessage,
+    required this.statuses,
+    required this.onScopeChanged,
+    required this.onPickDate,
+    required this.onStatusChanged,
+    required this.onPrefill,
+    required this.onSubmit,
+  });
+
+  final String teacherId;
+  final String? sessionId;
+  final String? classId;
+  final String? batchId;
+  final DateTime date;
+  final bool isSubmitting;
+  final String? errorMessage;
+  final Map<String, AttendanceStatus> statuses;
+  final ValueChanged<TeacherAssignment?> onScopeChanged;
+  final VoidCallback onPickDate;
+  final void Function(String uid, AttendanceStatus status) onStatusChanged;
+  final void Function(
+    String batchId,
+    List<String> studentUids,
+    StudentAttendanceRecord? existing,
+  )
+  onPrefill;
+  final Future<void> Function(
+    String batchId,
+    String academicSessionId,
+    String classId,
+  )
+  onSubmit;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final assignmentsAsync = ref.watch(ownTeacherAssignmentsProvider(teacherId));
+    final sessionsAsync = ref.watch(allAcademicSessionsProvider);
+    final classesAsync = ref.watch(allSchoolClassesProvider);
+    final batchesAsync = ref.watch(allBatchesProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mark attendance')),
+      body: SafeArea(
+        child: assignmentsAsync.when(
+          loading: () => const LoadingView(),
+          error: (error, stackTrace) =>
+              ErrorView(message: 'Could not load your assignments.\n$error'),
+          data: (assignments) {
+            final scopes = distinctActiveBatchScopes(assignments);
+            if (scopes.isEmpty) {
+              return const EmptyView(
+                message: 'You have no active teaching assignments yet - '
+                    'ask an admin to assign you to a class/batch.',
+              );
+            }
+
+            final sessions = sessionsAsync.valueOrNull ?? const [];
+            final classes = classesAsync.valueOrNull ?? const [];
+            final batches = batchesAsync.valueOrNull ?? const [];
+            final selected = scopes
+                .where(
+                  (a) => a.academicSessionId == sessionId && a.batchId == batchId,
+                )
+                .firstOrNull;
+
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: selected?.assignmentId,
+                          decoration: const InputDecoration(
+                            labelText: 'My class / batch',
+                          ),
+                          items: [
+                            for (final scope in scopes)
+                              DropdownMenuItem(
+                                value: scope.assignmentId,
+                                child: Text(
+                                  _scopeLabel(scope, sessions, classes, batches),
+                                ),
+                              ),
+                          ],
+                          onChanged: isSubmitting
+                              ? null
+                              : (value) => onScopeChanged(
+                                  scopes
+                                      .where((s) => s.assignmentId == value)
+                                      .firstOrNull,
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      TextButton.icon(
+                        onPressed: isSubmitting ? null : onPickDate,
+                        icon: const Icon(Icons.calendar_today_outlined),
+                        label: Text(dateKey(date)),
+                      ),
+                    ],
+                  ),
+                ),
+                if (errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                    ),
+                    child: Text(
+                      errorMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: batchId == null
+                      ? const EmptyView(
+                          message: 'Select a class/batch to continue.',
+                        )
+                      : _StudentAttendanceList(
+                          batchId: batchId!,
+                          date: date,
+                          statuses: statuses,
+                          isSubmitting: isSubmitting,
+                          onStatusChanged: onStatusChanged,
+                          onPrefill: onPrefill,
+                        ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: AppButton(
+                    label: 'Save attendance',
+                    isLoading: isSubmitting,
+                    onPressed: batchId == null || sessionId == null || classId == null
+                        ? null
+                        : () => onSubmit(batchId!, sessionId!, classId!),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  String _scopeLabel(
+    TeacherAssignment scope,
+    List<AcademicSession> sessions,
+    List<SchoolClass> classes,
+    List<Batch> batches,
+  ) {
+    final sessionName = sessions
+        .where((s) => s.sessionId == scope.academicSessionId)
+        .firstOrNull
+        ?.name;
+    final className = classes
+        .where((c) => c.classId == scope.classId)
+        .firstOrNull
+        ?.name;
+    final batchName = batches
+        .where((b) => b.batchId == scope.batchId)
+        .firstOrNull
+        ?.name;
+    return '${className ?? 'Unknown class'} - ${batchName ?? 'Unknown batch'}'
+        '${sessionName != null ? ' ($sessionName)' : ''}';
+  }
+}
+
+/// The student roster + present/absent toggles for one batch/date -
+/// factored out so both the admin (`_Body`) and teacher
+/// (`_TeacherScopedBody`) paths render the identical list without
+/// duplicating the historical-student-preservation logic (Set 13 section
+/// 6/22: a student who has since left the batch must still show up when
+/// editing a past date that already recorded them).
+class _StudentAttendanceList extends ConsumerWidget {
+  const _StudentAttendanceList({
+    required this.batchId,
+    required this.date,
+    required this.statuses,
+    required this.isSubmitting,
+    required this.onStatusChanged,
+    required this.onPrefill,
+  });
+
+  final String batchId;
+  final DateTime date;
+  final Map<String, AttendanceStatus> statuses;
+  final bool isSubmitting;
+  final void Function(String uid, AttendanceStatus status) onStatusChanged;
+  final void Function(
+    String batchId,
+    List<String> studentUids,
+    StudentAttendanceRecord? existing,
+  )
+  onPrefill;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final studentsAsync = ref.watch(allStudentsProvider);
+    final existingAsync = ref.watch(batchAttendanceProvider(batchId));
+    return studentsAsync.when(
+      loading: () => const LoadingView(),
+      error: (error, stackTrace) =>
+          ErrorView(message: 'Could not load students.\n$error'),
+      data: (allStudents) {
+        final existing = existingAsync.valueOrNull
+            ?.where((r) => r.dateKey == dateKey(date))
+            .firstOrNull;
+
+        final activeInBatch = allStudents
+            .where((s) => s.batchId == batchId && s.active)
+            .toList();
+        final historicalExtras = existing == null
+            ? <StudentProfile>[]
+            : allStudents
+                  .where(
+                    (s) =>
+                        existing.records.containsKey(s.uid) &&
+                        !activeInBatch.any((a) => a.uid == s.uid),
+                  )
+                  .toList();
+        final students = [...activeInBatch, ...historicalExtras];
+
+        if (students.isEmpty) {
+          return const EmptyView(message: 'No students in this batch.');
+        }
+
+        onPrefill(batchId, students.map((s) => s.uid).toList(), existing);
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          itemCount: students.length,
+          separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.xs),
+          itemBuilder: (context, index) {
+            final student = students[index];
+            final status = statuses[student.uid] ?? AttendanceStatus.present;
+            return Card(
+              child: ListTile(
+                title: Text('${student.name} (${student.accountId})'),
+                subtitle: student.active
+                    ? null
+                    : const Text(
+                        'No longer in this batch',
+                        style: TextStyle(fontStyle: FontStyle.italic),
+                      ),
+                trailing: ToggleButtons(
+                  isSelected: [
+                    status == AttendanceStatus.present,
+                    status == AttendanceStatus.absent,
+                  ],
+                  onPressed: isSubmitting
+                      ? null
+                      : (i) => onStatusChanged(
+                          student.uid,
+                          i == 0
+                              ? AttendanceStatus.present
+                              : AttendanceStatus.absent,
+                        ),
+                  children: const [
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Text('P'),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Text('A'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -325,117 +660,13 @@ class _Body extends ConsumerWidget {
               ? const EmptyView(
                   message: 'Select a session, class and batch to continue.',
                 )
-              : Consumer(
-                  builder: (context, ref, _) {
-                    final studentsAsync = ref.watch(allStudentsProvider);
-                    final existingAsync = ref.watch(
-                      batchAttendanceProvider(batchId!),
-                    );
-                    return studentsAsync.when(
-                      loading: () => const LoadingView(),
-                      error: (error, stackTrace) => ErrorView(
-                        message: 'Could not load students.\n$error',
-                      ),
-                      data: (allStudents) {
-                        final existing = existingAsync.valueOrNull
-                            ?.where((r) => r.dateKey == dateKey(date))
-                            .firstOrNull;
-
-                        // Active students currently in this batch, plus
-                        // any student already recorded in the existing
-                        // attendance for this date even if they have
-                        // since left the batch/gone inactive - editing a
-                        // past date must never silently drop them from
-                        // view (Set 13 spec section 6/22).
-                        final activeInBatch = allStudents
-                            .where((s) => s.batchId == batchId && s.active)
-                            .toList();
-                        final historicalExtras = existing == null
-                            ? <StudentProfile>[]
-                            : allStudents
-                                  .where(
-                                    (s) =>
-                                        existing.records.containsKey(s.uid) &&
-                                        !activeInBatch.any(
-                                          (a) => a.uid == s.uid,
-                                        ),
-                                  )
-                                  .toList();
-                        final students = [
-                          ...activeInBatch,
-                          ...historicalExtras,
-                        ];
-
-                        if (students.isEmpty) {
-                          return const EmptyView(
-                            message: 'No students in this batch.',
-                          );
-                        }
-
-                        onPrefill(
-                          batchId!,
-                          students.map((s) => s.uid).toList(),
-                          existing,
-                        );
-
-                        return ListView.separated(
-                          padding: const EdgeInsets.all(AppSpacing.md),
-                          itemCount: students.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: AppSpacing.xs),
-                          itemBuilder: (context, index) {
-                            final student = students[index];
-                            final status =
-                                statuses[student.uid] ??
-                                AttendanceStatus.present;
-                            return Card(
-                              child: ListTile(
-                                title: Text(
-                                  '${student.name} (${student.accountId})',
-                                ),
-                                subtitle: student.active
-                                    ? null
-                                    : const Text(
-                                        'No longer in this batch',
-                                        style: TextStyle(
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                trailing: ToggleButtons(
-                                  isSelected: [
-                                    status == AttendanceStatus.present,
-                                    status == AttendanceStatus.absent,
-                                  ],
-                                  onPressed: isSubmitting
-                                      ? null
-                                      : (i) => onStatusChanged(
-                                          student.uid,
-                                          i == 0
-                                              ? AttendanceStatus.present
-                                              : AttendanceStatus.absent,
-                                        ),
-                                  children: const [
-                                    Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                      ),
-                                      child: Text('P'),
-                                    ),
-                                    Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                      ),
-                                      child: Text('A'),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
+              : _StudentAttendanceList(
+                  batchId: batchId!,
+                  date: date,
+                  statuses: statuses,
+                  isSubmitting: isSubmitting,
+                  onStatusChanged: onStatusChanged,
+                  onPrefill: onPrefill,
                 ),
         ),
         Padding(

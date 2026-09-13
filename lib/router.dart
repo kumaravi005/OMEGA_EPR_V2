@@ -357,6 +357,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const MyAssignmentsScreen(),
       ),
       GoRoute(
+        path: AppRoutes.teacherMarkAttendance,
+        builder: (context, state) => const MarkStudentAttendanceScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.teacherAttendance,
         builder: (context, state) => const TeacherAttendanceHistoryScreen(),
       ),

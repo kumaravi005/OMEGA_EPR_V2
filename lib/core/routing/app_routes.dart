@@ -55,6 +55,7 @@ abstract final class AppRoutes {
 
   static const teacher = '/teacher';
   static const teacherAssignments = '/teacher/assignments';
+  static const teacherMarkAttendance = '/teacher/attendance/mark';
   static const teacherAttendance = '/teacher/attendance';
   static const teacherAcademicWork = '/teacher/homework-assignments';
   static const teacherTests = '/teacher/tests';

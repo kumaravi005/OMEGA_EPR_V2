@@ -603,11 +603,47 @@ service cloud.firestore {
     // moved to a different batch loses access to the old batch's
     // history. Accepted trade-off: correctness of "can this query even
     // run" beats preserving access to a superseded batch's records.
+    // Set 23 KNOWN, DOCUMENTED LIMITATION - read this before touching
+    // teacher write access here: attendance is deliberately BATCH-level,
+    // never subject-level (Set 13's own design; Set 23 section 4
+    // explicitly forbids inventing a subject field just to make this
+    // check easier). `teacherIsAssignedTo` (used by academicWork/tests/
+    // testResults below) needs an EXACT subjectId to build the
+    // deterministic assignment document id - but a batch may have
+    // several different subject-assignments (Set 9 seeds classes with up
+    // to 10 subjects each), and Firestore Security Rules can only
+    // perform a bounded, fixed number of `get()`/`exists()` calls (10 per
+    // single-document request - confirmed against Firebase's own rules
+    // documentation), with no query/loop construct available to check
+    // "does ANY of this teacher's assignments, for an unknown subject,
+    // match this batch" - that would need either an unbounded/oversized
+    // number of calls (unsafe - a class with many configured subjects
+    // could exceed the budget and start failing closed unpredictably) or
+    // a second, denormalized index of assignment data (explicitly
+    // prohibited - "do not duplicate assignment data"), or Firebase Auth
+    // custom claims (requires the Admin SDK / Cloud Functions - explicitly
+    // prohibited on this Spark-plan project). None of those are safe or
+    // permitted, so this is NOT rules-enforced per-assignment.
+    //
+    // What IS enforced: role (`isTeacher()`, same broad grant already
+    // documented for `students`/`tests`/`academicWork` reads since Set
+    // 8/14/16 - "any active teacher may work with any batch", now
+    // extended to this one write path too) plus full shape validation
+    // (`newAttendanceIsValid`/`attendanceUpdateIsValid`, unchanged). The
+    // APPLICATION restricts which batch a teacher can select in the
+    // first place - `MarkStudentAttendanceScreen`'s teacher path only
+    // ever offers batches drawn from `ownTeacherAssignmentsProvider`
+    // (Set 22's rule-constrained self-read) - which is real protection
+    // against an accidental scope violation through the UI, but is not a
+    // hard security boundary against a deliberately crafted direct API
+    // write. This is the SAME class of accepted, explicitly-documented
+    // trade-off this project has made before, not a new or lesser
+    // standard invented for Set 23.
     match /attendance/{recordId} {
       allow get: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
       allow list: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
-      allow create: if isAdmin() && newAttendanceIsValid(recordId);
-      allow update: if isAdmin() && attendanceUpdateIsValid();
+      allow create: if (isAdmin() || isTeacher()) && newAttendanceIsValid(recordId);
+      allow update: if (isAdmin() || isTeacher()) && attendanceUpdateIsValid();
       allow delete: if false;
     }
 
@@ -730,6 +766,35 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Set 23 - teacher-scoped operational authorization, built on top of
+    // Set 22's `teacherAssignments`. This is the ONE place that checks
+    // "does the signed-in teacher have an active assignment matching this
+    // session/class/batch/subject" - reused by academicWork/tests/
+    // testResults below, all of which already carry (or can look up) a
+    // `subjectId`, so the exact deterministic assignment document id is
+    // fully computable and a single `exists()`+`get()` pair is enough -
+    // no query, no bounded/unbounded loop needed. `classId` is checked
+    // too (not just session/batch/subject): a batch's own `classId` CAN
+    // change after an assignment was created (`BatchController.updateBatch`
+    // allows it), and an assignment must keep authorizing only the class
+    // it was actually created for (section 18 - historical integrity), not
+    // silently follow the batch to a new class.
+    //
+    // ATTENDANCE IS THE ONE EXCEPTION (see the `attendance` match block
+    // below): it has no `subjectId` field at all (Set 13's own design,
+    // deliberately preserved - see `TeacherAssignment`'s doc comment on
+    // why Set 23 does not invent one), so this exact technique does not
+    // apply there - see that block's comment for the documented
+    // limitation.
+    function teacherIsAssignedTo(academicSessionId, classId, batchId, subjectId) {
+      let path = /databases/$(database)/documents/teacherAssignments/$(request.auth.uid + '_' + academicSessionId + '_' + batchId + '_' + subjectId);
+      return exists(path) && teacherAssignmentDataMatches(get(path).data, classId);
+    }
+
+    function teacherAssignmentDataMatches(assignment, classId) {
+      return assignment.active == true && assignment.classId == classId;
+    }
+
     // Homework and assignments, unified (Set 16 - replaces the separate
     // Set 4 `homework`/`assignments` collections; see docs/database-
     // architecture.md for the full rationale). One reusable model with a
@@ -801,13 +866,28 @@ service cloud.firestore {
         && data.keys().hasOnly(academicWorkFields());
     }
 
+    // Set 23: a teacher may create/update academicWork whose session/
+    // class/batch/subject matches one of their own active
+    // `teacherAssignments` (checked against `resource.data` on update,
+    // since `academicWorkUpdateIsValid` already pins those fields to
+    // their original values - so checking the old or new document is
+    // equivalent, and the old one is what's actually being authorized
+    // against). Read access is UNCHANGED - still any active teacher,
+    // matching the existing tests/attendance precedent (Set 8/14/16) -
+    // this set only narrows WRITE access, never widens or narrows reads.
+    function academicWorkTeacherScopeMatches(data) {
+      return teacherIsAssignedTo(data.academicSessionId, data.classId, data.batchId, data.subjectId);
+    }
+
     match /academicWork/{workId} {
       allow get: if isAdmin() || isTeacher()
         || (isStudentOfBatch(resource.data.batchId) && resource.data.status != 'draft');
       allow list: if isAdmin() || isTeacher()
         || (isStudentOfBatch(resource.data.batchId) && resource.data.status in ['published', 'closed']);
-      allow create: if isAdmin() && newAcademicWorkIsValid();
-      allow update: if isAdmin() && academicWorkUpdateIsValid();
+      allow create: if newAcademicWorkIsValid()
+        && (isAdmin() || (isTeacher() && academicWorkTeacherScopeMatches(request.resource.data)));
+      allow update: if academicWorkUpdateIsValid()
+        && (isAdmin() || (isTeacher() && academicWorkTeacherScopeMatches(resource.data)));
       allow delete: if false;
     }
 
@@ -1067,11 +1147,26 @@ service cloud.firestore {
         && (!changedKeys().hasAny(['active']) || request.resource.data.active is bool);
     }
 
+    // Set 23: a teacher may create a test, or publish/(de)activate one
+    // they can create, whenever its session/class/batch/subject matches
+    // one of their own active `teacherAssignments` - see
+    // `teacherIsAssignedTo` above. `newTestIsValid` already pins
+    // `createdBy == request.auth.uid`; `testUpdateIsValid` already
+    // restricts an update to `resultPublished`/`active`/`updatedAt` only,
+    // so the scope check for update is against `resource.data` (the
+    // test's permanent, unchangeable session/class/batch/subject).
+    // Read access is UNCHANGED (any active teacher, same as before).
+    function testTeacherScopeMatches(data) {
+      return teacherIsAssignedTo(data.academicSessionId, data.classId, data.batchId, data.subjectId);
+    }
+
     match /tests/{testId} {
       allow get: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
       allow list: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
-      allow create: if isAdmin() && newTestIsValid();
-      allow update: if isAdmin() && testUpdateIsValid();
+      allow create: if newTestIsValid()
+        && (isAdmin() || (isTeacher() && testTeacherScopeMatches(request.resource.data)));
+      allow update: if testUpdateIsValid()
+        && (isAdmin() || (isTeacher() && testTeacherScopeMatches(resource.data)));
       allow delete: if false;
     }
 
@@ -1083,8 +1178,15 @@ service cloud.firestore {
     // duplicate-prevention scheme as attendance). "Do not expose
     // unpublished marks to students" is enforced right here: a student
     // can only ever `get` their own result, and only once the parent
-    // test's `resultPublished` is true. Admin-only to write (Set 14) -
-    // teachers may still read.
+    // test's `resultPublished` is true. Admin may always write (Set 14);
+    // Set 23 additionally allows a teacher to write marks for a test
+    // whose session/class/batch/subject matches one of their own active
+    // `teacherAssignments` - checked via the PARENT test document (a
+    // `testResult` itself carries no subjectId/session/class), the same
+    // `get()`-a-related-document technique `testIsPublished` already
+    // uses. "Do not trust the test id alone" (section 11) - the parent
+    // test is actually read and its own scope checked, not merely
+    // assumed from whatever the client claims.
     function testResultFields() {
       return ['testId', 'studentUid', 'batchId', 'isAbsent', 'obtainedMarks', 'totalMarks', 'remark', 'enteredBy',
         'createdAt', 'updatedAt'];
@@ -1136,11 +1238,18 @@ service cloud.firestore {
         && data.keys().hasOnly(testResultFields());
     }
 
+    function testResultTeacherScopeMatches(testId) {
+      let test = get(/databases/$(database)/documents/tests/$(testId)).data;
+      return teacherIsAssignedTo(test.academicSessionId, test.classId, test.batchId, test.subjectId);
+    }
+
     match /testResults/{resultId} {
       allow get: if isAdmin() || isTeacher() || (isSelf(resource.data.studentUid) && testIsPublished(resource.data.testId));
       allow list: if isAdmin() || isTeacher();
-      allow create: if isAdmin() && newTestResultIsValid(resultId);
-      allow update: if isAdmin() && testResultUpdateIsValid();
+      allow create: if newTestResultIsValid(resultId)
+        && (isAdmin() || (isTeacher() && testResultTeacherScopeMatches(request.resource.data.testId)));
+      allow update: if testResultUpdateIsValid()
+        && (isAdmin() || (isTeacher() && testResultTeacherScopeMatches(resource.data.testId)));
       allow delete: if false;
     }
 

@@ -9,6 +9,7 @@ import '../../auth/application/auth_providers.dart';
 import '../../auth/data/user_account.dart';
 import '../../student/data/student_profile.dart';
 import '../../student/data/student_repository.dart';
+import '../../teacher_assignments/data/teacher_assignment_repository.dart';
 import '../application/test_controller.dart';
 import '../data/test_definition.dart';
 import '../data/test_repository.dart';
@@ -17,8 +18,11 @@ import '../data/test_result.dart';
 /// Bulk marks entry for every eligible student in the test's batch,
 /// staged locally and saved together in one write (Set 14 spec) -
 /// mirroring the attendance-marking screens' date-then-list-then-save
-/// flow. Read-only for anyone who isn't admin (Set 14 spec: admin
-/// remains the sole authority for entering/editing marks).
+/// flow. Editable by admin, or by a teacher whose own active
+/// `TeacherAssignment` matches this test's session/class/batch/subject
+/// (Set 22/23 - previously admin-only); read-only for everyone else,
+/// including a teacher with no matching assignment (Set 23 section 11:
+/// "do not trust the test ID alone").
 class EnterMarksScreen extends ConsumerWidget {
   const EnterMarksScreen({super.key, required this.testId});
 
@@ -122,9 +126,19 @@ class _MarksBodyState extends ConsumerState<_MarksBody> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin =
-        ref.watch(currentUserAccountProvider).valueOrNull?.role ==
-        UserRole.admin;
+    final account = ref.watch(currentUserAccountProvider).valueOrNull;
+    final isAdmin = account?.role == UserRole.admin;
+    final isTeacher = account?.role == UserRole.teacher;
+    final teacherCanManage = isTeacher && account != null
+        ? teacherCanOperateOn(
+            ref.watch(ownTeacherAssignmentsProvider(account.uid)).valueOrNull ??
+                const [],
+            academicSessionId: widget.test.academicSessionId,
+            batchId: widget.test.batchId,
+            subjectId: widget.test.subjectId,
+          )
+        : false;
+    final canManage = isAdmin || teacherCanManage;
     final studentsAsync = ref.watch(allStudentsProvider);
     final resultsAsync = ref.watch(testResultsForTestProvider(widget.test.testId));
 
@@ -179,13 +193,13 @@ class _MarksBodyState extends ConsumerState<_MarksBody> {
                   totalMarks: widget.test.totalMarks,
                   controller: _controllers[students[index].uid]!,
                   isAbsent: _absent[students[index].uid] ?? false,
-                  enabled: isAdmin && !_isSubmitting,
+                  enabled: canManage && !_isSubmitting,
                   onAbsentChanged: (value) =>
                       setState(() => _absent[students[index].uid] = value),
                 ),
               ),
             ),
-            if (isAdmin)
+            if (canManage)
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 child: AppButton(

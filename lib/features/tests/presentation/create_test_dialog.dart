@@ -5,16 +5,27 @@ import '../../../core/utils/date_key.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
+import '../../academics/data/academic_session.dart';
 import '../../academics/data/academics_repositories.dart';
+import '../../academics/data/school_class.dart';
 import '../../academics/data/subject.dart';
+import '../../auth/application/auth_providers.dart';
+import '../../auth/data/user_account.dart';
+import '../../batches/data/batch.dart';
 import '../../batches/data/batch_repository.dart';
+import '../../teacher_assignments/data/teacher_assignment.dart';
+import '../../teacher_assignments/data/teacher_assignment_repository.dart';
 import '../application/test_controller.dart';
 import '../data/test_definition.dart';
 
-/// New-test creation, cascading Academic Session -> Class -> (only
-/// matching active batches) -> Subject (only subjects the selected
-/// class actually offers, per Set 9's `SchoolClass.subjectIds`) -> test
-/// details (Set 14 spec).
+/// New-test creation. Admin sees the full cascading Academic Session ->
+/// Class -> (only matching active batches) -> Subject (only subjects the
+/// selected class actually offers, per Set 9's `SchoolClass.subjectIds`)
+/// picker (Set 14 spec) - unchanged by Set 23. A signed-in teacher
+/// instead picks ONE of their own active `TeacherAssignment`s (Set
+/// 22/23), which fully determines session/class/batch/subject at once -
+/// see `create_academic_work_dialog.dart` for the identical pattern used
+/// there. Both paths call the same `TestController.createTest`.
 Future<void> showCreateTestDialog(BuildContext context) {
   return showDialog<void>(
     context: context,
@@ -34,6 +45,7 @@ class _CreateTestDialogState extends ConsumerState<_CreateTestDialog> {
   String? _classId;
   String? _batchId;
   String? _subjectId;
+  String? _selectedAssignmentId;
   DateTime _date = DateTime.now();
   TestType _testType = TestType.unitTest;
   bool _isSubmitting = false;
@@ -106,12 +118,45 @@ class _CreateTestDialogState extends ConsumerState<_CreateTestDialog> {
     }
   }
 
+  String _assignmentLabel(
+    TeacherAssignment assignment,
+    List<AcademicSession> sessions,
+    List<SchoolClass> classes,
+    List<Batch> batches,
+    List<Subject> subjects,
+  ) {
+    final sessionName = sessions
+        .where((s) => s.sessionId == assignment.academicSessionId)
+        .firstOrNull
+        ?.name;
+    final className = classes
+        .where((c) => c.classId == assignment.classId)
+        .firstOrNull
+        ?.name;
+    final batchName = batches
+        .where((b) => b.batchId == assignment.batchId)
+        .firstOrNull
+        ?.name;
+    final subjectName = subjects
+        .where((s) => s.subjectId == assignment.subjectId)
+        .firstOrNull
+        ?.name;
+    return '${className ?? 'Unknown class'} - ${batchName ?? 'Unknown batch'} - '
+        '${subjectName ?? 'Unknown subject'}'
+        '${sessionName != null ? ' ($sessionName)' : ''}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final account = ref.watch(currentUserAccountProvider).valueOrNull;
+    final isTeacher = account?.role == UserRole.teacher;
     final sessionsAsync = ref.watch(allAcademicSessionsProvider);
     final classesAsync = ref.watch(activeSchoolClassesProvider);
     final batchesAsync = ref.watch(activeBatchesProvider);
     final subjectsAsync = ref.watch(activeSubjectsProvider);
+    final ownAssignmentsAsync = isTeacher
+        ? ref.watch(ownTeacherAssignmentsProvider(account!.uid))
+        : null;
 
     return AlertDialog(
       title: const Text('New test'),
@@ -133,153 +178,212 @@ class _CreateTestDialogState extends ConsumerState<_CreateTestDialog> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                 ],
-                sessionsAsync.when(
-                  loading: () => const SizedBox.shrink(),
-                  error: (error, stackTrace) => const SizedBox.shrink(),
-                  data: (sessions) => DropdownButtonFormField<String>(
-                    initialValue: _sessionId,
-                    decoration: const InputDecoration(
-                      labelText: 'Academic session *',
-                    ),
-                    items: [
-                      for (final session in sessions)
-                        DropdownMenuItem(
-                          value: session.sessionId,
-                          child: Text(session.name),
-                        ),
-                    ],
-                    onChanged: _isSubmitting
-                        ? null
-                        : (value) => setState(() {
-                            _sessionId = value;
-                            _batchId = null;
-                          }),
-                    validator: (value) =>
-                        value == null ? 'Select an academic session' : null,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                classesAsync.when(
-                  loading: () => const SizedBox.shrink(),
-                  error: (error, stackTrace) => const SizedBox.shrink(),
-                  data: (classes) => DropdownButtonFormField<String>(
-                    initialValue: _classId,
-                    decoration: const InputDecoration(labelText: 'Class *'),
-                    items: [
-                      for (final schoolClass in classes)
-                        DropdownMenuItem(
-                          value: schoolClass.classId,
-                          child: Text(schoolClass.name),
-                        ),
-                    ],
-                    onChanged: _isSubmitting
-                        ? null
-                        : (value) => setState(() {
-                            _classId = value;
-                            _batchId = null;
-                            _subjectId = null;
-                          }),
-                    validator: (value) =>
-                        value == null ? 'Select a class' : null,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                batchesAsync.when(
-                  loading: () => const SizedBox.shrink(),
-                  error: (error, stackTrace) => const SizedBox.shrink(),
-                  data: (batches) {
-                    final matching = batchesForSessionAndClass(
-                      batches,
-                      academicSessionId: _sessionId,
-                      classId: _classId,
-                    );
-                    if (_sessionId == null || _classId == null) {
-                      return const Text(
-                        'Select a session and class to see matching batches.',
-                      );
-                    }
-                    if (matching.isEmpty) {
-                      return Text(
-                        'No active batches for this session/class.',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      );
-                    }
-                    return DropdownButtonFormField<String>(
-                      key: ValueKey('batch-$_sessionId-$_classId'),
-                      initialValue: matching.any((b) => b.batchId == _batchId)
-                          ? _batchId
-                          : null,
-                      decoration: const InputDecoration(labelText: 'Batch *'),
-                      items: [
-                        for (final batch in matching)
-                          DropdownMenuItem(
-                            value: batch.batchId,
-                            child: Text(batch.name),
+                if (isTeacher)
+                  ownAssignmentsAsync!.when(
+                    loading: () => const SizedBox.shrink(),
+                    error: (error, stackTrace) => const SizedBox.shrink(),
+                    data: (assignments) {
+                      final active = assignments.where((a) => a.active).toList();
+                      if (active.isEmpty) {
+                        return Text(
+                          'You have no active teaching assignments yet - ask '
+                          'an admin to assign you to a class/batch/subject.',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
                           ),
-                      ],
-                      onChanged: _isSubmitting
-                          ? null
-                          : (value) => setState(() => _batchId = value),
-                      validator: (value) =>
-                          value == null ? 'Select a batch' : null,
-                    );
-                  },
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                classesAsync.when(
-                  loading: () => const SizedBox.shrink(),
-                  error: (error, stackTrace) => const SizedBox.shrink(),
-                  data: (classes) {
-                    final schoolClass = classes
-                        .where((c) => c.classId == _classId)
-                        .firstOrNull;
-                    final subjects = subjectsAsync.valueOrNull ?? const [];
-                    final classSubjects = schoolClass == null
-                        ? const <Subject>[]
-                        : subjects
-                              .where(
-                                (s) => schoolClass.subjectIds.contains(
-                                  s.subjectId,
-                                ),
-                              )
-                              .toList();
-                    if (_classId == null) {
-                      return const Text('Select a class to see subjects.');
-                    }
-                    if (classSubjects.isEmpty) {
-                      return Text(
-                        'No subjects configured for this class.',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
+                        );
+                      }
+                      return DropdownButtonFormField<String>(
+                        initialValue: active.any(
+                              (a) => a.assignmentId == _selectedAssignmentId,
+                            )
+                            ? _selectedAssignmentId
+                            : null,
+                        decoration: const InputDecoration(
+                          labelText: 'My class / batch / subject *',
                         ),
+                        items: [
+                          for (final assignment in active)
+                            DropdownMenuItem(
+                              value: assignment.assignmentId,
+                              child: Text(
+                                _assignmentLabel(
+                                  assignment,
+                                  sessionsAsync.valueOrNull ?? const [],
+                                  classesAsync.valueOrNull ?? const [],
+                                  batchesAsync.valueOrNull ?? const [],
+                                  subjectsAsync.valueOrNull ?? const [],
+                                ),
+                              ),
+                            ),
+                        ],
+                        onChanged: _isSubmitting
+                            ? null
+                            : (value) => setState(() {
+                                _selectedAssignmentId = value;
+                                final assignment = active
+                                    .where((a) => a.assignmentId == value)
+                                    .firstOrNull;
+                                _sessionId = assignment?.academicSessionId;
+                                _classId = assignment?.classId;
+                                _batchId = assignment?.batchId;
+                                _subjectId = assignment?.subjectId;
+                              }),
+                        validator: (value) =>
+                            value == null ? 'Select an assignment' : null,
                       );
-                    }
-                    return DropdownButtonFormField<String>(
-                      key: ValueKey('subject-$_classId'),
-                      initialValue:
-                          classSubjects.any((s) => s.subjectId == _subjectId)
-                          ? _subjectId
-                          : null,
+                    },
+                  )
+                else ...[
+                  sessionsAsync.when(
+                    loading: () => const SizedBox.shrink(),
+                    error: (error, stackTrace) => const SizedBox.shrink(),
+                    data: (sessions) => DropdownButtonFormField<String>(
+                      initialValue: _sessionId,
                       decoration: const InputDecoration(
-                        labelText: 'Subject *',
+                        labelText: 'Academic session *',
                       ),
                       items: [
-                        for (final subject in classSubjects)
+                        for (final session in sessions)
                           DropdownMenuItem(
-                            value: subject.subjectId,
-                            child: Text(subject.name),
+                            value: session.sessionId,
+                            child: Text(session.name),
                           ),
                       ],
                       onChanged: _isSubmitting
                           ? null
-                          : (value) => setState(() => _subjectId = value),
+                          : (value) => setState(() {
+                              _sessionId = value;
+                              _batchId = null;
+                            }),
                       validator: (value) =>
-                          value == null ? 'Select a subject' : null,
-                    );
-                  },
-                ),
+                          value == null ? 'Select an academic session' : null,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  classesAsync.when(
+                    loading: () => const SizedBox.shrink(),
+                    error: (error, stackTrace) => const SizedBox.shrink(),
+                    data: (classes) => DropdownButtonFormField<String>(
+                      initialValue: _classId,
+                      decoration: const InputDecoration(labelText: 'Class *'),
+                      items: [
+                        for (final schoolClass in classes)
+                          DropdownMenuItem(
+                            value: schoolClass.classId,
+                            child: Text(schoolClass.name),
+                          ),
+                      ],
+                      onChanged: _isSubmitting
+                          ? null
+                          : (value) => setState(() {
+                              _classId = value;
+                              _batchId = null;
+                              _subjectId = null;
+                            }),
+                      validator: (value) =>
+                          value == null ? 'Select a class' : null,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  batchesAsync.when(
+                    loading: () => const SizedBox.shrink(),
+                    error: (error, stackTrace) => const SizedBox.shrink(),
+                    data: (batches) {
+                      final matching = batchesForSessionAndClass(
+                        batches,
+                        academicSessionId: _sessionId,
+                        classId: _classId,
+                      );
+                      if (_sessionId == null || _classId == null) {
+                        return const Text(
+                          'Select a session and class to see matching batches.',
+                        );
+                      }
+                      if (matching.isEmpty) {
+                        return Text(
+                          'No active batches for this session/class.',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        );
+                      }
+                      return DropdownButtonFormField<String>(
+                        key: ValueKey('batch-$_sessionId-$_classId'),
+                        initialValue:
+                            matching.any((b) => b.batchId == _batchId)
+                            ? _batchId
+                            : null,
+                        decoration: const InputDecoration(labelText: 'Batch *'),
+                        items: [
+                          for (final batch in matching)
+                            DropdownMenuItem(
+                              value: batch.batchId,
+                              child: Text(batch.name),
+                            ),
+                        ],
+                        onChanged: _isSubmitting
+                            ? null
+                            : (value) => setState(() => _batchId = value),
+                        validator: (value) =>
+                            value == null ? 'Select a batch' : null,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  classesAsync.when(
+                    loading: () => const SizedBox.shrink(),
+                    error: (error, stackTrace) => const SizedBox.shrink(),
+                    data: (classes) {
+                      final schoolClass = classes
+                          .where((c) => c.classId == _classId)
+                          .firstOrNull;
+                      final subjects = subjectsAsync.valueOrNull ?? const [];
+                      final classSubjects = schoolClass == null
+                          ? const <Subject>[]
+                          : subjects
+                                .where(
+                                  (s) => schoolClass.subjectIds.contains(
+                                    s.subjectId,
+                                  ),
+                                )
+                                .toList();
+                      if (_classId == null) {
+                        return const Text('Select a class to see subjects.');
+                      }
+                      if (classSubjects.isEmpty) {
+                        return Text(
+                          'No subjects configured for this class.',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        );
+                      }
+                      return DropdownButtonFormField<String>(
+                        key: ValueKey('subject-$_classId'),
+                        initialValue:
+                            classSubjects.any((s) => s.subjectId == _subjectId)
+                            ? _subjectId
+                            : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Subject *',
+                        ),
+                        items: [
+                          for (final subject in classSubjects)
+                            DropdownMenuItem(
+                              value: subject.subjectId,
+                              child: Text(subject.name),
+                            ),
+                        ],
+                        onChanged: _isSubmitting
+                            ? null
+                            : (value) => setState(() => _subjectId = value),
+                        validator: (value) =>
+                            value == null ? 'Select a subject' : null,
+                      );
+                    },
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.sm),
                 AppTextField(
                   controller: _titleController,

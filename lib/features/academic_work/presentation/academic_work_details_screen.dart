@@ -11,17 +11,20 @@ import '../../academics/data/academics_repositories.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../auth/data/user_account.dart';
 import '../../batches/data/batch_repository.dart';
+import '../../teacher_assignments/data/teacher_assignment_repository.dart';
 import '../application/academic_work_controller.dart';
 import '../data/academic_work.dart';
 import '../data/academic_work_repository.dart';
 
 /// Academic Information / Homework Information / Record Information,
-/// plus edit/publish/close controls for admin only - everyone else
-/// (teacher, student/parent) gets the same layout read-only, which is
-/// exactly the "opening an item should show full instructions" view the
-/// Set 16 spec asks for on the student side too, so this one screen
-/// serves every role reachable from `basePath` (mirrors
-/// `TestDetailsScreen`'s admin/teacher reuse from Set 14/15).
+/// plus edit/publish/close controls for admin, or a teacher whose own
+/// active `TeacherAssignment` matches this item's session/class/batch/
+/// subject (Set 22/23 - previously admin-only) - everyone else (a
+/// teacher without a matching assignment, student/parent) gets the same
+/// layout read-only, which is exactly the "opening an item should show
+/// full instructions" view the Set 16 spec asks for on the student side
+/// too, so this one screen serves every role reachable from `basePath`
+/// (mirrors `TestDetailsScreen`'s admin/teacher reuse from Set 14/15).
 class AcademicWorkDetailsScreen extends ConsumerWidget {
   const AcademicWorkDetailsScreen({super.key, required this.workId});
 
@@ -77,9 +80,19 @@ class _DetailsBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isAdmin =
-        ref.watch(currentUserAccountProvider).valueOrNull?.role ==
-        UserRole.admin;
+    final account = ref.watch(currentUserAccountProvider).valueOrNull;
+    final isAdmin = account?.role == UserRole.admin;
+    final isTeacher = account?.role == UserRole.teacher;
+    final teacherCanManage = isTeacher && account != null
+        ? teacherCanOperateOn(
+            ref.watch(ownTeacherAssignmentsProvider(account.uid)).valueOrNull ??
+                const [],
+            academicSessionId: work.academicSessionId,
+            batchId: work.batchId,
+            subjectId: work.subjectId,
+          )
+        : false;
+    final canManage = isAdmin || teacherCanManage;
     final sessions = ref.watch(allAcademicSessionsProvider).valueOrNull ?? [];
     final classes = ref.watch(allSchoolClassesProvider).valueOrNull ?? [];
     final batches = ref.watch(allBatchesProvider).valueOrNull ?? [];
@@ -173,7 +186,7 @@ class _DetailsBody extends ConsumerWidget {
                 ],
               ),
             ),
-            if (isAdmin) ...[
+            if (canManage) ...[
               const SizedBox(height: AppSpacing.lg),
               AppButton(
                 label: 'Edit',

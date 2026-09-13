@@ -12,13 +12,17 @@ import '../../auth/application/auth_providers.dart';
 import '../../auth/data/user_account.dart';
 import '../../batches/data/batch_repository.dart';
 import '../../student/data/student_repository.dart';
+import '../../teacher_assignments/data/teacher_assignment_repository.dart';
 import '../application/test_controller.dart';
 import '../data/test_definition.dart';
 import '../data/test_repository.dart';
 
 /// Test Information / Academic Information / Marks Information, plus
 /// access to Enter/View Marks - the "Test Details" screen the Set 14
-/// spec asks for, kept separate from the marks-entry grid itself.
+/// spec asks for, kept separate from the marks-entry grid itself. Publish
+/// result/activate-deactivate are available to admin, or to a teacher
+/// whose own active `TeacherAssignment` matches this test's session/
+/// class/batch/subject (Set 22/23 - previously admin-only).
 class TestDetailsScreen extends ConsumerWidget {
   const TestDetailsScreen({
     super.key,
@@ -79,9 +83,19 @@ class _DetailsBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isAdmin =
-        ref.watch(currentUserAccountProvider).valueOrNull?.role ==
-        UserRole.admin;
+    final account = ref.watch(currentUserAccountProvider).valueOrNull;
+    final isAdmin = account?.role == UserRole.admin;
+    final isTeacher = account?.role == UserRole.teacher;
+    final teacherCanManage = isTeacher && account != null
+        ? teacherCanOperateOn(
+            ref.watch(ownTeacherAssignmentsProvider(account.uid)).valueOrNull ??
+                const [],
+            academicSessionId: test.academicSessionId,
+            batchId: test.batchId,
+            subjectId: test.subjectId,
+          )
+        : false;
+    final canManage = isAdmin || teacherCanManage;
     final sessions = ref.watch(allAcademicSessionsProvider).valueOrNull ?? [];
     final classes = ref.watch(allSchoolClassesProvider).valueOrNull ?? [];
     final batches = ref.watch(allBatchesProvider).valueOrNull ?? [];
@@ -193,10 +207,10 @@ class _DetailsBody extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             AppButton(
-              label: isAdmin ? 'Enter marks' : 'View marks',
+              label: canManage ? 'Enter marks' : 'View marks',
               onPressed: () => context.push('$basePath/${test.testId}/marks'),
             ),
-            if (isAdmin) ...[
+            if (canManage) ...[
               const SizedBox(height: AppSpacing.sm),
               if (!test.resultPublished)
                 AppButton(

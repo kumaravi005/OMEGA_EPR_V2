@@ -45,6 +45,11 @@ class TeacherHomeScreen extends ConsumerWidget {
                   onTap: () => context.push(AppRoutes.teacherAssignments),
                 ),
                 NavTile(
+                  icon: Icons.how_to_reg_outlined,
+                  label: 'Mark attendance',
+                  onTap: () => context.push(AppRoutes.teacherMarkAttendance),
+                ),
+                NavTile(
                   icon: Icons.event_available_outlined,
                   label: 'My attendance',
                   onTap: () => context.push(AppRoutes.teacherAttendance),

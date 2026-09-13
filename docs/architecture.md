@@ -205,14 +205,21 @@ lib/
                              (Teacher -> Session -> Class -> Batch ->
                              Subject cascade), MyAssignmentsScreen
                              (teacher's own read-only assignment list).
-    attendance/ (Set 4, extended Set 13)   Student attendance (one record
-                             per batch/date, never per subject) and
-                             teacher attendance (admin-marked, teacher
-                             views own only). Marking now cascades
-                             Session -> Class -> (matching active
-                             batches) for students, and admin gets a
-                             history/summary view for both, on top of
-                             each role's own view.
+    attendance/ (Set 4, extended Set 13, teacher-scoped Set 23)   Student
+                             attendance (one record per batch/date, never
+                             per subject) and teacher attendance
+                             (admin-marked, teacher views own only).
+                             Marking cascades Session -> Class -> (matching
+                             active batches) for admin; a signed-in
+                             teacher instead picks directly from their own
+                             active `TeacherAssignment` batch scopes,
+                             deduplicated by batch since attendance has no
+                             subject (Set 23 - see "Teacher-scoped
+                             academic operations (Set 23)" below for why
+                             this one module's write rule is a documented,
+                             narrower-than-usual exception). Admin gets a
+                             history/summary view for both, on top of each
+                             role's own view.
       data/                 StudentAttendanceRecord (+ an
                              academicSessionId/classId snapshot of the
                              batch at marking time),
@@ -230,8 +237,11 @@ lib/
                              day's staff in one WriteBatch commit instead
                              of one write per teacher).
       presentation/         AttendanceHubScreen (admin's entry point),
-                             MarkStudentAttendanceScreen (Session -> Class
-                             -> Batch -> Date -> student list, admin),
+                             MarkStudentAttendanceScreen (admin: Session ->
+                             Class -> Batch -> Date -> student list;
+                             teacher: one assignment-batch dropdown ->
+                             Date -> student list - Set 23, same screen,
+                             role-branched, not a second implementation),
                              MarkTeacherAttendanceScreen (Date -> teacher
                              list, staged + one Save action, admin),
                              Student/TeacherAttendanceReportScreen (admin
@@ -269,24 +279,36 @@ lib/
                              search + type/session/class/batch/subject/
                              status filters, teacher's subject filter
                              defaults to their own `TeacherProfile.
-                             subjectIds`), CreateAcademicWorkDialog (the
-                             full cascade), AcademicWorkDetailsScreen
-                             (shared by every role - admin gets edit/
-                             status controls, everyone else sees the
-                             same layout read-only), StudentAcademicWorkScreen
-                             (own batch's published/closed work only,
-                             All/Homework/Assignments and Active/Closed
-                             filters).
-    tests/ (Set 4, extended Set 14)   Offline test metadata + marks - no
-                             online exam engine (see
-                             docs/database-architecture.md). A test now
+                             subjectIds`; the "New" action shows for
+                             admin, or a teacher with an active
+                             assignment - Set 23), CreateAcademicWorkDialog
+                             (admin: the full cascade; teacher: one
+                             dropdown of their own active `TeacherAssignment`s,
+                             which fully determines session/class/batch/
+                             subject at once - Set 23), AcademicWorkDetailsScreen
+                             (shared by every role - edit/status controls
+                             show for admin, or a teacher whose active
+                             assignment matches the item's scope - Set 23;
+                             everyone else sees the same layout read-only),
+                             StudentAcademicWorkScreen (own batch's
+                             published/closed work only, All/Homework/
+                             Assignments and Active/Closed filters).
+    tests/ (Set 4, extended Set 14, teacher-scoped Set 23)   Offline test
+                             metadata + marks - no online exam engine (see
+                             docs/database-architecture.md). A test
                              cascades Academic Session -> Class ->
                              (matching active batches) -> Subject (only
                              what the selected class actually offers,
-                             per Set 9's `SchoolClass.subjectIds`) -
-                             admin remains the sole authority for
-                             creating tests and entering/editing marks;
-                             teachers keep read-only access.
+                             per Set 9's `SchoolClass.subjectIds`) for
+                             admin; a teacher instead picks one of their
+                             own active `TeacherAssignment`s (Set 23,
+                             same pattern as academicWork above) -
+                             creating/publishing/entering marks is no
+                             longer admin-only, now gated by assignment
+                             match instead (see "Teacher-scoped academic
+                             operations (Set 23)" below); a teacher with
+                             no matching assignment for a given test still
+                             gets read-only access, same as before.
       data/                 TestDefinition (+ an academicSessionId/
                              classId/subjectId snapshot of the batch/
                              subject at creation time, and active/
@@ -301,14 +323,20 @@ lib/
                              deactivate/restore a test without touching
                              its marks).
       presentation/         TestListScreen (search + session/class/
-                             batch/subject/status filters), CreateTestDialog
-                             (the full cascade), TestDetailsScreen (test/
-                             academic/marks-completion information,
-                             Enter or View Marks depending on role),
+                             batch/subject/status filters; "New test"
+                             shows for admin or an assignment-holding
+                             teacher - Set 23), CreateTestDialog (admin:
+                             the full cascade; teacher: one assignment
+                             dropdown - Set 23), TestDetailsScreen (test/
+                             academic/marks-completion information, Enter
+                             or View Marks depending on whether the caller
+                             can manage this test - admin, or a teacher
+                             whose active assignment matches its scope),
                              EnterMarksScreen (bulk marks-entry grid with
-                             an Absent toggle per student, one Save action),
-                             StudentResultsScreen (own results, published
-                             tests only, unchanged).
+                             an Absent toggle per student, one Save action,
+                             editable under that same admin-or-assignment-
+                             match condition), StudentResultsScreen (own
+                             results, published tests only, unchanged).
     results/ (Set 15)       Results & Ranking - a read-only calculation
                              layer over Set 14's `tests`/`testResults`,
                              never a second marks database (nothing here
@@ -1168,6 +1196,117 @@ TeacherAssignment                 ASSIGNMENT  - "IS teaching Class 8 ->
   any identity field is, by definition, a different assignment - create a
   new one instead.
 
+## Teacher-scoped academic operations (Set 23)
+
+Set 22 built `TeacherAssignment` (Teacher -> Session -> Class -> Batch ->
+Subject) as a standalone module with nothing consuming it yet. Set 23
+connects it to the three operational modules that were previously
+admin-only for writes - Attendance (Set 13), Homework & Assignments (Set
+16), Tests & Marks (Set 14) - so a teacher can act, but ONLY within a
+scope an active assignment actually grants. `TeacherProfile.subjectIds`
+(Set 12) is NEVER consulted for this - a teacher capable of teaching
+Mathematics has zero operational access to any Mathematics class/batch
+until an admin creates an actual assignment for it.
+
+- **One authorization primitive, reused by three modules**: `firestore.
+  rules`' `teacherIsAssignedTo(academicSessionId, classId, batchId,
+  subjectId)` builds the exact deterministic `teacherAssignments`
+  document id (`TeacherAssignment.idFor`, Set 22) from the record being
+  written and performs ONE `exists()` + `get()` pair to confirm it's
+  active and its `classId` matches. This works cleanly for `academicWork`
+  and `tests`/`testResults` because all three already carry (or can look
+  up via their parent) a `subjectId` - no query, no loop, no bounded
+  guesswork needed. The Dart-side mirror is `teacherCanOperateOn`
+  (`features/teacher_assignments/data/teacher_assignment_repository.dart`),
+  a pure function used to decide what the UI shows - kept intentionally
+  parallel to the rule so the client never offers an action the rule
+  would then reject.
+- **Attendance is the one documented exception.** It has no `subjectId`
+  field at all (Set 13's own design - Set 23 section 4 explicitly forbids
+  inventing one just to make this check easier), so
+  `teacherIsAssignedTo`'s technique doesn't apply: there is no way to
+  build "the" assignment id without knowing which subject to plug in, and
+  checking "any of this teacher's assignments, for an unknown subject"
+  would need either a query (Firestore rules cannot run one inside a
+  write's authorization check - only fixed `get()`/`exists()` calls on
+  known paths) or enough `get()`/`exists()` calls to cover every subject a
+  class might offer, which can exceed Firestore's confirmed 10-document-
+  access-call budget per single-document request at this project's own
+  configured scale (Set 9 seeds classes with up to 10 subjects each) - or
+  a second, denormalized index of assignment data (explicitly
+  prohibited), or Firebase Auth custom claims (needs the Admin SDK /
+  Cloud Functions - explicitly prohibited on this Spark-plan project).
+  None of those are safe or permitted. See docs/database-architecture.md's
+  "Teacher-scoped Firestore rules (Set 23)" for the full writeup and
+  exactly what IS and isn't enforced for this one collection - in short,
+  `attendance` writes are gated by role (`isTeacher()`, the same broad
+  grant this project already documents for `students`/`tests`/
+  `academicWork` reads since Set 8/14/16) plus full shape validation,
+  with the APPLICATION (not the rules) restricting which batch a teacher
+  can pick from - real protection against an accidental UI mistake, not a
+  hard boundary against a deliberately crafted direct write.
+- **Assignment-derived selection, never free typing** (section 6): both
+  `CreateAcademicWorkDialog` and `CreateTestDialog` render the SAME
+  cascading Session -> Class -> Batch -> Subject picker they always did
+  for admin, unchanged - but when the signed-in caller is a teacher, that
+  block is replaced with ONE dropdown built from
+  `ownTeacherAssignmentsProvider` (Set 22's rule-constrained self-read),
+  each option fully determining session/class/batch/subject in a single
+  choice. `MarkStudentAttendanceScreen`'s teacher path does the same,
+  using `distinctActiveBatchScopes` to collapse multiple subject-
+  assignments to the same batch into one dropdown entry (section 5 - a
+  teacher teaching both Mathematics and Science to Class 9 - Batch A
+  should see that batch once in an attendance picker, not twice, since
+  attendance has no subject dimension to distinguish them by anyway).
+- **Detail/list screens gained a `canManage` check, not a role swap**:
+  `AcademicWorkDetailsScreen`'s Edit/status buttons and
+  `TestDetailsScreen`'s Publish/Activate buttons + `EnterMarksScreen`'s
+  editability now read `isAdmin || teacherCanOperateOn(ownAssignments,
+  ...)` instead of `isAdmin` alone - admin behavior is provably unchanged
+  (the `isAdmin` branch of that `||` is identical to before), and a
+  teacher without a matching assignment sees the exact same read-only
+  view a student or unrelated teacher already saw. `TestListScreen`/
+  `AcademicWorkListScreen`'s "New" FAB uses the same `||` to decide
+  whether to show at all.
+- **No ownership check, only scope**: whether a teacher may update an
+  existing `academicWork`/`test`/mark set depends on whether their OWN
+  currently active assignment matches that record's (immutable)
+  session/class/batch/subject - not on whether they personally created
+  it. This is deliberate: `TeacherAssignment` is stated to be the
+  authoritative operational scope (section 1), and two teachers holding
+  assignments to the same batch/subject (unusual but not prevented by Set
+  22) should both be able to manage the same academic work/test, exactly
+  as admin always could regardless of who created what.
+- **Lifecycles are completely unchanged**: `AcademicWorkController`/
+  `TestController` were not modified at all - both were already generic
+  (they resolve the acting user from `currentUserAccountProvider`, not a
+  hardcoded admin assumption), so widening who may call them was purely a
+  `firestore.rules` and UI-gating change, never a controller rewrite.
+  Draft -> Published -> Closed (reversible) and the absent-vs-zero/
+  `resultPublished` (one-way) semantics are exactly what Set 16/14 built.
+- **Deactivating an assignment (or the teacher) takes effect immediately,
+  non-destructively**: nothing here stores a cached "can this teacher act"
+  flag anywhere - `teacherCanOperateOn`/`teacherIsAssignedTo` both read
+  the CURRENT `active` state of the assignment (and, transitively, of the
+  teacher - `TeacherFormController.setActive` deactivating a teacher's
+  `users` document already blocks them from claiming a session at all, a
+  Set 2 mechanism reused unchanged) on every check. Historical
+  attendance/homework/tests/marks/results are never touched by a
+  deactivation - only future authorization changes (sections 15-16, 18).
+- **Results (Set 15) were not touched at all** - no new provider, no new
+  screen, no rule change. `computeSubjectResults`/`computeCombinedResults`/
+  `rankByPercentage` are pure, admin-only-reached functions over
+  `tests`/`testResults`; Set 23 widens who may WRITE marks, never who may
+  read/compute results, so this layer needed nothing.
+- **Provider layer**: no new Firestore queries were introduced.
+  `teacherCanOperateOn`/`distinctActiveBatchScopes` are plain functions
+  over whatever `ownTeacherAssignmentsProvider(teacherId)` (Set 22)
+  already returns; every screen that needed a teacher's own assignments
+  was already able to reach that one provider. `assignmentsForTeacherProvider`/
+  `assignmentsForBatchProvider`/`assignmentsForSubjectProvider` (Set 22)
+  remain available for any future admin-side use but were not needed by
+  this set.
+
 ## What's deliberately not here yet
 
 - An online payment gateway/checkout (Razorpay/Stripe/PayPal/UPI deep-
@@ -1217,19 +1356,20 @@ TeacherAssignment                 ASSIGNMENT  - "IS teaching Class 8 ->
   Attendance/Homework/Fees) - Set 17's own scope boundary. Those modules
   may call into `NoticeController` in a later set; nothing does yet.
 - Enforcing "teacher may only manage their *assigned* class/subject" at
-  the rules level - Set 22 built the Teacher -> Batch/Subject assignment
-  module itself (see "Teacher assignments (Set 22)" below), but
-  deliberately did NOT use it to narrow any existing read/write rule:
-  attendance/tests/testResults/academicWork keep exactly the access they
-  had before (any active teacher may read/work with any batch, writes
-  admin-only per Set 14/16's own decisions) - the spec's own instruction
-  was "make assignments available as a trusted source for FUTURE
-  teacher-scoped operations", not to retrofit today's rules with it. Tests
-  (Set 14) keep the original "any active teacher may manage any batch's"
-  read access with admin-only writes; homework/assignments (Set 16) go
-  further and disable teacher *creation* entirely rather than invent an
-  unsupported batch-authorization scheme - see docs/database-
-  architecture.md for the full reasoning either way.
+  the rules level - RESOLVED for `academicWork` and `tests`/`testResults`
+  by Set 23 (see "Teacher-scoped academic operations (Set 23)" above):
+  a teacher may now create/update those only within a session/class/
+  batch/subject an active `TeacherAssignment` actually grants, checked
+  server-side via `teacherIsAssignedTo`. Reads on all three stay exactly
+  as broad as before (any active teacher). `attendance` writes are the
+  ONE remaining, explicitly documented exception - Firestore Rules cannot
+  safely check "any active assignment, for an unknown subject" for a
+  batch-level (non-subject) record without an unsafe/oversized rule or
+  duplicated data, so that collection's write rule stays role-based
+  (`isAdmin() || isTeacher()`), with the application (not the rules)
+  restricting which batch a teacher's UI ever offers - see
+  docs/database-architecture.md's "Teacher-scoped Firestore rules (Set
+  23)" for the full reasoning.
 - A telecaller role - enquiry/callback management is admin-only by
   explicit requirement (Set 5).
 - An enquiry-to-admission conversion workflow (Set 18's own scope

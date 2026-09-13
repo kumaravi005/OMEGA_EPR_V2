@@ -177,3 +177,60 @@ List<Subject> subjectOptionsForAssignment({
       )
       .toList();
 }
+
+// ---------------------------------------------------------------------
+// Set 23 - teacher-scoped operational authorization. TeacherAssignment
+// (above) is now the source of truth for what a teacher may actually DO
+// (mark attendance, create homework/tests, enter marks) - never
+// `TeacherProfile.subjectIds`, which stays capability-only (Set 12/22).
+// ---------------------------------------------------------------------
+
+/// Whether [assignments] authorize the teacher who holds them to operate
+/// on [academicSessionId]/[batchId] - and, when [subjectId] is given,
+/// that EXACT subject too. Only `active` assignments count (Set 23
+/// section 15: a deactivated assignment must immediately stop granting
+/// access). Pass `subjectId: null` for a module that is not
+/// subject-specific (attendance - see [TeacherAssignment]'s doc comment
+/// on why attendance stays batch-level); pass the subject for one that IS
+/// (academicWork/tests - section 2's "matching subjectId where the
+/// module is subject-specific"). A plain, pure function - both the UI and
+/// its tests call it directly, and it mirrors exactly what
+/// `firestore.rules`' `teacherIsAssignedTo` checks server-side, so the
+/// client never shows an action the rules would then reject.
+bool teacherCanOperateOn(
+  List<TeacherAssignment> assignments, {
+  required String academicSessionId,
+  required String batchId,
+  String? subjectId,
+}) {
+  return assignments.any(
+    (a) =>
+        a.active &&
+        a.academicSessionId == academicSessionId &&
+        a.batchId == batchId &&
+        (subjectId == null || a.subjectId == subjectId),
+  );
+}
+
+/// One assignment per distinct (session, batch) pair among [assignments]
+/// (active only) - the "avoid confusing duplicate batch choices" batch
+/// picker Set 23 section 5 asks for. Attendance is batch-level, not
+/// subject-level (see [TeacherAssignment]'s doc comment), so a teacher
+/// holding two subject-assignments to the same batch (e.g. Mathematics
+/// AND Science for Class 9 - Batch A) must see that batch offered ONCE in
+/// an attendance batch picker, not twice. Which of the (possibly several)
+/// same-batch assignments is kept is unspecified - only its
+/// session/class/batch identity matters for this picker, never its
+/// subject.
+List<TeacherAssignment> distinctActiveBatchScopes(
+  List<TeacherAssignment> assignments,
+) {
+  final seen = <String>{};
+  final result = <TeacherAssignment>[];
+  for (final a in assignments) {
+    if (!a.active) continue;
+    final key = '${a.academicSessionId}_${a.batchId}';
+    if (seen.add(key)) result.add(a);
+  }
+  return result;
+}

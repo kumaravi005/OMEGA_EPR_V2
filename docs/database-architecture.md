@@ -1486,6 +1486,114 @@ starting a new academic session and wanting the same teacher/batch/
 subject combination requires creating a new assignment (a new document,
 since the id embeds the session).
 
+## Teacher-scoped Firestore rules (Set 23)
+
+Set 22 built `teacherAssignments` with nothing reading it yet. Set 23
+uses it to authorize teacher WRITES to `academicWork`, `tests` and
+`testResults` - `TeacherProfile.subjectIds` (capability) plays no part in
+any of this; only an active `TeacherAssignment` does.
+
+```
+function teacherIsAssignedTo(academicSessionId, classId, batchId, subjectId) {
+  let path = /databases/$(database)/documents/teacherAssignments/$(request.auth.uid + '_' + academicSessionId + '_' + batchId + '_' + subjectId);
+  return exists(path) && teacherAssignmentDataMatches(get(path).data, classId);
+}
+```
+
+This works because `academicWork`/`tests` already carry a `subjectId` of
+their own (and `testResults` can look it up via its parent `tests`
+document, the same `get()`-a-related-document technique
+`testIsPublished` already used) - the exact deterministic assignment
+document id is always fully computable from the record being written, so
+ONE `exists()` + `get()` pair (2 document-access calls) is enough. No
+query, no loop, no bounded/unbounded guesswork.
+
+- `academicWork`: `allow create/update: if (isAdmin() || (isTeacher() &&
+  teacherIsAssignedTo(...))) && <the existing shape-validation function>`
+  - the shape/immutability rules (`newAcademicWorkIsValid`/
+  `academicWorkUpdateIsValid`) are completely unchanged; Set 23 only
+  added the second half of the `||`. `academicWorkUpdateIsValid` already
+  pins session/class/batch/subject to their original values, so checking
+  the scope against `resource.data` (the existing document) rather than
+  `request.resource.data` (what's being written) is equivalent - and it's
+  the existing, immutable scope that's actually being authorized against.
+- `tests`: same shape, `testTeacherScopeMatches` wrapping
+  `teacherIsAssignedTo`. `testUpdateIsValid` already restricts a
+  post-creation update to `resultPublished`/`active`/`updatedAt` only, so
+  a teacher publishing a result or archiving a test is checked against
+  that test's permanent, original scope.
+- `testResults`: `testResultTeacherScopeMatches(testId)` first `get()`s
+  the parent `tests/{testId}` document (1 call) to learn its
+  academicSessionId/classId/batchId/subjectId, then calls
+  `teacherIsAssignedTo` (2 more calls) - 3 total, still comfortably under
+  Firestore's confirmed 10-document-access-call budget per
+  single-document request. "Do not trust the test id alone" (Set 23
+  section 11) - the parent test's OWN scope is read and checked, never
+  assumed from whatever the client's `testId` claims.
+- **Reads are unchanged everywhere** - this set only narrows WRITE
+  access. A teacher without a matching assignment for a given test/
+  homework item still sees it (broad teacher read access, Set 8/14/16's
+  own decision), just cannot edit it - `AcademicWorkDetailsScreen`/
+  `TestDetailsScreen`/`EnterMarksScreen` fall back to the same read-only
+  view a mismatched teacher, student, or parent already got.
+
+### `attendance` is the one documented exception
+
+Attendance is deliberately BATCH-level, not subject-level (Set 13's own
+design; Set 23 section 4 explicitly forbids inventing a subject field
+just to make this check easier). `teacherIsAssignedTo`'s technique
+needs an EXACT `subjectId` to build the deterministic assignment id -
+attendance has none, and a batch can have several different subject-
+assignments (Set 9 seeds classes with up to 10 configured subjects
+each). Checking "does ANY of this teacher's assignments, for an unknown
+subject, match this batch" would require one of:
+
+1. **A query inside the write's authorization check** - not supported;
+   Firestore Security Rules only offer `get()`/`exists()` (and their
+   `...After` variants) against a specific, fully-known document path,
+   never a `.where()`-style existence query.
+2. **A bounded/unrolled set of `get()`/`exists()` calls, one per possible
+   subject** - unsafe at this project's own configured scale: Firebase's
+   documentation confirms a maximum of 10 document-access calls per
+   single-document rules evaluation, and a class can already have up to
+   10 configured subjects (Set 9's own seed data) before counting
+   `isAdmin()`/`isTeacher()`'s own `users/{uid}` lookups or any
+   assignment documents that DO exist along the way (each successful
+   match costs an `exists()` AND a `get()`). This risks silently
+   exceeding the budget - and failing closed unpredictably - for
+   entirely unrelated reasons (an admin having configured "too many"
+   subjects for a class).
+3. **A denormalized index of assignment data** (e.g. a per-teacher list
+   of authorized batch ids, kept in sync whenever an assignment changes)
+   - explicitly prohibited by the Set 22/23 spec's "do not duplicate
+   assignment data".
+4. **Firebase Auth custom claims** (the standard fix for this exact class
+   of problem in a Firestore app) - requires the Admin SDK, which
+   requires a privileged backend (Cloud Functions or similar) - explicitly
+   prohibited on this Spark-plan, ~200-user project.
+
+None of these are safe or permitted, so `attendance`'s write rule is NOT
+narrowed to a specific assignment. What Set 23 DOES change: the rule
+grants `isAdmin() || isTeacher()` for `create`/`update` (previously
+admin-only), the same broad role-based grant this project has already
+made and documented for `students`/`tests`/`academicWork` READS since
+Set 8/14/16 ("any active teacher may work with any batch"), now extended
+to this one WRITE path too - full shape validation
+(`newAttendanceIsValid`/`attendanceUpdateIsValid`) is otherwise
+unchanged. The restriction to "only MY assigned batches" is enforced by
+the APPLICATION instead:
+`MarkStudentAttendanceScreen`'s teacher path only ever offers batches
+drawn from `ownTeacherAssignmentsProvider(teacherId)` (Set 22's
+rule-constrained, server-side-filtered self-read) via
+`distinctActiveBatchScopes`. This is real protection against an
+accidental scope violation through the UI, but - unlike `academicWork`/
+`tests`/`testResults` - is NOT a hard security boundary against a
+deliberately crafted direct API write bypassing the app. This is stated
+plainly, not glossed over: it is a known, accepted limitation of what
+Firestore Security Rules can express without either an unsafe rule or
+prohibited infrastructure, consistent with this project's existing
+"any active teacher may work with any batch" trade-offs elsewhere.
+
 ## Security posture (this phase)
 
 `storage.rules` still **denies all reads and writes** - Storage itself
@@ -1551,7 +1659,11 @@ above:
   ever increase.
 - `batches`: any signed-in account may read (it's a shared reference
   catalogue, not personal data); only admin may write.
-- `attendance`: admin-only to write; a student may `get`/`list` only
+- `attendance`: `isAdmin() || isTeacher()` to write as of Set 23 (was
+  admin-only through Set 13-22) - see "Teacher-scoped Firestore rules
+  (Set 23)" below for exactly why this one collection could not get the
+  same precise per-assignment rule check `academicWork`/`tests` did, and
+  what enforces the restriction instead. A student may `get`/`list` only
   records for their **current** batch (`isStudentOfBatch(resource.data.batchId)`
   - Set 8 changed this from a `records` map-membership check; see
   "Firestore query-shape requirement" below for why), a teacher any
@@ -1564,19 +1676,26 @@ above:
   their own (`resource.data.teacherId == request.auth.uid`), same shape
   as `teacherAttendance`; `delete` never allowed; no student/parent
   access at all.
-- `academicWork` (Set 16, replacing `homework`/`assignments`):
-  admin-only to create/update - teacher creation is deliberately
-  disabled (see "Why teacher creation is disabled..." above), a
-  stricter posture than every earlier collection with the same missing
-  teacher-batch link; a teacher may still `get`/`list` broadly, same as
-  tests. A student may read only their current batch's `published`/
-  `closed` items, never a `draft`.
-- `tests`/`testResults`: admin-only to create/update as of Set 14 (the
-  spec's explicit "admin remains the sole authority... teachers must
-  not automatically receive write access"); a teacher may still read
-  all of both, same as before. A student may read only their current
-  batch's tests, and their own `testResults`, only once published (see
-  above).
+- `academicWork` (Set 16, replacing `homework`/`assignments`; teacher
+  writes enabled Set 23): admin may always `create`/`update`; a teacher
+  may too, but only when the item's session/class/batch/subject matches
+  one of their own active `teacherAssignments` (`teacherIsAssignedTo` -
+  see "Teacher-scoped Firestore rules (Set 23)" below) - the "teacher
+  creation is deliberately disabled" posture from Set 16 no longer
+  applies now that a real batch/subject authorization link exists. Reads
+  are UNCHANGED: a teacher may still `get`/`list` broadly, same as tests;
+  a student may read only their current batch's `published`/`closed`
+  items, never a `draft`.
+- `tests`/`testResults` (admin-only through Set 14-22; teacher writes
+  enabled Set 23): admin may always `create`/`update`; a teacher may too,
+  within a session/class/batch/subject their own active
+  `teacherAssignments` covers - checked directly on `tests` via its own
+  fields, and on `testResults` via its PARENT test's fields (a
+  `testResult` itself has no session/class/subject - see
+  "Teacher-scoped Firestore rules (Set 23)" below). Reads are UNCHANGED:
+  a teacher may still read all of both, same as before; a student may
+  read only their current batch's tests, and their own `testResults`,
+  only once published (see above).
 - `notifications`: admin/teacher create; readable by admin/teacher and by
   whichever student(s) it targets (see "Notification targeting" above).
 - `notices` (Set 17, NOT the same collection as `notifications` above -

@@ -11,6 +11,7 @@ import '../../academics/data/academics_repositories.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../auth/data/user_account.dart';
 import '../../batches/data/batch_repository.dart';
+import '../../teacher_assignments/data/teacher_assignment_repository.dart';
 import '../data/test_definition.dart';
 import '../data/test_repository.dart';
 import 'create_test_dialog.dart';
@@ -21,9 +22,10 @@ enum _StatusFilter { all, active, inactive }
 /// batch/subject/type, tap a test to open its details. Reached from both
 /// `/admin/tests` and `/teacher/tests` (see lib/router.dart) - [basePath]
 /// is whichever of those the caller came from, so tapping a test
-/// navigates to the matching role's test-details route. Only admin sees
-/// the "New test" action (Set 14 spec: admin remains the sole authority
-/// for creating tests).
+/// navigates to the matching role's test-details route. Admin always sees
+/// the "New test" action; a teacher sees it once they hold at least one
+/// active `TeacherAssignment` (Set 22/23 - creating a test is no longer
+/// admin-only, now that assignment-derived authorization exists).
 class TestListScreen extends ConsumerStatefulWidget {
   const TestListScreen({super.key, required this.basePath});
 
@@ -83,13 +85,17 @@ class _TestListScreenState extends ConsumerState<TestListScreen> {
     final classesAsync = ref.watch(allSchoolClassesProvider);
     final batchesAsync = ref.watch(allBatchesProvider);
     final subjectsAsync = ref.watch(allSubjectsProvider);
-    final isAdmin =
-        ref.watch(currentUserAccountProvider).valueOrNull?.role ==
-        UserRole.admin;
+    final account = ref.watch(currentUserAccountProvider).valueOrNull;
+    final isAdmin = account?.role == UserRole.admin;
+    final isTeacher = account?.role == UserRole.teacher;
+    final teacherHasActiveAssignment = isTeacher && account != null
+        ? (ref.watch(ownTeacherAssignmentsProvider(account.uid)).valueOrNull ?? const [])
+              .any((a) => a.active)
+        : false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Tests')),
-      floatingActionButton: isAdmin
+      floatingActionButton: isAdmin || teacherHasActiveAssignment
           ? FloatingActionButton.extended(
               onPressed: () => showCreateTestDialog(context),
               icon: const Icon(Icons.add),

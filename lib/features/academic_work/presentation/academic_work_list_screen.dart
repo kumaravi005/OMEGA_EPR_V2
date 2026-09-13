@@ -12,6 +12,7 @@ import '../../auth/application/auth_providers.dart';
 import '../../auth/data/user_account.dart';
 import '../../batches/data/batch_repository.dart';
 import '../../teacher/data/teacher_repository.dart';
+import '../../teacher_assignments/data/teacher_assignment_repository.dart';
 import '../data/academic_work.dart';
 import '../data/academic_work_repository.dart';
 import 'create_academic_work_dialog.dart';
@@ -21,16 +22,18 @@ enum _TypeFilter { all, homework, assignment }
 enum _StatusFilter { all, draft, published, closed }
 
 /// Admin/teacher homework & assignments list: search by title, filter by
-/// type/session/class/batch/subject/status. Only admin sees the "New"
-/// action (Set 16 spec: creation stays admin-only - see
-/// `AcademicWorkController`'s doc comment). A signed-in teacher's
-/// subject filter defaults to their own `TeacherProfile.subjectIds`
-/// (Set 16 spec: "teachers should only see academic work relevant to
-/// the subjects they are authorized for") - a soft, convenience default
-/// they can still change, not a hard security boundary (the read rule
-/// already grants any active teacher broad read access, matching the
-/// existing tests/attendance precedent - see docs/database-
-/// architecture.md).
+/// type/session/class/batch/subject/status. Admin always sees the "New"
+/// action; a teacher sees it only once they hold at least one active
+/// `TeacherAssignment` (Set 22/23 - creation is no longer admin-only, now
+/// that assignment-derived authorization exists - see
+/// `AcademicWorkController`'s doc comment and
+/// `create_academic_work_dialog.dart`). A signed-in teacher's subject
+/// filter defaults to their own `TeacherProfile.subjectIds` (Set 16 spec:
+/// "teachers should only see academic work relevant to the subjects they
+/// are authorized for") - a soft, convenience default they can still
+/// change, not a hard security boundary (the read rule already grants
+/// any active teacher broad read access, matching the existing tests/
+/// attendance precedent - see docs/database-architecture.md).
 class AcademicWorkListScreen extends ConsumerStatefulWidget {
   const AcademicWorkListScreen({super.key, required this.basePath});
 
@@ -103,8 +106,9 @@ class _AcademicWorkListScreenState
     final subjectsAsync = ref.watch(allSubjectsProvider);
     final account = ref.watch(currentUserAccountProvider).valueOrNull;
     final isAdmin = account?.role == UserRole.admin;
+    final isTeacher = account?.role == UserRole.teacher;
 
-    if (account != null && account.role == UserRole.teacher && !_defaultedTeacherSubject) {
+    if (account != null && isTeacher && !_defaultedTeacherSubject) {
       final teacher = ref.watch(ownTeacherProfileProvider(account.uid)).valueOrNull;
       if (teacher != null) {
         _defaultedTeacherSubject = true;
@@ -113,10 +117,14 @@ class _AcademicWorkListScreenState
         }
       }
     }
+    final teacherHasActiveAssignment = isTeacher && account != null
+        ? (ref.watch(ownTeacherAssignmentsProvider(account.uid)).valueOrNull ?? const [])
+              .any((a) => a.active)
+        : false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Homework & Assignments')),
-      floatingActionButton: isAdmin
+      floatingActionButton: isAdmin || teacherHasActiveAssignment
           ? FloatingActionButton.extended(
               onPressed: () => showCreateAcademicWorkDialog(context),
               icon: const Icon(Icons.add),
