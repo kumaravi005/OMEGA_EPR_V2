@@ -169,16 +169,40 @@ lib/
                              *AttendanceHistoryScreen (own view, teacher
                              and student each get one, both now show a
                              percentage).
-    homework/, assignments/ (Set 4)   Same shape as each other - a batch-
-                             wide entry a teacher creates and tracks
-                             completion/status on, a student reads.
-      data/, application/, presentation/   Model+repository, Controller,
-                             an adaptive *ListScreen (teacher: batch
-                             picker + create; student: fixed to their own
-                             batch, read-only) plus a create dialog.
-      Student-only wrapper: `Student{Homework,Assignments}Screen` resolves
-      the signed-in student's own batch, then delegates to the shared
-      list screen with `fixedBatchId` set.
+    academic_work/ (Set 16, replacing Set 4's separate homework/ and
+                             assignments/ folders)   Homework and
+                             assignments unified into one reusable model
+                             with a `type` field - "do not create two
+                             completely duplicated database structures"
+                             (Set 16 spec). Cascades Academic Session ->
+                             Class -> (matching active batches) ->
+                             Subject (only what the selected class
+                             offers), same pattern as Attendance/Tests.
+                             Admin-only to create/edit/publish/close -
+                             there is still no Teacher -> Batch
+                             assignment module (Set 12's scope
+                             boundary), so teacher creation stays
+                             disabled rather than inventing an
+                             unsupported authorization scheme (see
+                             docs/database-architecture.md).
+      data/                 AcademicWork model (+ `isOverdue(now)`,
+                             computed on demand, never stored) and
+                             repository providers.
+      application/          AcademicWorkController (create, edit,
+                             setStatus - draft/published/closed, freely
+                             reversible either direction).
+      presentation/         AcademicWorkListScreen (admin/teacher:
+                             search + type/session/class/batch/subject/
+                             status filters, teacher's subject filter
+                             defaults to their own `TeacherProfile.
+                             subjectIds`), CreateAcademicWorkDialog (the
+                             full cascade), AcademicWorkDetailsScreen
+                             (shared by every role - admin gets edit/
+                             status controls, everyone else sees the
+                             same layout read-only), StudentAcademicWorkScreen
+                             (own batch's published/closed work only,
+                             All/Homework/Assignments and Active/Closed
+                             filters).
     tests/ (Set 4, extended Set 14)   Offline test metadata + marks - no
                              online exam engine (see
                              docs/database-architecture.md). A test now
@@ -704,8 +728,8 @@ exact schema.
   Management/Attendance/Fees/Results/Tests/Public Gallery" (Set 9's own
   scope boundary). The providers are ready and centrally located for
   whichever future set does that wiring. (Student admission was wired to
-  this master data in Set 11, tests in Set 14 - see below; homework/
-  assignment's `subject` field remains free text.)
+  this master data in Set 11, tests in Set 14, homework/assignments -
+  unified into `academic_work/` - in Set 16 - see below.)
 
 ## What's deliberately not here yet
 
@@ -728,9 +752,13 @@ exact schema.
   *scheduled* reminder needs a cron-like trigger, which needs server-side
   compute this project deliberately doesn't have.
 - Enforcing "teacher may only manage their *assigned* class/subject" at
-  the rules level for homework/assignments/tests - see
-  docs/database-architecture.md for why this is a documented scope
-  decision, not an oversight.
+  the rules level - there is still no Teacher -> Batch assignment
+  module (Set 12's own scope boundary). Tests (Set 14) keep the
+  original "any active teacher may manage any batch's" read access with
+  admin-only writes; homework/assignments (Set 16) go further and
+  disable teacher *creation* entirely rather than invent an
+  unsupported batch-authorization scheme - see docs/database-
+  architecture.md for the full reasoning either way.
 - A telecaller role - enquiry/callback management is admin-only by
   explicit requirement (Set 5).
 - A "grade" export column - the Set 6 spec explicitly says not to invent

@@ -534,14 +534,26 @@ teacherAttendance/{teacherUid}_{dateKey}   one record per teacher/date
   teacherUid, dateKey, date, status ("present" | "absent")
   createdBy, updatedBy, createdAt, updatedAt
 
-homework/{homeworkId}                   shared by the whole batch
-  batchId, subject, date, description, dueDate
-  completionStatus ("pending" | "completed"), remark
-  createdBy, createdAt, updatedAt
-
-assignments/{assignmentId}              same shape/access as homework
-  batchId, subject, title, description, assignedDate, dueDate
-  status ("active" | "closed"), teacherRemark
+academicWork/{workId}                   homework AND assignments,
+                                          unified (Set 16) - shared by
+                                          the whole batch, never one
+                                          document per student
+  type ("homework" | "assignment")
+  academicSessionId, classId, batchId, subjectId   the batch/subject's
+                                                     own references,
+                                                     snapshotted at
+                                                     creation and
+                                                     immutable after -
+                                                     same rationale as
+                                                     Test's Set 14 fields
+  subject      string   resolved subject display name
+  title, description (string | null)
+  assignedDate, dueDate   dueDate >= assignedDate, enforced both
+                           client-side and in firestore.rules
+  status ("draft" | "published" | "closed")   freely reversible in
+                                                either direction (unlike
+                                                Test's one-way
+                                                resultPublished)
   createdBy, createdAt, updatedAt
 
 tests/{testId}                          metadata only - the test is
@@ -722,17 +734,117 @@ only allowed once the *parent test's* `resultPublished` field is `true`
 *metadata* (title, date, subject) is visible to the batch as soon as it's
 created - only the marks are gated.
 
-**Why homework/assignments/tests aren't restricted to "only the assigned
-teacher"**: a teacher's `subjectIds` (see `teachers/{uid}` above and
-"Teacher/subject relationship (Set 12)") names *subjects* a teacher is
-capable of teaching, while homework/assignments/tests reference a
-*batch id* - there is still no link from a teacher to a specific batch
-(Set 12 deliberately didn't build one - see that section). Rather than
-build a fragile cross-reference, any active teacher may manage any
-batch's homework/assignments/tests; the create screens still only offer
-batches that exist, so this is a scope decision (documented, not a bug),
-not a security gap - the real boundary that matters (teacher vs. student
-vs. admin) is still fully enforced.
+**Why tests aren't restricted to "only the assigned teacher"**: a
+teacher's `subjectIds` (see `teachers/{uid}` above and "Teacher/subject
+relationship (Set 12)") names *subjects* a teacher is capable of
+teaching, while a test references a *batch id* - there is still no link
+from a teacher to a specific batch (Set 12 deliberately didn't build
+one - see that section). Rather than build a fragile cross-reference,
+any active teacher may *read* any batch's tests (writes are admin-only
+as of Set 14 regardless); the create screen still only offers batches
+that exist, so this is a scope decision (documented, not a bug), not a
+security gap - the real boundary that matters (teacher vs. student vs.
+admin) is still fully enforced. Homework/assignments (Set 16) make the
+same missing-link observation but land on a different, stricter answer
+for *writes* specifically - see below.
+
+## Homework and assignments, unified (Set 16)
+
+The separate `homework`/`assignments` collections from Set 4 predate
+this project's subject/session/class master data entirely - free-text
+`subject`, no `academicSessionId`/`classId`, and two near-identical
+schemas (`completionStatus` "pending"/"completed" vs. `status`
+"active"/"closed", one with a `title` field and one without) for what
+is, functionally, the same kind of record. Set 16 replaces both with a
+single `academicWork` collection carrying a `type` field - "do not
+create two completely duplicated database structures" (spec) - rather
+than wiring master data into two parallel structures that would still
+need to agree with each other.
+
+### Why teacher creation is disabled, not merely "unrestricted" like tests
+
+This is the one place Set 16 makes a **stricter** call than every
+collection before it (tests, attendance, homework/assignments as they
+existed pre-Set-16) that shares the identical missing-link problem:
+`TeacherProfile.subjectIds` (Set 12) says which **subjects** a teacher
+may teach; nothing anywhere says which **batches** they may write to,
+because Teacher -> Batch assignment has never been built (Set 12's own
+explicit scope boundary, still true today). Every earlier collection
+resolved this by granting *any* active teacher broad write access
+regardless of batch (a deliberate, documented scope decision, not an
+oversight - see "Why tests aren't restricted..." above). Set 16's own
+spec explicitly asks for the opposite fallback instead: *"if the
+current architecture cannot safely determine teacher batch
+authorization, allow Admin creation and keep teacher creation disabled
+until the dedicated teacher assignment module exists."* So
+`academicWork`'s `create`/`update` rules are `isAdmin()`-only, full
+stop - no `isTeacher()` branch at all (matching exactly how Set 14
+already narrowed `tests`/`testResults` writes to admin-only, but this
+time also true for the initial *reads-only* framing teachers get here:
+teachers keep the same broad `get`/`list` access as before, so they can
+still see homework/assignments for their subjects, published/closed
+tests, etc., but the "create" door is closed until a real teacher-batch
+assignment module exists to open it safely). Building a fake batch
+authorization scheme just to unblock teacher-side creation would be
+worse than not having the feature - a wrong permission model is a
+security bug, a missing feature is not.
+
+### Status lifecycle: freely reversible, unlike Test's one-way `resultPublished`
+
+`draft` -&gt; `published` -&gt; `closed`, and back again in either direction -
+deliberately not one-way like Set 14's `resultPublished` (which only
+ever flips `false` -&gt; `true`, since an offline test's result, once
+shared, shouldn't un-happen). Homework/assignments are more mutable in
+practice - an admin may need to unpublish a mistake, or reopen a closed
+item - so `academicWorkUpdateIsValid()` allows any of the three values
+in `status` on every update, while the four *academic reference* fields
+(`academicSessionId`/`classId`/`batchId`/`subjectId`) plus `type`/
+`createdBy`/`createdAt` stay permanently locked once created (only
+`subject`/`title`/`description`/`assignedDate`/`dueDate`/`status`/
+`updatedAt` may ever change) - the same "preserve the historical
+reference, allow editing the content" split already used for Batch/
+Test.
+
+### Student/parent visibility and the query-shape requirement, again
+
+A student may only ever see their current batch's **published or
+closed** work, never a draft (Set 16 spec, enforced in
+`firestore.rules`, not just hidden in the UI). This repeats the exact
+"Firestore query-shape requirement" lesson documented below for
+attendance: a `list` rule with a per-document condition (here,
+`resource.data.status in ['published', 'closed']`, on top of the usual
+`isStudentOfBatch(resource.data.batchId)`) can only be satisfied by a
+query that is *itself* constrained the same way - an unconstrained scan,
+or one filtered by `batchId` alone, is rejected outright for that rule
+branch regardless of what the actual data holds. `studentVisibleAcademicWorkProvider`
+therefore always issues `.where('batchId', '==', ...).where('status',
+whereIn: ['published', 'closed'])` together, never separately - two
+plain equality-family filters on different fields, which Cloud
+Firestore's automatic indexing already covers without a manually
+defined composite index (this project's `firestore.indexes.json` stays
+empty, as it has through every earlier set). A single-document `get()`
+by known id has no such constraint (there's no query to shape), so the
+`get` branch of the same rule uses the simpler `status != 'draft'`.
+
+### Overdue is calculated, never stored
+
+`AcademicWork.isOverdue(now)` is a plain method (`status ==
+AcademicWorkStatus.published && now.isAfter(dueDate)`), never a
+persisted field - "do not let an outdated stored flag become incorrect"
+(spec). A draft or closed item is never "overdue" - overdue only means
+something for work that's still actively published and unmet.
+
+### No paid storage, and future submission-system compatibility
+
+`description` is plain text - no attachments, no file upload, exactly
+as the spec requires ("text-based homework/assignment content is
+sufficient... do NOT introduce Firebase Storage or another paid
+storage service"). Nothing here prevents a future set from adding a
+real submission system (a `submissions` subcollection keyed by
+student uid, say) - `academicWork`'s own shape doesn't need to change
+for that, matching the same "design doesn't block the future feature,
+without building it now" philosophy already used for Batch's
+`NegotiatedFee`-adjacent groundwork and Teacher's `subjectIds`.
 
 **Notification event hooks**: `recordNotificationEvent()`
 (`core/services/notification_hook.dart`) writes one `notifications`
@@ -1201,15 +1313,19 @@ above:
   batch's, matching the homework/assignments/tests pattern.
 - `teacherAttendance`: admin-only to write; a teacher may `get`/`list`
   only their own (`resource.data.teacherUid == request.auth.uid`).
-- `homework`/`assignments`: admin or any active teacher may create/update;
-  a student may read only their *current* batch's.
+- `academicWork` (Set 16, replacing `homework`/`assignments`):
+  admin-only to create/update - teacher creation is deliberately
+  disabled (see "Why teacher creation is disabled..." above), a
+  stricter posture than every earlier collection with the same missing
+  teacher-batch link; a teacher may still `get`/`list` broadly, same as
+  tests. A student may read only their current batch's `published`/
+  `closed` items, never a `draft`.
 - `tests`/`testResults`: admin-only to create/update as of Set 14 (the
   spec's explicit "admin remains the sole authority... teachers must
-  not automatically receive write access" - narrower than
-  homework/assignments' teacher-write, a deliberate difference, not an
-  oversight); a teacher may still read all of both, same as before. A
-  student may read only their current batch's tests, and their own
-  `testResults`, only once published (see above).
+  not automatically receive write access"); a teacher may still read
+  all of both, same as before. A student may read only their current
+  batch's tests, and their own `testResults`, only once published (see
+  above).
 - `notifications`: admin/teacher create; readable by admin/teacher and by
   whichever student(s) it targets (see "Notification targeting" above).
 - `gallery`/`banners`/`upcomingBatches`/`advertisements`/`announcements`/
@@ -1265,10 +1381,10 @@ filtered to the caller's own uid had the identical problem, since
 - `FirestoreRepository.watchWhere(builder)` (`lib/data/repositories/firestore_repository.dart`) -
   a query-constrained sibling to `watchAll()`. Every batch-scoped
   provider (`batchAttendanceProvider`, `teacherOwnAttendanceProvider`,
-  `batchHomeworkProvider`, `batchAssignmentsProvider`,
-  `batchTestsProvider`) now calls this with a `.where('batchId'/'teacherUid', isEqualTo: ...)`
-  matching what the rule checks, instead of `watchAll()` + a client-side
-  `.where()` on the Dart list.
+  `batchTestsProvider`, `studentVisibleAcademicWorkProvider` - Set 16)
+  now calls this with `.where(...)` clauses matching exactly what the
+  rule checks, instead of `watchAll()` + a client-side `.where()` on the
+  Dart list.
 - `ownStudentProfileProvider(uid)` (`features/student/data/student_repository.dart`) -
   resolves the signed-in student's own record via `.watchById(uid)` (a
   `get`, always allowed for `isSelf`), replacing every "list all

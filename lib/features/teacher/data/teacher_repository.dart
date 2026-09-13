@@ -29,6 +29,17 @@ final allTeachersProvider = StreamProvider<List<TeacherProfile>>((ref) {
       );
 });
 
+/// The signed-in teacher's own profile, resolved via a `get` (always
+/// allowed for a teacher reading their own document - see
+/// `teachers/{teacherId}`'s `isSelf(teacherId)` rule branch) rather than
+/// `list`ing the whole collection - same reasoning as
+/// [ownStudentProfileProvider] in the student feature. Set 16 uses this
+/// to resolve the signed-in teacher's own `subjectIds` for the academic
+/// work list's default subject filter.
+final ownTeacherProfileProvider = StreamProvider.family<TeacherProfile?, String>(
+  (ref, uid) => ref.watch(teacherRepositoryProvider).watchById(uid),
+);
+
 /// Active teachers only - for a future teacher-batch-subject assignment
 /// picker (Set 12 spec: "an inactive teacher should not normally be
 /// selectable for future assignments"). Derived client-side, not a new

@@ -16,9 +16,11 @@ final testRepositoryProvider = Provider<FirestoreRepository<TestDefinition>>((
   );
 });
 
-/// All tests for one batch, newest first. Filtered server-side - see
-/// homework_repository.dart's `batchHomeworkProvider` doc comment; the
-/// same reasoning applies here.
+/// All tests for one batch, newest first. Filtered server-side - a
+/// student's `list` rule branch depends on `batchId` per-document, which
+/// Firestore can only verify against a query constrained the same way
+/// (see docs/database-architecture.md's "Firestore query-shape
+/// requirement").
 final batchTestsProvider = StreamProvider.family<List<TestDefinition>, String>((
   ref,
   batchId,

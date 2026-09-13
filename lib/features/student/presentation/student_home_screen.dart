@@ -6,11 +6,11 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../../core/widgets/nav_tile.dart';
+import '../../academic_work/data/academic_work.dart';
+import '../../academic_work/data/academic_work_repository.dart';
 import '../../attendance/data/attendance_repository.dart';
 import '../../attendance/data/student_attendance_record.dart';
 import '../../auth/application/auth_providers.dart';
-import '../../homework/data/homework.dart';
-import '../../homework/data/homework_repository.dart';
 import '../../notifications/data/my_notifications_provider.dart';
 import '../../tests/data/test_repository.dart';
 import '../data/student_repository.dart';
@@ -70,7 +70,7 @@ class _DashboardBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final attendanceAsync = ref.watch(batchAttendanceProvider(batchId));
-    final homeworkAsync = ref.watch(batchHomeworkProvider(batchId));
+    final academicWorkAsync = ref.watch(studentVisibleAcademicWorkProvider(batchId));
     final testsAsync = ref.watch(batchTestsProvider(batchId));
     final paymentsAsync = ref.watch(studentPaymentsProvider(studentUid));
     final notificationsAsync = ref.watch(myNotificationsProvider);
@@ -87,8 +87,12 @@ class _DashboardBody extends ConsumerWidget {
         ? null
         : (presentCount / myAttendance.length) * 100;
 
-    final pendingHomeworkCount = homeworkAsync.valueOrNull
-        ?.where((h) => h.completionStatus == CompletionStatus.pending)
+    final activeHomeworkCount = academicWorkAsync.valueOrNull
+        ?.where(
+          (w) =>
+              w.type == AcademicWorkType.homework &&
+              w.status == AcademicWorkStatus.published,
+        )
         .length;
 
     final now = DateTime.now();
@@ -133,10 +137,10 @@ class _DashboardBody extends ConsumerWidget {
               icon: Icons.assignment_outlined,
             ),
             _StatCard(
-              label: 'Pending homework',
-              value: pendingHomeworkCount == null
+              label: 'Active homework',
+              value: activeHomeworkCount == null
                   ? '-'
-                  : '$pendingHomeworkCount',
+                  : '$activeHomeworkCount',
               icon: Icons.menu_book_outlined,
             ),
           ],
@@ -157,13 +161,8 @@ class _DashboardBody extends ConsumerWidget {
         ),
         NavTile(
           icon: Icons.menu_book_outlined,
-          label: 'Homework',
-          onTap: () => context.push(AppRoutes.studentHomework),
-        ),
-        NavTile(
-          icon: Icons.assignment_turned_in_outlined,
-          label: 'Assignments',
-          onTap: () => context.push(AppRoutes.studentAssignments),
+          label: 'Homework & Assignments',
+          onTap: () => context.push(AppRoutes.studentAcademicWork),
         ),
         NavTile(
           icon: Icons.grade_outlined,

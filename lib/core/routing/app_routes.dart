@@ -24,6 +24,7 @@ abstract final class AppRoutes {
       '/admin/attendance/students/history';
   static const adminTeacherAttendanceHistory =
       '/admin/attendance/teachers/history';
+  static const adminAcademicWork = '/admin/homework-assignments';
   static const adminTests = '/admin/tests';
   static const adminResults = '/admin/results';
   static const adminTestResult = '/admin/results/test';
@@ -51,15 +52,13 @@ abstract final class AppRoutes {
 
   static const teacher = '/teacher';
   static const teacherAttendance = '/teacher/attendance';
-  static const teacherHomework = '/teacher/homework';
-  static const teacherAssignments = '/teacher/assignments';
+  static const teacherAcademicWork = '/teacher/homework-assignments';
   static const teacherTests = '/teacher/tests';
   static const teacherNotifications = '/teacher/notifications';
 
   static const student = '/student';
   static const studentAttendance = '/student/attendance';
-  static const studentHomework = '/student/homework';
-  static const studentAssignments = '/student/assignments';
+  static const studentAcademicWork = '/student/homework-assignments';
   static const studentResults = '/student/results';
   static const studentFees = '/student/fees';
   static const studentNotifications = '/student/notifications';

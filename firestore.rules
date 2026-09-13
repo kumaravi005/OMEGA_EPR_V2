@@ -558,78 +558,84 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Homework (Set 4): shared by every student in a batch, same as
-    // attendance. Admin/teacher create and manage completion; a student
-    // may read their own (current) batch's homework, never write it.
-    function homeworkFields() {
+    // Homework and assignments, unified (Set 16 - replaces the separate
+    // Set 4 `homework`/`assignments` collections; see docs/database-
+    // architecture.md for the full rationale). One reusable model with a
+    // `type` field, shared by every student in a batch - never one
+    // document per student. academicSessionId/classId/batchId/subjectId
+    // are snapshotted at creation and immutable afterward (only
+    // subject/title/description/dates/status may ever change - see
+    // academicWorkUpdateIsValid), matching the same historical-integrity
+    // snapshot philosophy as Batch/Test/Attendance.
+    //
+    // Admin-only to create/update: there is still no Teacher -> Batch
+    // assignment module (Set 12's own scope boundary), so there is no
+    // safe way to authorize "this teacher may write to this batch" -
+    // TeacherProfile.subjectIds only says which SUBJECTS a teacher can
+    // teach, never which BATCHES. Teachers keep the same broad read
+    // access homework/assignments/tests/attendance have always had. A
+    // student may read only their current batch's PUBLISHED or CLOSED
+    // work, never a draft - the `list`/`get` query must be constrained
+    // by both `batchId` and `status` for this to be provable, so
+    // `studentVisibleAcademicWorkProvider` always issues
+    // `.where('batchId', ==, ...).where('status', whereIn: [...])`,
+    // never an unconstrained scan (see "Firestore query-shape
+    // requirement" below).
+    function academicWorkFields() {
       return [
-        'batchId', 'subject', 'date', 'description', 'dueDate', 'completionStatus', 'remark', 'createdBy',
-        'createdAt', 'updatedAt'
+        'type', 'academicSessionId', 'classId', 'batchId', 'subjectId', 'subject', 'title', 'description',
+        'assignedDate', 'dueDate', 'status', 'createdBy', 'createdAt', 'updatedAt'
       ];
     }
 
-    function newHomeworkIsValid() {
+    function newAcademicWorkIsValid() {
       let data = request.resource.data;
-      return data.batchId is string
-        && data.subject is string && data.subject.size() > 0
-        && data.date is timestamp
-        && data.description is string && data.description.size() > 0
-        && data.dueDate is timestamp
-        && data.completionStatus == 'pending'
-        && data.createdBy == request.auth.uid
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp
-        && data.keys().hasOnly(homeworkFields());
-    }
-
-    function homeworkUpdateIsValid() {
-      // Only completion tracking changes after creation - the assignment
-      // itself (batch/subject/description/dates) is fixed once made.
-      return changedKeys().hasOnly(['completionStatus', 'remark', 'updatedAt'])
-        && request.resource.data.completionStatus in ['pending', 'completed'];
-    }
-
-    match /homework/{homeworkId} {
-      allow get: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
-      allow list: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
-      allow create: if (isAdmin() || isTeacher()) && newHomeworkIsValid();
-      allow update: if (isAdmin() || isTeacher()) && homeworkUpdateIsValid();
-      allow delete: if false;
-    }
-
-    // Assignments (Set 4): same shape/access pattern as homework.
-    function assignmentFields() {
-      return [
-        'batchId', 'subject', 'title', 'description', 'assignedDate', 'dueDate', 'status', 'teacherRemark',
-        'createdBy', 'createdAt', 'updatedAt'
-      ];
-    }
-
-    function newAssignmentIsValid() {
-      let data = request.resource.data;
-      return data.batchId is string
+      return data.type in ['homework', 'assignment']
+        && data.academicSessionId is string && data.academicSessionId.size() > 0
+        && data.classId is string && data.classId.size() > 0
+        && data.batchId is string && data.batchId.size() > 0
+        && data.subjectId is string && data.subjectId.size() > 0
         && data.subject is string && data.subject.size() > 0
         && data.title is string && data.title.size() > 0
-        && data.description is string
+        && (data.description == null || data.description is string)
         && data.assignedDate is timestamp
         && data.dueDate is timestamp
-        && data.status == 'active'
+        && data.dueDate >= data.assignedDate
+        && data.status in ['draft', 'published']
         && data.createdBy == request.auth.uid
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
-        && data.keys().hasOnly(assignmentFields());
+        && data.keys().hasOnly(academicWorkFields());
     }
 
-    function assignmentUpdateIsValid() {
-      return changedKeys().hasOnly(['status', 'teacherRemark', 'updatedAt'])
-        && request.resource.data.status in ['active', 'closed'];
+    function academicWorkUpdateIsValid() {
+      let data = request.resource.data;
+      let old = resource.data;
+      return data.type == old.type
+        && data.academicSessionId == old.academicSessionId
+        && data.classId == old.classId
+        && data.batchId == old.batchId
+        && data.subjectId == old.subjectId
+        && data.createdBy == old.createdBy
+        && data.createdAt == old.createdAt
+        && data.subject is string && data.subject.size() > 0
+        && data.title is string && data.title.size() > 0
+        && (data.description == null || data.description is string)
+        && data.assignedDate is timestamp
+        && data.dueDate is timestamp
+        && data.dueDate >= data.assignedDate
+        && data.status in ['draft', 'published', 'closed']
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(academicWorkFields());
     }
 
-    match /assignments/{assignmentId} {
-      allow get: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
-      allow list: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
-      allow create: if (isAdmin() || isTeacher()) && newAssignmentIsValid();
-      allow update: if (isAdmin() || isTeacher()) && assignmentUpdateIsValid();
+    match /academicWork/{workId} {
+      allow get: if isAdmin() || isTeacher()
+        || (isStudentOfBatch(resource.data.batchId) && resource.data.status != 'draft');
+      allow list: if isAdmin() || isTeacher()
+        || (isStudentOfBatch(resource.data.batchId) && resource.data.status in ['published', 'closed']);
+      allow create: if isAdmin() && newAcademicWorkIsValid();
+      allow update: if isAdmin() && academicWorkUpdateIsValid();
       allow delete: if false;
     }
 

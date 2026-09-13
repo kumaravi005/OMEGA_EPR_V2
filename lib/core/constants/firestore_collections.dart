@@ -19,8 +19,6 @@ abstract final class FirestoreCollections {
   static const teacherAttendance = 'teacherAttendance';
   static const fees = 'fees';
   static const payments = 'payments';
-  static const homework = 'homework';
-  static const assignments = 'assignments';
   static const tests = 'tests';
   static const testResults = 'testResults';
   static const notifications = 'notifications';
@@ -50,4 +48,12 @@ abstract final class FirestoreCollections {
   // SequenceService), currently only `counters/students` for admission
   // numbers. Not a general-purpose settings/meta collection.
   static const counters = 'counters';
+
+  // Added in Set 16 - replaces the separate `homework`/`assignments`
+  // collections from Set 4 (their string constants above were removed
+  // along with the collections themselves - see docs/database-
+  // architecture.md's "Homework and assignments, unified (Set 16)").
+  // One reusable model with a `type` field, instead of two duplicated
+  // structures.
+  static const academicWork = 'academicWork';
 }

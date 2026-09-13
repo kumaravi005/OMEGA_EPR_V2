@@ -10,9 +10,10 @@ import 'features/academics/presentation/classes_screen.dart';
 import 'features/academics/presentation/subjects_screen.dart';
 import 'features/admin/presentation/admin_accounts_screen.dart';
 import 'features/admin/presentation/admin_dashboard_screen.dart';
+import 'features/academic_work/presentation/academic_work_details_screen.dart';
+import 'features/academic_work/presentation/academic_work_list_screen.dart';
+import 'features/academic_work/presentation/student_academic_work_screen.dart';
 import 'features/admin/presentation/create_account_screen.dart';
-import 'features/assignments/presentation/assignment_list_screen.dart';
-import 'features/assignments/presentation/student_assignments_screen.dart';
 import 'features/attendance/presentation/attendance_hub_screen.dart';
 import 'features/attendance/presentation/mark_student_attendance_screen.dart';
 import 'features/attendance/presentation/mark_teacher_attendance_screen.dart';
@@ -27,8 +28,6 @@ import 'features/auth/presentation/login_screen.dart';
 import 'features/batches/presentation/batch_list_screen.dart';
 import 'features/enquiries/presentation/callback_requests_screen.dart';
 import 'features/enquiries/presentation/enquiries_screen.dart';
-import 'features/homework/presentation/homework_list_screen.dart';
-import 'features/homework/presentation/student_homework_screen.dart';
 import 'features/notifications/presentation/notifications_screen.dart';
 import 'features/public/presentation/admin/advertisements_screen.dart';
 import 'features/public/presentation/admin/announcements_screen.dart';
@@ -180,6 +179,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
 
       GoRoute(
+        path: AppRoutes.adminAcademicWork,
+        builder: (context, state) =>
+            const AcademicWorkListScreen(basePath: AppRoutes.adminAcademicWork),
+      ),
+      GoRoute(
+        path: '${AppRoutes.adminAcademicWork}/:workId',
+        builder: (context, state) => AcademicWorkDetailsScreen(
+          workId: state.pathParameters['workId']!,
+        ),
+      ),
+
+      GoRoute(
         path: AppRoutes.adminTests,
         builder: (context, state) =>
             const TestListScreen(basePath: AppRoutes.adminTests),
@@ -309,12 +320,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const TeacherAttendanceHistoryScreen(),
       ),
       GoRoute(
-        path: AppRoutes.teacherHomework,
-        builder: (context, state) => const HomeworkListScreen(),
+        path: AppRoutes.teacherAcademicWork,
+        builder: (context, state) => const AcademicWorkListScreen(
+          basePath: AppRoutes.teacherAcademicWork,
+        ),
       ),
       GoRoute(
-        path: AppRoutes.teacherAssignments,
-        builder: (context, state) => const AssignmentListScreen(),
+        path: '${AppRoutes.teacherAcademicWork}/:workId',
+        builder: (context, state) => AcademicWorkDetailsScreen(
+          workId: state.pathParameters['workId']!,
+        ),
       ),
       GoRoute(
         path: AppRoutes.teacherTests,
@@ -347,12 +362,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const StudentAttendanceHistoryScreen(),
       ),
       GoRoute(
-        path: AppRoutes.studentHomework,
-        builder: (context, state) => const StudentHomeworkScreen(),
+        path: AppRoutes.studentAcademicWork,
+        builder: (context, state) => const StudentAcademicWorkScreen(),
       ),
       GoRoute(
-        path: AppRoutes.studentAssignments,
-        builder: (context, state) => const StudentAssignmentsScreen(),
+        path: '${AppRoutes.studentAcademicWork}/:workId',
+        builder: (context, state) => AcademicWorkDetailsScreen(
+          workId: state.pathParameters['workId']!,
+        ),
       ),
       GoRoute(
         path: AppRoutes.studentResults,

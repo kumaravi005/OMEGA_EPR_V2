@@ -44,13 +44,8 @@ class TeacherHomeScreen extends ConsumerWidget {
                 ),
                 NavTile(
                   icon: Icons.menu_book_outlined,
-                  label: 'Homework',
-                  onTap: () => context.push(AppRoutes.teacherHomework),
-                ),
-                NavTile(
-                  icon: Icons.assignment_turned_in_outlined,
-                  label: 'Assignments',
-                  onTap: () => context.push(AppRoutes.teacherAssignments),
+                  label: 'Homework & Assignments',
+                  onTap: () => context.push(AppRoutes.teacherAcademicWork),
                 ),
                 NavTile(
                   icon: Icons.assignment_outlined,
