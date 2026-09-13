@@ -104,6 +104,18 @@ class A4Preview extends StatelessWidget {
           style: const TextStyle(fontSize: 8),
           textAlign: align,
         ),
+      if (header.showSecondaryPhone && header.secondaryPhone.isNotEmpty)
+        Text(
+          header.secondaryPhone,
+          style: const TextStyle(fontSize: 8),
+          textAlign: align,
+        ),
+      if (header.showWebsite && header.website.isNotEmpty)
+        Text(
+          header.website,
+          style: const TextStyle(fontSize: 8),
+          textAlign: align,
+        ),
       if (header.showOtherText && header.otherText.isNotEmpty)
         Text(
           header.otherText,

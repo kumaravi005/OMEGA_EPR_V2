@@ -9,6 +9,8 @@ import '../../../core/utils/error_formatting.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
+import '../../report_templates/data/report_layout_template_repository.dart';
+import '../../report_templates/presentation/widgets/report_layout_picker.dart';
 import '../../teacher/data/teacher_repository.dart';
 import '../data/attendance_repository.dart';
 import '../data/attendance_stats.dart';
@@ -35,6 +37,7 @@ class _TeacherAttendanceReportScreenState
   /// recomputed in the export handler.
   List<({String name, AttendanceStats stats})> _lastRows = const [];
   bool _isExporting = false;
+  String? _layoutTemplateId;
 
   Future<void> _export(ExportFormat format) async {
     if (_lastRows.isEmpty) {
@@ -45,6 +48,12 @@ class _TeacherAttendanceReportScreenState
     }
     setState(() => _isExporting = true);
     try {
+      final branding = _layoutTemplateId == null
+          ? null
+          : (await ref
+                    .read(reportLayoutTemplateRepositoryProvider)
+                    .getById(_layoutTemplateId!))
+                ?.toBranding();
       final dataset = ExportDataset(
         title: 'Teacher Attendance Report',
         subtitle: '${dateKey(_from)} - ${dateKey(_to)} | Total: ${_lastRows.length}',
@@ -58,6 +67,7 @@ class _TeacherAttendanceReportScreenState
               row.stats.percentage == null ? '-' : '${row.stats.percentage!.toStringAsFixed(1)}%',
             ],
         ],
+        branding: branding,
       );
       await const ExportService().export(dataset, format, fileName: 'teacher_attendance_report');
     } catch (error) {
@@ -117,16 +127,25 @@ class _TeacherAttendanceReportScreenState
           children: [
             Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: _pickRange,
-                  icon: const Icon(Icons.date_range_outlined),
-                  label: Text(
-                    '${'${_from.toLocal()}'.split(' ').first} - '
-                    '${'${_to.toLocal()}'.split(' ').first}',
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: _pickRange,
+                      icon: const Icon(Icons.date_range_outlined),
+                      label: Text(
+                        '${'${_from.toLocal()}'.split(' ').first} - '
+                        '${'${_to.toLocal()}'.split(' ').first}',
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: AppSpacing.sm),
+                  ReportLayoutPicker(
+                    value: _layoutTemplateId,
+                    onChanged: (id) => setState(() => _layoutTemplateId = id),
+                  ),
+                ],
               ),
             ),
             const Divider(height: 1),

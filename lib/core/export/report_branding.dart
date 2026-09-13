@@ -24,6 +24,8 @@ class ReportHeaderBranding {
     this.tagline,
     this.address,
     this.contact,
+    this.secondaryPhone,
+    this.website,
     this.otherText,
   });
 
@@ -37,6 +39,12 @@ class ReportHeaderBranding {
   final String? tagline;
   final String? address;
   final String? contact;
+
+  /// Set 21 additions - `InstituteProfile.secondaryPhone`/`.website`
+  /// already existed (Set 9); the template previously had no element for
+  /// either.
+  final String? secondaryPhone;
+  final String? website;
   final String? otherText;
 }
 

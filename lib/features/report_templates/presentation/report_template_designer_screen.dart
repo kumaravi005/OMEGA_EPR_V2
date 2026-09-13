@@ -4,6 +4,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/loading_view.dart';
+import '../../public/data/public_content_repositories.dart';
 import '../application/report_layout_template_controller.dart';
 import '../data/report_layout_template.dart';
 import '../data/report_layout_template_repository.dart';
@@ -31,6 +32,8 @@ class _ReportTemplateDesignerScreenState
   final _taglineController = TextEditingController();
   final _addressController = TextEditingController();
   final _contactController = TextEditingController();
+  final _secondaryPhoneController = TextEditingController();
+  final _websiteController = TextEditingController();
   final _otherTextController = TextEditingController();
   final _footerTextController = TextEditingController();
   final _signatureLabelController = TextEditingController(
@@ -45,6 +48,8 @@ class _ReportTemplateDesignerScreenState
   bool _showTagline = true;
   bool _showAddress = true;
   bool _showContact = true;
+  bool _showSecondaryPhone = false;
+  bool _showWebsite = false;
   bool _showOtherText = false;
   bool _showFooterText = false;
   bool _showSignature = false;
@@ -64,6 +69,8 @@ class _ReportTemplateDesignerScreenState
     _taglineController,
     _addressController,
     _contactController,
+    _secondaryPhoneController,
+    _websiteController,
     _otherTextController,
     _footerTextController,
     _signatureLabelController,
@@ -85,6 +92,10 @@ class _ReportTemplateDesignerScreenState
     showAddress: _showAddress,
     contact: _contactController.text.trim(),
     showContact: _showContact,
+    secondaryPhone: _secondaryPhoneController.text.trim(),
+    showSecondaryPhone: _showSecondaryPhone,
+    website: _websiteController.text.trim(),
+    showWebsite: _showWebsite,
     otherText: _otherTextController.text.trim(),
     showOtherText: _showOtherText,
   );
@@ -138,6 +149,10 @@ class _ReportTemplateDesignerScreenState
     _showAddress = template.header.showAddress;
     _contactController.text = template.header.contact;
     _showContact = template.header.showContact;
+    _secondaryPhoneController.text = template.header.secondaryPhone;
+    _showSecondaryPhone = template.header.showSecondaryPhone;
+    _websiteController.text = template.header.website;
+    _showWebsite = template.header.showWebsite;
     _otherTextController.text = template.header.otherText;
     _showOtherText = template.header.showOtherText;
     _footerTextController.text = template.footer.footerText;
@@ -149,6 +164,41 @@ class _ReportTemplateDesignerScreenState
     _footerContactController.text = template.footer.contactText;
     _showFooterContact = template.footer.showFooterContact;
     setState(() => _isLoading = false);
+  }
+
+  /// Pre-fills header fields from the configured institute profile (Set
+  /// 9's `institutes/main`) - a one-time copy, not a live link, matching
+  /// this project's established "snapshot, never re-read later" template
+  /// philosophy (see `ReportBranding`'s doc comment). Admin can freely
+  /// edit or hide anything afterward; tapping this again just re-copies
+  /// the current profile values. "Do not invent institute fields that
+  /// don't exist" (Set 21 section 3) - only fields `InstituteProfile`
+  /// actually has are used.
+  void _autofillFromInstituteProfile() {
+    final profile = ref.read(instituteProfileProvider).valueOrNull;
+    if (profile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No institute profile is configured yet.')),
+      );
+      return;
+    }
+    setState(() {
+      _instituteNameController.text = profile.name;
+      if (profile.logoUrl != null) _logoUrlController.text = profile.logoUrl!;
+      if (profile.tagline != null) _taglineController.text = profile.tagline!;
+      if (profile.address != null) _addressController.text = profile.address!;
+      if (profile.contactPhone != null) {
+        _contactController.text = profile.contactPhone!;
+      }
+      if (profile.secondaryPhone != null && profile.secondaryPhone!.isNotEmpty) {
+        _secondaryPhoneController.text = profile.secondaryPhone!;
+        _showSecondaryPhone = true;
+      }
+      if (profile.website != null && profile.website!.isNotEmpty) {
+        _websiteController.text = profile.website!;
+        _showWebsite = true;
+      }
+    });
   }
 
   @override
@@ -219,9 +269,20 @@ class _ReportTemplateDesignerScreenState
                         ),
                       ),
                       const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        'Header',
-                        style: Theme.of(context).textTheme.titleLarge,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Header',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _autofillFromInstituteProfile,
+                            icon: const Icon(Icons.sync_outlined, size: 18),
+                            label: const Text('Use institute profile'),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       AppTextField(
@@ -249,10 +310,22 @@ class _ReportTemplateDesignerScreenState
                         (v) => _showAddress = v,
                       ),
                       _toggleableField(
-                        'Contact',
+                        'Primary phone / contact',
                         _contactController,
                         _showContact,
                         (v) => _showContact = v,
+                      ),
+                      _toggleableField(
+                        'Secondary phone',
+                        _secondaryPhoneController,
+                        _showSecondaryPhone,
+                        (v) => _showSecondaryPhone = v,
+                      ),
+                      _toggleableField(
+                        'Website',
+                        _websiteController,
+                        _showWebsite,
+                        (v) => _showWebsite = v,
                       ),
                       _toggleableField(
                         'Other header text',

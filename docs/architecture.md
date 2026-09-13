@@ -701,6 +701,65 @@ PdfReportBuilder / ExcelReportBuilder / DocxReportBuilder   <- same Set 6 builde
   Set 5 - Storage still isn't enabled (see docs/firebase-setup.md). No
   new decision here, just the established pattern applied again.
 
+## Report layout templates, completed (Set 21)
+
+Set 21's brief was to inspect the Set 7 designer/template system before
+changing anything, and implement only genuine gaps against a 25-point
+spec - it explicitly forbade a second designer, a duplicate template
+model/collection, or rewriting anything from Set 20. Almost everything
+the spec asked for turned out to already exist (configurable A4
+orientation via the export engine's own width-driven auto-landscape,
+fraction-based logo positioning that already works unmodified in both
+orientations, template/report separation, admin-only Firestore rules,
+preview/PDF consistency, deactivate-free simple CRUD lifecycle). Three
+real gaps were found and closed:
+
+- **Header gained Secondary Phone and Website fields**
+  (`ReportHeaderConfig.secondaryPhone`/`.website`, each with its own
+  `show*` flag, same pattern as the pre-existing `contact` field). These
+  render in both `A4Preview` and `PdfReportBuilder` as additional text
+  lines between "Primary phone / contact" (the old `contact` field,
+  relabeled only - not renamed at the data level, since renaming its
+  Firestore key would be a breaking change to every saved template for a
+  label-only difference) and "Other header text". A pre-Set-21 saved
+  template has neither field in Firestore; `fromMap` defaults both to
+  hidden/empty, so an existing template's rendered output is unchanged
+  until an admin explicitly opts in. No Firestore rules change was
+  needed - `newReportLayoutTemplateIsValid()` only validates `header`/
+  `footer` as opaque maps at the top level, never their nested key
+  shape, so a new nested field is automatically permitted.
+- **"Use institute profile" autofill** (a button next to the designer's
+  Header section title): a one-time copy of `InstituteProfile`'s name/
+  logo/tagline/address/contact/secondary phone/website (Set 9) into the
+  template's text fields - never a live binding. This matches the same
+  "resolve once, don't re-read later" philosophy `ReportBranding` itself
+  is built on (see below); the admin can freely edit or hide anything
+  afterward, and tapping the button again just re-copies the profile's
+  current values. Only fields `InstituteProfile` actually has are used -
+  no field was invented on either model for this.
+- **Attendance reports gained template support**
+  (`StudentAttendanceReportScreen`/`TeacherAttendanceReportScreen`, the
+  one export pair Set 20 built without any `ReportLayoutPicker`
+  integration at all - see "Reports & Exports, extended (Set 20)"
+  above). Each gained a `ReportLayoutPicker` in its existing filter
+  panel and now fetches the chosen template fresh
+  (`reportLayoutTemplateRepositoryProvider.getById`) and bakes it via
+  `.toBranding()` immediately before building its `ExportDataset`,
+  exactly like every other Set 20 export screen - no new column-picker/
+  format-picker/orientation-picker was added, since that machinery was a
+  deliberate Set 20 omission (a fixed, narrow column shape), not a gap.
+
+No orientation field was added to the stored template: logo/element
+positions are already stored as 0..1 fractions of the header area (see
+[`LogoPlacement`]), which are resolution- and orientation-independent -
+one saved template already renders correctly in both portrait and
+landscape without a stored orientation, so "store orientation if the
+architecture supports it" resolved to "no change needed." No report
+title field was added either - `ExportDataset.title`/`.subtitle` remain
+report-specific, set by each report screen, entirely separate from the
+template's header/footer config, per the spec's explicit "the template
+controls presentation, not report data" boundary.
+
 ## Reports & Exports, extended (Set 20)
 
 Set 20's brief was explicit: inspect what already exists before building
@@ -778,11 +837,15 @@ EXTENSION/reorganization, not a new module, plus one real bug fix.
   This is deliberately NOT a new export screen with its own filter UI -
   the existing screens' filters are reused as-is, avoiding a second,
   parallel attendance-report implementation. These two did not get the
-  column-picker/format/template machinery the other reports have (a
-  fixed 4-5 column shape - Name/Admission No./Present/Absent/Percentage -
-  needs no column selection), and format choice is a simple popup
-  (PDF/Excel/DOCX) rather than the full `FormatPicker`/`OrientationPicker`
-  row, since orientation is never in question for this few columns.
+  column-picker/format-picker/orientation-picker machinery the other
+  reports have (a fixed 4-5 column shape -
+  Name/Admission No./Present/Absent/Percentage - needs no column
+  selection, and format choice is a simple popup (PDF/Excel/DOCX) rather
+  than the full `FormatPicker`/`OrientationPicker` row, since orientation
+  is never in question for this few columns). They did gain a
+  `ReportLayoutPicker` in Set 21 (see "Report layout templates,
+  completed (Set 21)" below) - the one piece of template machinery that
+  was still a genuine gap.
 - **`ReportModule` gained `paymentReport`** (`features/reports/data/report_template.dart`)
   for the new screen's saved-template support; `firestore.rules`'
   `newReportTemplateIsValid()` was updated to accept it. The Fee Due

@@ -39,6 +39,75 @@ void main() {
       expect(template.toBranding().header.address, isNull);
     });
 
+    test(
+      'hides secondary phone and website when their show flag is off, even if text is set',
+      () {
+        final template = ReportLayoutTemplate(
+          templateId: 't1',
+          name: 'Letterhead',
+          header: const ReportHeaderConfig(
+            secondaryPhone: '022-1234567',
+            showSecondaryPhone: false,
+            website: 'www.omega.edu',
+            showWebsite: false,
+          ),
+          footer: const ReportFooterConfig(),
+          createdAt: DateTime(2026, 1, 1),
+          updatedAt: DateTime(2026, 1, 1),
+        );
+
+        final branding = template.toBranding();
+        expect(branding.header.secondaryPhone, isNull);
+        expect(branding.header.website, isNull);
+      },
+    );
+
+    test(
+      'shows secondary phone and website when their show flag is on and text is set',
+      () {
+        final template = ReportLayoutTemplate(
+          templateId: 't1',
+          name: 'Letterhead',
+          header: const ReportHeaderConfig(
+            secondaryPhone: '022-1234567',
+            showSecondaryPhone: true,
+            website: 'www.omega.edu',
+            showWebsite: true,
+          ),
+          footer: const ReportFooterConfig(),
+          createdAt: DateTime(2026, 1, 1),
+          updatedAt: DateTime(2026, 1, 1),
+        );
+
+        final branding = template.toBranding();
+        expect(branding.header.secondaryPhone, '022-1234567');
+        expect(branding.header.website, 'www.omega.edu');
+      },
+    );
+
+    test(
+      'treats empty secondary phone / website as hidden even when the show flag is on',
+      () {
+        final template = ReportLayoutTemplate(
+          templateId: 't1',
+          name: 'Letterhead',
+          header: const ReportHeaderConfig(
+            secondaryPhone: '',
+            showSecondaryPhone: true,
+            website: '',
+            showWebsite: true,
+          ),
+          footer: const ReportFooterConfig(),
+          createdAt: DateTime(2026, 1, 1),
+          updatedAt: DateTime(2026, 1, 1),
+        );
+
+        final branding = template.toBranding();
+        expect(branding.header.secondaryPhone, isNull);
+        expect(branding.header.website, isNull);
+      },
+    );
+
     test('carries the logo placement fractions through unchanged', () {
       final template = ReportLayoutTemplate(
         templateId: 't1',
@@ -68,6 +137,10 @@ void main() {
           instituteName: 'Omega',
           showTagline: false,
           logoXFraction: 0.4,
+          secondaryPhone: '022-1234567',
+          showSecondaryPhone: true,
+          website: 'www.omega.edu',
+          showWebsite: true,
         ),
         footer: const ReportFooterConfig(
           showSignature: true,
@@ -88,8 +161,26 @@ void main() {
       expect(restored.header.instituteName, original.header.instituteName);
       expect(restored.header.showTagline, false);
       expect(restored.header.logoXFraction, 0.4);
+      expect(restored.header.secondaryPhone, '022-1234567');
+      expect(restored.header.showSecondaryPhone, true);
+      expect(restored.header.website, 'www.omega.edu');
+      expect(restored.header.showWebsite, true);
       expect(restored.footer.showSignature, true);
       expect(restored.footer.signatureLabel, 'Principal');
     });
+
+    test(
+      'fromMap defaults secondary phone / website to hidden/empty when absent (pre-Set-21 template)',
+      () {
+        final restored = ReportHeaderConfig.fromMap(const {
+          'instituteName': 'Omega',
+        });
+
+        expect(restored.secondaryPhone, '');
+        expect(restored.showSecondaryPhone, false);
+        expect(restored.website, '');
+        expect(restored.showWebsite, false);
+      },
+    );
   });
 }

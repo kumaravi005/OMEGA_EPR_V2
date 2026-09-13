@@ -11,6 +11,8 @@ import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../academics/data/academics_repositories.dart';
 import '../../batches/data/batch_repository.dart';
+import '../../report_templates/data/report_layout_template_repository.dart';
+import '../../report_templates/presentation/widgets/report_layout_picker.dart';
 import '../../student/data/student_repository.dart';
 import '../data/attendance_repository.dart';
 import '../data/attendance_stats.dart';
@@ -41,6 +43,7 @@ class _StudentAttendanceReportScreenState
   /// without duplicating the filter logic in `build`'s `data:` callback.
   List<({String name, String admissionNumber, AttendanceStats stats})> _lastRows = const [];
   bool _isExporting = false;
+  String? _layoutTemplateId;
 
   Future<void> _export(ExportFormat format) async {
     if (_lastRows.isEmpty) {
@@ -51,6 +54,12 @@ class _StudentAttendanceReportScreenState
     }
     setState(() => _isExporting = true);
     try {
+      final branding = _layoutTemplateId == null
+          ? null
+          : (await ref
+                    .read(reportLayoutTemplateRepositoryProvider)
+                    .getById(_layoutTemplateId!))
+                ?.toBranding();
       final dataset = ExportDataset(
         title: 'Student Attendance Report',
         subtitle:
@@ -66,6 +75,7 @@ class _StudentAttendanceReportScreenState
               row.stats.percentage == null ? '-' : '${row.stats.percentage!.toStringAsFixed(1)}%',
             ],
         ],
+        branding: branding,
       );
       await const ExportService().export(dataset, format, fileName: 'student_attendance_report');
     } catch (error) {
@@ -234,6 +244,11 @@ class _StudentAttendanceReportScreenState
                         '${'${_to.toLocal()}'.split(' ').first}',
                       ),
                     ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  ReportLayoutPicker(
+                    value: _layoutTemplateId,
+                    onChanged: (id) => setState(() => _layoutTemplateId = id),
                   ),
                 ],
               ),

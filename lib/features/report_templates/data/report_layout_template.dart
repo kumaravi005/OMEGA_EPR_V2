@@ -22,6 +22,10 @@ class ReportHeaderConfig {
     this.showAddress = true,
     this.contact = '',
     this.showContact = true,
+    this.secondaryPhone = '',
+    this.showSecondaryPhone = false,
+    this.website = '',
+    this.showWebsite = false,
     this.otherText = '',
     this.showOtherText = false,
   });
@@ -40,6 +44,13 @@ class ReportHeaderConfig {
       showAddress: map['showAddress'] as bool? ?? true,
       contact: map['contact'] as String? ?? '',
       showContact: map['showContact'] as bool? ?? true,
+      // Added in Set 21 - absent on every pre-Set-21 template, so these
+      // default to hidden/empty rather than changing how an existing
+      // saved template renders.
+      secondaryPhone: map['secondaryPhone'] as String? ?? '',
+      showSecondaryPhone: map['showSecondaryPhone'] as bool? ?? false,
+      website: map['website'] as String? ?? '',
+      showWebsite: map['showWebsite'] as bool? ?? false,
       otherText: map['otherText'] as String? ?? '',
       showOtherText: map['showOtherText'] as bool? ?? false,
     );
@@ -55,8 +66,22 @@ class ReportHeaderConfig {
   final bool showTagline;
   final String address;
   final bool showAddress;
+
+  /// Labelled "Primary phone / contact" in the designer - kept as one
+  /// free-text line (not split into its own "primary phone" field) since
+  /// it predates Set 21 and already serves that purpose; renaming its
+  /// underlying key would be a breaking change to every saved template
+  /// for a label-only difference.
   final String contact;
   final bool showContact;
+
+  /// Set 21 additions - `InstituteProfile.secondaryPhone`/`.website`
+  /// (Set 9) already exist; the template previously had no way to show
+  /// either.
+  final String secondaryPhone;
+  final bool showSecondaryPhone;
+  final String website;
+  final bool showWebsite;
   final String otherText;
   final bool showOtherText;
 
@@ -74,6 +99,10 @@ class ReportHeaderConfig {
     bool? showAddress,
     String? contact,
     bool? showContact,
+    String? secondaryPhone,
+    bool? showSecondaryPhone,
+    String? website,
+    bool? showWebsite,
     String? otherText,
     bool? showOtherText,
   }) {
@@ -90,6 +119,10 @@ class ReportHeaderConfig {
       showAddress: showAddress ?? this.showAddress,
       contact: contact ?? this.contact,
       showContact: showContact ?? this.showContact,
+      secondaryPhone: secondaryPhone ?? this.secondaryPhone,
+      showSecondaryPhone: showSecondaryPhone ?? this.showSecondaryPhone,
+      website: website ?? this.website,
+      showWebsite: showWebsite ?? this.showWebsite,
       otherText: otherText ?? this.otherText,
       showOtherText: showOtherText ?? this.showOtherText,
     );
@@ -108,6 +141,10 @@ class ReportHeaderConfig {
     'showAddress': showAddress,
     'contact': contact,
     'showContact': showContact,
+    'secondaryPhone': secondaryPhone,
+    'showSecondaryPhone': showSecondaryPhone,
+    'website': website,
+    'showWebsite': showWebsite,
     'otherText': otherText,
     'showOtherText': showOtherText,
   };
@@ -241,6 +278,12 @@ class ReportLayoutTemplate implements FirestoreDocument {
           : null,
       contact: header.showContact && header.contact.isNotEmpty
           ? header.contact
+          : null,
+      secondaryPhone: header.showSecondaryPhone && header.secondaryPhone.isNotEmpty
+          ? header.secondaryPhone
+          : null,
+      website: header.showWebsite && header.website.isNotEmpty
+          ? header.website
           : null,
       otherText: header.showOtherText && header.otherText.isNotEmpty
           ? header.otherText

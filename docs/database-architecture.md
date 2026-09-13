@@ -1284,7 +1284,11 @@ reportLayoutTemplates/{templateId}
     instituteName, showInstituteName        string, bool
     tagline, showTagline                    string, bool
     address, showAddress                    string, bool
-    contact, showContact                    string, bool
+    contact, showContact                    string, bool  (labelled "Primary
+                                              phone / contact" in the designer
+                                              since Set 21 - key unchanged)
+    secondaryPhone, showSecondaryPhone      string, bool  (added Set 21)
+    website, showWebsite                    string, bool  (added Set 21)
     otherText, showOtherText                string, bool
   footer:
     footerText, showFooterText              string, bool
@@ -1310,7 +1314,16 @@ Admin-only, and - like `reportTemplates` (Set 6) - genuinely deletable:
 a saved letterhead is a reusable asset the admin manages, not a durable
 record. `header`/`footer` are validated only as maps at the rules level;
 their nested shape carries no access-control meaning (same reasoning as
-`reportTemplates.config`).
+`reportTemplates.config`) - which is exactly why Set 21 could add
+`secondaryPhone`/`website` to `header` with zero `firestore.rules`
+changes. A pre-Set-21 document simply lacks both fields; `fromMap`
+defaults them to hidden/empty, so an existing template's rendered output
+is unchanged until an admin explicitly sets them in the designer. See
+docs/architecture.md's "Report layout templates, completed (Set 21)" for
+the other two changes in that set (institute-profile autofill in the
+designer, and `StudentAttendanceReportScreen`/
+`TeacherAttendanceReportScreen` gaining a `ReportLayoutPicker`) - neither
+touches this collection's shape.
 
 ## Institute configuration, extended (Set 9)
 

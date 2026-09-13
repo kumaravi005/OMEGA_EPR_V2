@@ -157,6 +157,22 @@ class PdfReportBuilder {
             style: const pw.TextStyle(fontSize: 8),
           ),
         ),
+      if (header.secondaryPhone != null)
+        pw.Padding(
+          padding: const pw.EdgeInsets.only(top: 1),
+          child: pw.Text(
+            header.secondaryPhone!,
+            style: const pw.TextStyle(fontSize: 8),
+          ),
+        ),
+      if (header.website != null)
+        pw.Padding(
+          padding: const pw.EdgeInsets.only(top: 1),
+          child: pw.Text(
+            header.website!,
+            style: const pw.TextStyle(fontSize: 8),
+          ),
+        ),
       if (header.otherText != null)
         pw.Padding(
           padding: const pw.EdgeInsets.only(top: 1),
