@@ -102,10 +102,13 @@ class _Results extends ConsumerWidget {
                               if (result == null) {
                                 return const Chip(label: Text('Not entered'));
                               }
+                              if (result.isAbsent) {
+                                return const Chip(label: Text('Absent'));
+                              }
                               return Chip(
                                 label: Text(
-                                  '${result.obtainedMarks.toStringAsFixed(0)}/${result.totalMarks.toStringAsFixed(0)} '
-                                  '(${result.percentage.toStringAsFixed(1)}%)',
+                                  '${result.obtainedMarks!.toStringAsFixed(0)}/${result.totalMarks.toStringAsFixed(0)} '
+                                  '(${result.percentage!.toStringAsFixed(1)}%)',
                                 ),
                               );
                             },

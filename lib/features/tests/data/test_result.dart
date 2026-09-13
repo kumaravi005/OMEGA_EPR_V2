@@ -8,12 +8,21 @@ import '../../../data/models/firestore_document.dart';
 /// Visibility of a result to the student it belongs to is controlled by
 /// the *test's* `resultPublished` flag, not anything on this document -
 /// see docs/database-architecture.md.
+///
+/// [isAbsent] distinguishes a student who did not attempt the test from
+/// one who scored a genuine zero (Set 14 spec: "do not automatically
+/// convert an empty field to 0"). When [isAbsent] is `true`,
+/// [obtainedMarks] is always `null` - there is no numeric value to show,
+/// not a hidden zero. A student with no [TestResult] document at all is
+/// a third, distinct state: "not yet entered" (nothing has been decided
+/// for them either way).
 class TestResult implements FirestoreDocument {
   const TestResult({
     required this.resultId,
     required this.testId,
     required this.studentUid,
     required this.batchId,
+    required this.isAbsent,
     required this.obtainedMarks,
     required this.totalMarks,
     required this.remark,
@@ -28,7 +37,8 @@ class TestResult implements FirestoreDocument {
       testId: map['testId'] as String,
       studentUid: map['studentUid'] as String,
       batchId: map['batchId'] as String,
-      obtainedMarks: (map['obtainedMarks'] as num).toDouble(),
+      isAbsent: map['isAbsent'] as bool? ?? false,
+      obtainedMarks: (map['obtainedMarks'] as num?)?.toDouble(),
       totalMarks: (map['totalMarks'] as num).toDouble(),
       remark: map['remark'] as String?,
       enteredBy: map['enteredBy'] as String,
@@ -41,15 +51,26 @@ class TestResult implements FirestoreDocument {
   final String testId;
   final String studentUid;
   final String batchId;
-  final double obtainedMarks;
+  final bool isAbsent;
+
+  /// `null` when [isAbsent] is `true`, or on a legacy document that
+  /// somehow lacks it - never a stand-in `0`.
+  final double? obtainedMarks;
   final double totalMarks;
   final String? remark;
   final String enteredBy;
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  double get percentage =>
-      totalMarks == 0 ? 0 : (obtainedMarks / totalMarks) * 100;
+  /// `null` when there is nothing to compute a percentage from (absent,
+  /// or no marks value) - callers should render that as "-"/"Absent",
+  /// never as 0%.
+  double? get percentage {
+    final marks = obtainedMarks;
+    if (isAbsent || marks == null) return null;
+    if (totalMarks == 0) return 0;
+    return (marks / totalMarks) * 100;
+  }
 
   static String idFor({required String testId, required String studentUid}) =>
       '${testId}_$studentUid';
@@ -63,6 +84,7 @@ class TestResult implements FirestoreDocument {
       'testId': testId,
       'studentUid': studentUid,
       'batchId': batchId,
+      'isAbsent': isAbsent,
       'obtainedMarks': obtainedMarks,
       'totalMarks': totalMarks,
       'remark': remark,

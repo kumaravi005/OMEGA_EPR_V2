@@ -55,6 +55,7 @@ import 'features/teacher/presentation/teacher_list_screen.dart';
 import 'features/teacher/presentation/teacher_profile_screen.dart';
 import 'features/tests/presentation/enter_marks_screen.dart';
 import 'features/tests/presentation/student_results_screen.dart';
+import 'features/tests/presentation/test_details_screen.dart';
 import 'features/tests/presentation/test_list_screen.dart';
 
 /// The app's route table and role-based/session-based redirect logic.
@@ -182,6 +183,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '${AppRoutes.adminTests}/:testId',
+        builder: (context, state) => TestDetailsScreen(
+          testId: state.pathParameters['testId']!,
+          basePath: AppRoutes.adminTests,
+        ),
+      ),
+      GoRoute(
+        path: '${AppRoutes.adminTests}/:testId/marks',
         builder: (context, state) =>
             EnterMarksScreen(testId: state.pathParameters['testId']!),
       ),
@@ -299,6 +307,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '${AppRoutes.teacherTests}/:testId',
+        builder: (context, state) => TestDetailsScreen(
+          testId: state.pathParameters['testId']!,
+          basePath: AppRoutes.teacherTests,
+        ),
+      ),
+      GoRoute(
+        path: '${AppRoutes.teacherTests}/:testId/marks',
         builder: (context, state) =>
             EnterMarksScreen(testId: state.pathParameters['testId']!),
       ),

@@ -339,7 +339,9 @@ class _TestResultExportScreenState
             if (_includeRank) (ranks[i] == null ? '-' : '${ranks[i]}'),
             entries[i].result == null
                 ? '-'
-                : entries[i].result!.obtainedMarks.toStringAsFixed(1),
+                : entries[i].result!.isAbsent
+                ? 'Absent'
+                : entries[i].result!.obtainedMarks!.toStringAsFixed(1),
             test.totalMarks.toStringAsFixed(0),
             entries[i].percentage == null
                 ? '-'

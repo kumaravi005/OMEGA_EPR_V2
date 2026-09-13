@@ -546,14 +546,31 @@ assignments/{assignmentId}              same shape/access as homework
 
 tests/{testId}                          metadata only - the test is
                                           conducted on paper, offline
-  batchId, subject, title, chapterTopic, date, totalMarks
-  testType ("objective" | "subjective" | "mixed"), description
+  batchId, title, chapterTopic, date, totalMarks
+  academicSessionId, classId, subjectId   snapshot of the batch/subject
+                                            at creation time (Set 14) -
+                                            '' on a pre-Set-14 test (see
+                                            "Test/subject wiring" below)
+  subject      string   resolved subject display name - kept for
+                          existing consumers (student results, the
+                          test-result export), never hand-typed as of
+                          Set 14
+  testType ("unitTest" | "monthlyTest" | "weeklyTest" | "halfYearly" |
+            "finalTest" | "other"), otherTestTypeLabel (string | null -
+            only meaningful when testType == "other")
+  description (string | null)
+  active (bool)   defaults to true on read for a pre-Set-14 document
   resultPublished (bool)
   createdBy, createdAt, updatedAt
 
 testResults/{testId}_{studentUid}       one document per test+student
   testId, studentUid, batchId
-  obtainedMarks, totalMarks   (percentage computed client-side, never stored)
+  isAbsent (bool)   Set 14 - true means "did not attempt", never a
+                     stand-in for a zero score
+  obtainedMarks (number | null)   null whenever isAbsent is true;
+                                   percentage computed client-side, never
+                                   stored
+  totalMarks
   remark, enteredBy, createdAt, updatedAt
 
 notifications/{notificationId}          event hooks only - see below
@@ -614,6 +631,89 @@ admin taps Save - one atomic network round-trip for the whole day's
 staff, matching the spec's "do not make one unnecessary network write
 per record if the architecture can safely batch them" while keeping
 each teacher's record independently queryable exactly as before.
+
+### Test/subject wiring, status and future result compatibility (Set 14)
+
+`TestDefinition.subject` was free text through Set 4-13 (the same gap
+Set 9's own scope boundary flagged and left for a future set). Set 14
+adds `subjectId` referencing `subjects/{subjectId}` (Set 9) by stable
+id, only ever offered from the *selected class's* own
+`SchoolClass.subjectIds` (never a flat, unconstrained subject list) -
+"Class 5 with Science" and "Class 9 with Physics/Chemistry/Biology" stay
+impossible to mix up because the subject dropdown is built from the
+class's own configured list, not every subject in the institute.
+`academicSessionId`/`classId` are added alongside for the same snapshot
+reason as attendance's Set 13 fields (see above): a batch's own
+session/class could technically be edited later, and a snapshot keeps a
+past test's academic context from silently drifting if that happens.
+`subject` itself remains a resolved display string (not removed) so the
+student-results screen and the Set 6 test-result export keep reading a
+plain name unchanged.
+
+`TestType`'s values changed from the Set 4 question-FORMAT axis
+(objective/subjective/mixed) to the Set 14 spec's occasion-CATEGORY axis
+(Unit Test/Monthly Test/Weekly Test/Half-Yearly/Final/Other) - a
+different concept the spec asks "Test type" to mean, not an additional
+field alongside the old one. A pre-Set-14 test's stored
+objective/subjective/mixed value is migrated on read
+(`TestDefinition.fromMap`) to `TestType.other` with the original word
+preserved in `otherTestTypeLabel` (e.g. "Objective") - it is never
+lost, and reading an old test never crashes.
+
+**Status**: rather than a bespoke draft/published/closed lifecycle,
+Set 14 adds one `active` boolean reusing the exact convention already
+established for Batch/Teacher/Student ("prefer deactivation over
+destructive deletion"). Combined with the existing `resultPublished`
+boolean, this already distinguishes every state the spec asks for -
+active+unpublished ("marks still being entered"), active+published
+("finalized"), and inactive ("archived") - without a third status
+field. `testUpdateIsValid()` in `firestore.rules` was widened from
+"only `resultPublished` may ever change" to also allow `active`,
+independently and in both directions (unlike `resultPublished`, which
+still only ever goes `false` -> `true`); every other field on a test
+remains fixed after creation - "the offline test already happened,
+there's nothing else to edit" still holds.
+
+**Future Result/Reports compatibility (Set 14 spec, not built here)**:
+a test's `academicSessionId`/`classId`/`batchId`/`subjectId` and a
+result's `testId`/`studentUid` are exactly the references a future
+Result set needs to compute a subject-wise mark, a combined multi-
+subject total (several tests -&gt; one student -&gt; one row - see
+`combineMarks` in `core/utils/marks_combiner.dart`, already built and
+already reused by the Set 6 test-result export screen), a rank, or a
+batch-wide result - nothing here is redesigned to serve that later, it
+already fits.
+
+### Absent vs. zero (Set 14)
+
+`TestResult.isAbsent` distinguishes three states the spec requires kept
+apart: **not yet entered** (no `TestResult` document exists for that
+student at all - the marks-entry screen shows an empty field),
+**absent** (`isAbsent: true`, `obtainedMarks: null` - a real record
+saying the student did not attempt it, not a hidden zero), and
+**present with a score** (`isAbsent: false`, `obtainedMarks` a number
+`0..totalMarks`). `firestore.rules`' `marksAreValid()` enforces exactly
+this either/or shape server-side, not just in the UI. `combineMarks`
+(used by multi-test/multi-subject exports) already treats a `null`
+mark - whether from "not entered" or "absent" - as contributing `0` to
+the combined total while still counting the test's max marks in the
+denominator, so an absence still lowers a combined percentage rather
+than being silently excluded from it; a future Result set is free to
+treat "absent" differently from "not entered" since the two remain
+distinguishable on the record itself.
+
+### Bulk marks save (Set 14)
+
+`EnterMarksScreen` now stages every student's mark/absent toggle
+locally and saves the whole sheet in one `TestController.saveMarksBulk`
+call, which commits every changed `TestResult` in a single Firestore
+`WriteBatch` - the same "one write batch per Save tap, not one write
+per student" pattern Set 13 established for teacher attendance. Marks
+range validation (`0 &lt;= marks &lt;= totalMarks`, per student) runs
+against every staged entry before any write is attempted, so an invalid
+sheet fails as a whole rather than partially saving - "do not display
+success unless the complete intended operation succeeded" (Set 14
+spec).
 
 **"Do not expose unpublished marks to students"** is enforced in
 `firestore.rules`, not just the UI: a student's `get` on `testResults` is
@@ -1002,10 +1102,15 @@ above:
   batch's, matching the homework/assignments/tests pattern.
 - `teacherAttendance`: admin-only to write; a teacher may `get`/`list`
   only their own (`resource.data.teacherUid == request.auth.uid`).
-- `homework`/`assignments`/`tests`: admin or any active teacher may
-  create/update; a student may read only their *current* batch's.
-- `testResults`: admin/teacher create and read all; a student may `get`
-  only their own, and only once published (see above).
+- `homework`/`assignments`: admin or any active teacher may create/update;
+  a student may read only their *current* batch's.
+- `tests`/`testResults`: admin-only to create/update as of Set 14 (the
+  spec's explicit "admin remains the sole authority... teachers must
+  not automatically receive write access" - narrower than
+  homework/assignments' teacher-write, a deliberate difference, not an
+  oversight); a teacher may still read all of both, same as before. A
+  student may read only their current batch's tests, and their own
+  `testResults`, only once published (see above).
 - `notifications`: admin/teacher create; readable by admin/teacher and by
   whichever student(s) it targets (see "Notification targeting" above).
 - `gallery`/`banners`/`upcomingBatches`/`advertisements`/`announcements`/

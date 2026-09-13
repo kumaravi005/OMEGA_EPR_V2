@@ -633,26 +633,39 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Offline tests (Set 4): metadata only - there is no online exam
-    // engine. Marks live in the separate `testResults` collection below.
-    // Once created, only `resultPublished` may ever change (the offline
-    // test already happened - there's nothing else to edit).
+    // Offline tests (Set 4, extended Set 14 with academicSessionId/
+    // classId/subjectId snapshots of the batch/subject at creation time,
+    // and an active/inactive status reusing the same convention as
+    // Batch/Teacher/Student - see docs/database-architecture.md). Marks
+    // live in the separate `testResults` collection below. Once created,
+    // only `resultPublished` (one-way: false -> true only) and `active`
+    // may ever change - every other field is fixed at creation, since
+    // the offline test already happened and there's nothing else to
+    // edit. Set 14 spec: admin remains the sole authority for
+    // creating/editing tests - teachers may still read, never write.
     function testFields() {
       return [
-        'batchId', 'subject', 'title', 'chapterTopic', 'date', 'totalMarks', 'testType', 'description',
-        'resultPublished', 'createdBy', 'createdAt', 'updatedAt'
+        'batchId', 'academicSessionId', 'classId', 'subjectId', 'subject', 'title', 'chapterTopic', 'date',
+        'totalMarks', 'testType', 'otherTestTypeLabel', 'description', 'active', 'resultPublished', 'createdBy',
+        'createdAt', 'updatedAt'
       ];
     }
 
     function newTestIsValid() {
       let data = request.resource.data;
       return data.batchId is string
+        && data.academicSessionId is string && data.academicSessionId.size() > 0
+        && data.classId is string && data.classId.size() > 0
+        && data.subjectId is string && data.subjectId.size() > 0
         && data.subject is string && data.subject.size() > 0
         && data.title is string && data.title.size() > 0
         && data.chapterTopic is string
         && data.date is timestamp
         && data.totalMarks is number && data.totalMarks > 0
-        && data.testType in ['objective', 'subjective', 'mixed']
+        && data.testType in ['unitTest', 'monthlyTest', 'weeklyTest', 'halfYearly', 'finalTest', 'other']
+        && (data.otherTestTypeLabel == null || data.otherTestTypeLabel is string)
+        && (data.description == null || data.description is string)
+        && data.active == true
         && data.resultPublished == false
         && data.createdBy == request.auth.uid
         && data.createdAt is timestamp
@@ -661,29 +674,49 @@ service cloud.firestore {
     }
 
     function testUpdateIsValid() {
-      return changedKeys().hasOnly(['resultPublished', 'updatedAt']) && request.resource.data.resultPublished == true;
+      return changedKeys().hasOnly(['resultPublished', 'active', 'updatedAt'])
+        && (!changedKeys().hasAny(['resultPublished']) || request.resource.data.resultPublished == true)
+        && (!changedKeys().hasAny(['active']) || request.resource.data.active is bool);
     }
 
     match /tests/{testId} {
       allow get: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
       allow list: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
-      allow create: if (isAdmin() || isTeacher()) && newTestIsValid();
-      allow update: if (isAdmin() || isTeacher()) && testUpdateIsValid();
+      allow create: if isAdmin() && newTestIsValid();
+      allow update: if isAdmin() && testUpdateIsValid();
       allow delete: if false;
     }
 
-    // Test results / marks (Set 4): one document per test+student
-    // (deterministic id `<testId>_<studentUid>`, same duplicate-prevention
-    // scheme as attendance). "Do not expose unpublished marks to
-    // students" is enforced right here: a student can only ever `get`
-    // their own result, and only once the parent test's `resultPublished`
-    // is true.
+    // Test results / marks (Set 4, extended Set 14 with an `isAbsent`
+    // flag so a student who did not attempt the test is distinguishable
+    // from one who scored a genuine zero - `obtainedMarks` is `null`
+    // whenever `isAbsent` is true, never a stand-in `0`): one document
+    // per test+student (deterministic id `<testId>_<studentUid>`, same
+    // duplicate-prevention scheme as attendance). "Do not expose
+    // unpublished marks to students" is enforced right here: a student
+    // can only ever `get` their own result, and only once the parent
+    // test's `resultPublished` is true. Admin-only to write (Set 14) -
+    // teachers may still read.
     function testResultFields() {
-      return ['testId', 'studentUid', 'batchId', 'obtainedMarks', 'totalMarks', 'remark', 'enteredBy', 'createdAt', 'updatedAt'];
+      return ['testId', 'studentUid', 'batchId', 'isAbsent', 'obtainedMarks', 'totalMarks', 'remark', 'enteredBy',
+        'createdAt', 'updatedAt'];
     }
 
     function testIsPublished(testId) {
       return get(/databases/$(database)/documents/tests/$(testId)).data.resultPublished == true;
+    }
+
+    // Either genuinely absent (no marks value at all) or present with a
+    // valid in-range mark - never both, never neither.
+    function marksAreValid(data) {
+      return data.isAbsent is bool
+        && (
+          (data.isAbsent == true && data.obtainedMarks == null)
+          || (
+            data.isAbsent == false && data.obtainedMarks is number
+            && data.obtainedMarks >= 0 && data.obtainedMarks <= data.totalMarks
+          )
+        );
     }
 
     function newTestResultIsValid(resultId) {
@@ -692,8 +725,9 @@ service cloud.firestore {
         && data.testId is string
         && data.studentUid is string
         && data.batchId is string
-        && data.obtainedMarks is number && data.obtainedMarks >= 0
-        && data.totalMarks is number && data.obtainedMarks <= data.totalMarks
+        && data.totalMarks is number
+        && marksAreValid(data)
+        && (data.remark == null || data.remark is string)
         && data.enteredBy is string
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
@@ -701,21 +735,24 @@ service cloud.firestore {
     }
 
     function testResultUpdateIsValid() {
-      return request.resource.data.testId == resource.data.testId
-        && request.resource.data.studentUid == resource.data.studentUid
-        && request.resource.data.batchId == resource.data.batchId
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.obtainedMarks is number && request.resource.data.obtainedMarks >= 0
-        && request.resource.data.totalMarks is number
-        && request.resource.data.obtainedMarks <= request.resource.data.totalMarks
-        && request.resource.data.keys().hasOnly(testResultFields());
+      let data = request.resource.data;
+      let old = resource.data;
+      return data.testId == old.testId
+        && data.studentUid == old.studentUid
+        && data.batchId == old.batchId
+        && data.createdAt == old.createdAt
+        && data.totalMarks is number
+        && marksAreValid(data)
+        && (data.remark == null || data.remark is string)
+        && data.enteredBy is string
+        && data.keys().hasOnly(testResultFields());
     }
 
     match /testResults/{resultId} {
       allow get: if isAdmin() || isTeacher() || (isSelf(resource.data.studentUid) && testIsPublished(resource.data.testId));
       allow list: if isAdmin() || isTeacher();
-      allow create: if (isAdmin() || isTeacher()) && newTestResultIsValid(resultId);
-      allow update: if (isAdmin() || isTeacher()) && testResultUpdateIsValid();
+      allow create: if isAdmin() && newTestResultIsValid(resultId);
+      allow update: if isAdmin() && testResultUpdateIsValid();
       allow delete: if false;
     }
 

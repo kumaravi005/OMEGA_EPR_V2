@@ -38,6 +38,21 @@ final testByIdProvider = StreamProvider.family<TestDefinition?, String>((
   return ref.watch(testRepositoryProvider).watchById(testId);
 });
 
+/// Every test, newest first - admin/teacher only (the `tests` `list`
+/// rule's `isAdmin()`/`isTeacher()` branches have no per-document
+/// dependency, so this unconstrained `watchAll()` is safe - see
+/// docs/database-architecture.md's "Firestore query-shape requirement").
+/// For the searchable/filterable test list (Set 14), which filters by
+/// session/class/batch/subject/type/date-range entirely client-side
+/// rather than as separate Firestore queries - the same "one stream,
+/// filter in the UI" approach used throughout this project.
+final allTestsProvider = StreamProvider<List<TestDefinition>>((ref) {
+  return ref
+      .watch(testRepositoryProvider)
+      .watchAll()
+      .map((tests) => tests.toList()..sort((a, b) => b.date.compareTo(a.date)));
+});
+
 final testResultRepositoryProvider = Provider<FirestoreRepository<TestResult>>((
   ref,
 ) {

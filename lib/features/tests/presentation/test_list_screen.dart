@@ -3,19 +3,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/date_key.dart';
+import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
+import '../../academics/data/academics_repositories.dart';
+import '../../auth/application/auth_providers.dart';
+import '../../auth/data/user_account.dart';
 import '../../batches/data/batch_repository.dart';
 import '../data/test_definition.dart';
 import '../data/test_repository.dart';
 import 'create_test_dialog.dart';
 
-/// Teacher/admin test list: pick a batch, create tests, tap one to enter
-/// marks and publish results. Reached from both `/admin/tests` and
-/// `/teacher/tests` (see lib/router.dart) - [basePath] is whichever of
-/// those the caller came from, so "enter marks" navigates correctly
-/// either way.
+enum _StatusFilter { all, active, inactive }
+
+/// Admin/teacher test list: search by title, filter by session/class/
+/// batch/subject/type, tap a test to open its details. Reached from both
+/// `/admin/tests` and `/teacher/tests` (see lib/router.dart) - [basePath]
+/// is whichever of those the caller came from, so tapping a test
+/// navigates to the matching role's test-details route. Only admin sees
+/// the "New test" action (Set 14 spec: admin remains the sole authority
+/// for creating tests).
 class TestListScreen extends ConsumerStatefulWidget {
   const TestListScreen({super.key, required this.basePath});
 
@@ -26,89 +34,240 @@ class TestListScreen extends ConsumerStatefulWidget {
 }
 
 class _TestListScreenState extends ConsumerState<TestListScreen> {
-  String? _batchId;
+  final _searchController = TextEditingController();
+  String? _sessionFilter;
+  String? _classFilter;
+  String? _batchFilter;
+  String? _subjectFilter;
+  _StatusFilter _statusFilter = _StatusFilter.active;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _matches(TestDefinition test) {
+    final query = _searchController.text.trim().toLowerCase();
+    final matchesQuery =
+        query.isEmpty || test.title.toLowerCase().contains(query);
+    final matchesSession =
+        _sessionFilter == null || test.academicSessionId == _sessionFilter;
+    final matchesClass = _classFilter == null || test.classId == _classFilter;
+    final matchesBatch = _batchFilter == null || test.batchId == _batchFilter;
+    final matchesSubject =
+        _subjectFilter == null || test.subjectId == _subjectFilter;
+    final matchesStatus = switch (_statusFilter) {
+      _StatusFilter.all => true,
+      _StatusFilter.active => test.active,
+      _StatusFilter.inactive => !test.active,
+    };
+    return matchesQuery &&
+        matchesSession &&
+        matchesClass &&
+        matchesBatch &&
+        matchesSubject &&
+        matchesStatus;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final batchesAsync = ref.watch(activeBatchesProvider);
+    final testsAsync = ref.watch(allTestsProvider);
+    final sessionsAsync = ref.watch(allAcademicSessionsProvider);
+    final classesAsync = ref.watch(allSchoolClassesProvider);
+    final batchesAsync = ref.watch(allBatchesProvider);
+    final subjectsAsync = ref.watch(allSubjectsProvider);
+    final isAdmin =
+        ref.watch(currentUserAccountProvider).valueOrNull?.role ==
+        UserRole.admin;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Tests')),
-      floatingActionButton: _batchId != null
+      floatingActionButton: isAdmin
           ? FloatingActionButton.extended(
-              onPressed: () =>
-                  showCreateTestDialog(context, batchId: _batchId!),
+              onPressed: () => showCreateTestDialog(context),
               icon: const Icon(Icons.add),
               label: const Text('New test'),
             )
           : null,
       body: SafeArea(
-        child: batchesAsync.when(
-          loading: () => const LoadingView(),
-          error: (error, stackTrace) =>
-              ErrorView(message: 'Could not load batches.\n$error'),
-          data: (batches) {
-            if (batches.isEmpty) {
-              return const EmptyView(message: 'No active batches yet.');
-            }
-            _batchId ??= batches.first.batchId;
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _batchId,
-                    decoration: const InputDecoration(labelText: 'Batch'),
-                    items: batches
-                        .map(
-                          (b) => DropdownMenuItem(
-                            value: b.batchId,
-                            child: Text(b.name),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                children: [
+                  AppTextField(
+                    controller: _searchController,
+                    label: 'Search by test title',
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: sessionsAsync.when(
+                          loading: () => const SizedBox.shrink(),
+                          error: (error, stackTrace) => const SizedBox.shrink(),
+                          data: (sessions) => DropdownButtonFormField<String?>(
+                            initialValue: _sessionFilter,
+                            decoration: const InputDecoration(
+                              labelText: 'Session (all)',
+                            ),
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('All sessions'),
+                              ),
+                              for (final session in sessions)
+                                DropdownMenuItem<String?>(
+                                  value: session.sessionId,
+                                  child: Text(session.name),
+                                ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _sessionFilter = value),
                           ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setState(() => _batchId = value),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: classesAsync.when(
+                          loading: () => const SizedBox.shrink(),
+                          error: (error, stackTrace) => const SizedBox.shrink(),
+                          data: (classes) => DropdownButtonFormField<String?>(
+                            initialValue: _classFilter,
+                            decoration: const InputDecoration(
+                              labelText: 'Class (all)',
+                            ),
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('All classes'),
+                              ),
+                              for (final schoolClass in classes)
+                                DropdownMenuItem<String?>(
+                                  value: schoolClass.classId,
+                                  child: Text(schoolClass.name),
+                                ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _classFilter = value),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                Expanded(
-                  child: _TestsForBatch(
-                    batchId: _batchId!,
-                    basePath: widget.basePath,
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: batchesAsync.when(
+                          loading: () => const SizedBox.shrink(),
+                          error: (error, stackTrace) => const SizedBox.shrink(),
+                          data: (batches) => DropdownButtonFormField<String?>(
+                            initialValue: _batchFilter,
+                            decoration: const InputDecoration(
+                              labelText: 'Batch (all)',
+                            ),
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('All batches'),
+                              ),
+                              for (final batch in batches)
+                                DropdownMenuItem<String?>(
+                                  value: batch.batchId,
+                                  child: Text(batch.name),
+                                ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _batchFilter = value),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: subjectsAsync.when(
+                          loading: () => const SizedBox.shrink(),
+                          error: (error, stackTrace) => const SizedBox.shrink(),
+                          data: (subjects) => DropdownButtonFormField<String?>(
+                            initialValue: _subjectFilter,
+                            decoration: const InputDecoration(
+                              labelText: 'Subject (all)',
+                            ),
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('All subjects'),
+                              ),
+                              for (final subject in subjects)
+                                DropdownMenuItem<String?>(
+                                  value: subject.subjectId,
+                                  child: Text(subject.name),
+                                ),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _subjectFilter = value),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            );
-          },
+                  const SizedBox(height: AppSpacing.sm),
+                  SegmentedButton<_StatusFilter>(
+                    segments: const [
+                      ButtonSegment(
+                        value: _StatusFilter.active,
+                        label: Text('Active'),
+                      ),
+                      ButtonSegment(
+                        value: _StatusFilter.inactive,
+                        label: Text('Inactive'),
+                      ),
+                      ButtonSegment(value: _StatusFilter.all, label: Text('All')),
+                    ],
+                    selected: {_statusFilter},
+                    onSelectionChanged: (selection) =>
+                        setState(() => _statusFilter = selection.first),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: testsAsync.when(
+                loading: () => const LoadingView(message: 'Loading tests...'),
+                error: (error, stackTrace) =>
+                    ErrorView(message: 'Could not load tests.\n$error'),
+                data: (tests) {
+                  final filtered = tests.where(_matches).toList();
+                  if (filtered.isEmpty) {
+                    return const EmptyView(
+                      message: 'No tests match these filters.',
+                    );
+                  }
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: AppSpacing.sm),
+                    itemBuilder: (context, index) => _TestTile(
+                      test: filtered[index],
+                      basePath: widget.basePath,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
-    );
-  }
-}
-
-class _TestsForBatch extends ConsumerWidget {
-  const _TestsForBatch({required this.batchId, required this.basePath});
-
-  final String batchId;
-  final String basePath;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final testsAsync = ref.watch(batchTestsProvider(batchId));
-
-    return testsAsync.when(
-      loading: () => const LoadingView(),
-      error: (error, stackTrace) =>
-          ErrorView(message: 'Could not load tests.\n$error'),
-      data: (tests) {
-        if (tests.isEmpty) return const EmptyView(message: 'No tests yet.');
-        return ListView.separated(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          itemCount: tests.length,
-          separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-          itemBuilder: (context, index) =>
-              _TestTile(test: tests[index], basePath: basePath),
-        );
-      },
     );
   }
 }
@@ -125,7 +284,9 @@ class _TestTile extends StatelessWidget {
       child: ListTile(
         title: Text('${test.title} (${test.subject})'),
         subtitle: Text(
-          '${test.chapterTopic} - ${dateKey(test.date)} - ${test.totalMarks.toStringAsFixed(0)} marks',
+          '${test.chapterTopic} - ${dateKey(test.date)} - '
+          '${test.totalMarks.toStringAsFixed(0)} marks'
+          '${test.active ? '' : '   (inactive)'}',
         ),
         trailing: Chip(
           label: Text(test.resultPublished ? 'Published' : 'Draft'),

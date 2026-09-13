@@ -179,15 +179,38 @@ lib/
       Student-only wrapper: `Student{Homework,Assignments}Screen` resolves
       the signed-in student's own batch, then delegates to the shared
       list screen with `fixedBatchId` set.
-    tests/ (Set 4)          Offline test metadata + marks - no online exam
-                             engine (see docs/database-architecture.md).
-      data/                 TestDefinition, TestResult models/repositories.
-      application/          TestController (create test, enter/validate
-                             marks, publish result).
-      presentation/         TestListScreen (teacher/admin: batch picker +
-                             create), EnterMarksScreen (mark-entry grid +
-                             publish), StudentResultsScreen (own results,
-                             published tests only).
+    tests/ (Set 4, extended Set 14)   Offline test metadata + marks - no
+                             online exam engine (see
+                             docs/database-architecture.md). A test now
+                             cascades Academic Session -> Class ->
+                             (matching active batches) -> Subject (only
+                             what the selected class actually offers,
+                             per Set 9's `SchoolClass.subjectIds`) -
+                             admin remains the sole authority for
+                             creating tests and entering/editing marks;
+                             teachers keep read-only access.
+      data/                 TestDefinition (+ an academicSessionId/
+                             classId/subjectId snapshot of the batch/
+                             subject at creation time, and active/
+                             inactive status reusing the Batch/Teacher/
+                             Student convention), TestResult (+ an
+                             `isAbsent` flag so "not attempted" is never
+                             confused with a genuine zero) models/
+                             repositories.
+      application/          TestController (create test, saveMarksBulk -
+                             the whole marks sheet in one WriteBatch
+                             commit, publish result, setActive -
+                             deactivate/restore a test without touching
+                             its marks).
+      presentation/         TestListScreen (search + session/class/
+                             batch/subject/status filters), CreateTestDialog
+                             (the full cascade), TestDetailsScreen (test/
+                             academic/marks-completion information,
+                             Enter or View Marks depending on role),
+                             EnterMarksScreen (bulk marks-entry grid with
+                             an Absent toggle per student, one Save action),
+                             StudentResultsScreen (own results, published
+                             tests only, unchanged).
     public/ (Set 5)          The public, no-login-required area, plus the
                              admin screens that manage its content (gallery,
                              banners, upcoming batches, advertisements,
@@ -653,8 +676,8 @@ exact schema.
   Management/Attendance/Fees/Results/Tests/Public Gallery" (Set 9's own
   scope boundary). The providers are ready and centrally located for
   whichever future set does that wiring. (Student admission was wired to
-  this master data in Set 11 - see below; homework/assignment/test's
-  `subject` field remains free text.)
+  this master data in Set 11, tests in Set 14 - see below; homework/
+  assignment's `subject` field remains free text.)
 
 ## What's deliberately not here yet
 
