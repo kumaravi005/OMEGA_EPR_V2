@@ -28,6 +28,9 @@ import 'features/auth/presentation/login_screen.dart';
 import 'features/batches/presentation/batch_list_screen.dart';
 import 'features/enquiries/presentation/callback_requests_screen.dart';
 import 'features/enquiries/presentation/enquiries_screen.dart';
+import 'features/notices/presentation/my_notices_screen.dart';
+import 'features/notices/presentation/notice_details_screen.dart';
+import 'features/notices/presentation/notices_list_screen.dart';
 import 'features/notifications/presentation/notifications_screen.dart';
 import 'features/public/presentation/admin/advertisements_screen.dart';
 import 'features/public/presentation/admin/announcements_screen.dart';
@@ -257,6 +260,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.adminNotifications,
         builder: (context, state) => const NotificationsScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.adminNotices,
+        builder: (context, state) =>
+            const NoticesListScreen(basePath: AppRoutes.adminNotices),
+      ),
+      GoRoute(
+        path: '${AppRoutes.adminNotices}/:noticeId',
+        builder: (context, state) =>
+            NoticeDetailsScreen(noticeId: state.pathParameters['noticeId']!),
+      ),
 
       GoRoute(
         path: AppRoutes.adminReports,
@@ -352,6 +365,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.teacherNotifications,
         builder: (context, state) => const NotificationsScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.teacherNotices,
+        builder: (context, state) =>
+            const MyNoticesScreen(basePath: AppRoutes.teacherNotices),
+      ),
+      GoRoute(
+        path: '${AppRoutes.teacherNotices}/:noticeId',
+        builder: (context, state) =>
+            NoticeDetailsScreen(noticeId: state.pathParameters['noticeId']!),
+      ),
 
       GoRoute(
         path: AppRoutes.student,
@@ -382,6 +405,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.studentNotifications,
         builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.studentNotices,
+        builder: (context, state) =>
+            const MyNoticesScreen(basePath: AppRoutes.studentNotices),
+      ),
+      GoRoute(
+        path: '${AppRoutes.studentNotices}/:noticeId',
+        builder: (context, state) =>
+            NoticeDetailsScreen(noticeId: state.pathParameters['noticeId']!),
       ),
     ],
   );

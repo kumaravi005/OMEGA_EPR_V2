@@ -38,6 +38,7 @@ abstract final class AppRoutes {
   static const adminEnquiries = '/admin/enquiries';
   static const adminCallbackRequests = '/admin/callback-requests';
   static const adminNotifications = '/admin/notifications';
+  static const adminNotices = '/admin/notices';
   static const adminReports = '/admin/reports';
   static const adminStudentExport = '/admin/reports/students';
   static const adminFeeDuesExport = '/admin/reports/fee-dues';
@@ -55,6 +56,7 @@ abstract final class AppRoutes {
   static const teacherAcademicWork = '/teacher/homework-assignments';
   static const teacherTests = '/teacher/tests';
   static const teacherNotifications = '/teacher/notifications';
+  static const teacherNotices = '/teacher/notices';
 
   static const student = '/student';
   static const studentAttendance = '/student/attendance';
@@ -62,4 +64,5 @@ abstract final class AppRoutes {
   static const studentResults = '/student/results';
   static const studentFees = '/student/fees';
   static const studentNotifications = '/student/notifications';
+  static const studentNotices = '/student/notices';
 }

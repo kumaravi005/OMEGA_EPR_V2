@@ -306,6 +306,34 @@ lib/
                              (core/services/notification_event.dart);
                              firestore.rules does the actual per-user
                              targeting, not the screen.
+    notices/ (Set 17)        Admin-authored, targeted, published/closed
+                             Notices - NOT the same feature as
+                             `notifications/` above (that's the Set 4/5
+                             auto-generated event trail; this is admin-
+                             created content with a real lifecycle and
+                             per-user read state). See docs/database-
+                             architecture.md's "Notices (Set 17)" section
+                             for the full targeting/security design.
+      data/                  Notice model (+ `targetKey`, the single
+                             derived field every visibility check keys
+                             off, and `isExpired(now)`, computed on
+                             demand, never stored), NoticeReadState
+                             (`users/{uid}/noticeReadStates/{noticeId}` -
+                             absence means unread) + repository providers.
+      application/           NoticeController (create, edit - draft only,
+                             publish, close - a one-way Draft -> Published
+                             -> Closed lifecycle, unlike AcademicWork's
+                             freely-reversible status).
+      presentation/          NoticesListScreen (admin: search + type/
+                             audience/status filters), CreateNoticeDialog,
+                             NoticeDetailsScreen (shared by every role -
+                             admin gets edit/publish/close, everyone else
+                             sees the same layout read-only and opening it
+                             marks the notice read), MyNoticesScreen
+                             (teacher/student/parent's own inbox - a
+                             parent sees exactly what the associated
+                             student account sees, since this project has
+                             no separate parent login).
     reports/ (Set 6)         Admin export/report screens - each one builds
                              its own data (its own filters/columns/
                              sorting), then hands a plain `ExportDataset`
@@ -446,8 +474,12 @@ Printing.layoutPdf (PDF - print/save preview) | Share.shareXFiles (Excel/DOCX)
 Every feature folder above is populated with only what's actually been
 built. `fees` as its own module is still folded into `features/student/`
 (tightly coupled to the student record - see
-docs/database-architecture.md); `notifications` has no feature folder of
-its own yet either - see `core/services/notification_hook.dart` below.
+docs/database-architecture.md). `notifications/` (Set 5, the auto-
+generated event trail) and `notices/` (Set 17, admin-authored) are
+deliberately two separate feature folders/collections, not one - see
+`notices/`'s own entry above and docs/database-architecture.md's
+"Notices (Set 17)" section for why they were kept apart instead of
+merged or renamed.
 
 ## Why this shape
 
@@ -750,7 +782,14 @@ exact schema.
   Functions in this project to trigger one from. "Fee due/reminder"
   notifications specifically are also not implemented, since a
   *scheduled* reminder needs a cron-like trigger, which needs server-side
-  compute this project deliberately doesn't have.
+  compute this project deliberately doesn't have. Set 17's admin-authored
+  `notices` are in-app only for the identical reason - the model already
+  carries everything a future push sender would need (title/message/
+  audience/scope/type), so adding delivery later is additive, not a
+  rework (see docs/database-architecture.md's "Notices (Set 17)").
+- Automatic `notices` creation from other modules (Tests/Results/
+  Attendance/Homework/Fees) - Set 17's own scope boundary. Those modules
+  may call into `NoticeController` in a later set; nothing does yet.
 - Enforcing "teacher may only manage their *assigned* class/subject" at
   the rules level - there is still no Teacher -> Batch assignment
   module (Set 12's own scope boundary). Tests (Set 14) keep the

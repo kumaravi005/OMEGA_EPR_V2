@@ -11,6 +11,7 @@ import '../../academic_work/data/academic_work_repository.dart';
 import '../../attendance/data/attendance_repository.dart';
 import '../../attendance/data/student_attendance_record.dart';
 import '../../auth/application/auth_providers.dart';
+import '../../notices/data/notice_read_state.dart';
 import '../../notifications/data/my_notifications_provider.dart';
 import '../../tests/data/test_repository.dart';
 import '../data/student_repository.dart';
@@ -106,6 +107,7 @@ class _DashboardBody extends ConsumerWidget {
     final feeDue = paid == null ? null : finalFee - paid;
 
     final notificationCount = notificationsAsync.valueOrNull?.length;
+    final unreadNotices = ref.watch(unreadNoticeCountProvider);
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -152,6 +154,13 @@ class _DashboardBody extends ConsumerWidget {
               ? 'Notifications'
               : 'Notifications ($notificationCount)',
           onTap: () => context.push(AppRoutes.studentNotifications),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        NavTile(
+          icon: Icons.notification_important_outlined,
+          label: 'Notices',
+          badgeCount: unreadNotices,
+          onTap: () => context.push(AppRoutes.studentNotices),
         ),
         const SizedBox(height: AppSpacing.md),
         NavTile(

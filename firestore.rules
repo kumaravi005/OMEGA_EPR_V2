@@ -137,6 +137,26 @@ service cloud.firestore {
       // No client-side delete; admin deactivates via `active: false`
       // instead, so no account/session history is lost.
       allow delete: if false;
+
+      // Per-user notice read state (Set 17 section 15): one document per
+      // notice the user has opened, at `users/{uid}/noticeReadStates/{noticeId}`
+      // - never a growing array on the notice itself, never a fan-out write
+      // touching every recipient's document. Absence means unread; nothing
+      // is ever written for an unread notice. Immutable once created (no
+      // `update`) - `markNoticeRead` (Dart) checks the current state first
+      // so it never attempts to re-create an existing document. A user may
+      // only ever read/write their OWN read state - never another user's
+      // (section 18/28).
+      function newNoticeReadStateIsValid() {
+        return request.resource.data.readAt is timestamp
+          && request.resource.data.keys().hasOnly(['readAt']);
+      }
+
+      match /noticeReadStates/{noticeId} {
+        allow get, list: if isSelf(userId);
+        allow create: if isSelf(userId) && newNoticeReadStateIsValid();
+        allow update, delete: if false;
+      }
     }
 
     // Teacher profiles (Set 3, extended Set 12 with a photo URL, a
@@ -639,6 +659,184 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Admin-authored, targeted Notices (Set 17) - NOT the same collection
+    // as `notifications` below (that's the Set 4/5 auto-generated event
+    // trail: no admin authoring, no targeting beyond batch/student, no
+    // read state). One shared document per notice, never one per
+    // recipient (section 26) - a student/parent (this project has no
+    // separate parent login; see `isStudentCaller` below) or teacher's
+    // eligibility is entirely decided by `targetKey`, which collapses
+    // audience/scope/classId/batchId into a single string BOTH written
+    // and validated here and computed identically in
+    // `Notice.computeTargetKey` (kept in sync by hand). Per-user read
+    // state lives at `users/{uid}/noticeReadStates` above, never here.
+    //
+    // A brand-new item may only be `draft` or `published` (never
+    // pre-`closed`, matching `newAcademicWorkIsValid`'s identical rule).
+    // The lifecycle is one-way (Draft -> Published -> Closed only - see
+    // `Notice`'s class doc comment for why this differs from Set 16's
+    // freely-reversible `AcademicWorkStatus`): `noticeEditIsValid` only
+    // allows content changes while still draft, `noticePublishIsValid`
+    // only draft -> published, `noticeCloseIsValid` only published ->
+    // closed - targeting/identity fields are immutable in all three.
+    function noticeFields() {
+      return [
+        'title', 'message', 'type', 'otherTypeLabel', 'audience', 'scope', 'academicSessionId', 'classId',
+        'batchId', 'targetKey', 'status', 'createdBy', 'createdAt', 'updatedAt', 'publishedAt', 'expiresAt'
+      ];
+    }
+
+    // The one place `targetKey` is derived - must exactly match
+    // `Notice.computeTargetKey` in Dart. `students` and `parents` produce
+    // the SAME key at the same scope: both reach the one shared student/
+    // parent login (see `Notice`'s `NoticeAudience` doc comment).
+    function expectedNoticeTargetKey(data) {
+      return data.audience == 'all'
+        ? 'all'
+        : data.audience == 'teachers'
+          ? 'teachers'
+          : data.scope == 'institute'
+            ? 'students'
+            : data.scope == 'class'
+              ? 'students:class:' + data.classId
+              : 'students:batch:' + data.batchId;
+    }
+
+    // `all`/`teachers` are always institute-wide (no class/batch - Set 17
+    // section 4 has no "Class 9 - Everyone"/"Class 9 - Teachers" example);
+    // `students`/`parents` may be institute-wide, one class, or one batch
+    // (which also carries its class, for display - see `Notice.classId`).
+    function noticeScopeIsConsistent(data) {
+      return (data.audience in ['all', 'teachers']
+          && data.scope == 'institute' && data.classId == null && data.batchId == null
+          && data.academicSessionId == null)
+        || (data.audience in ['students', 'parents'] && data.scope == 'institute'
+          && data.classId == null && data.batchId == null && data.academicSessionId == null)
+        || (data.audience in ['students', 'parents'] && data.scope == 'class'
+          && data.classId is string && data.classId.size() > 0 && data.batchId == null)
+        || (data.audience in ['students', 'parents'] && data.scope == 'batch'
+          && data.classId is string && data.classId.size() > 0
+          && data.batchId is string && data.batchId.size() > 0);
+    }
+
+    function newNoticeIsValid() {
+      let data = request.resource.data;
+      return data.title is string && data.title.size() > 0
+        && data.message is string && data.message.size() > 0
+        && data.type is string && data.type.size() > 0
+        && (data.otherTypeLabel == null || data.otherTypeLabel is string)
+        && data.audience in ['all', 'students', 'parents', 'teachers']
+        && data.scope in ['institute', 'class', 'batch']
+        && noticeScopeIsConsistent(data)
+        && (data.academicSessionId == null || (data.academicSessionId is string && data.academicSessionId.size() > 0))
+        && data.targetKey == expectedNoticeTargetKey(data)
+        && data.status in ['draft', 'published']
+        && (data.status == 'draft' ? data.publishedAt == null : data.publishedAt is timestamp)
+        && data.createdBy == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (data.expiresAt == null || data.expiresAt is timestamp)
+        && data.keys().hasOnly(noticeFields());
+    }
+
+    // Targeting/identity never changes after creation, in any of the
+    // three allowed transitions below.
+    function noticeIdentityUnchanged(data, old) {
+      return data.audience == old.audience
+        && data.scope == old.scope
+        && data.academicSessionId == old.academicSessionId
+        && data.classId == old.classId
+        && data.batchId == old.batchId
+        && data.targetKey == old.targetKey
+        && data.createdBy == old.createdBy
+        && data.createdAt == old.createdAt;
+    }
+
+    // Draft -> Draft only: content may change freely.
+    function noticeEditIsValid() {
+      let data = request.resource.data;
+      let old = resource.data;
+      return old.status == 'draft' && data.status == 'draft'
+        && data.publishedAt == null
+        && data.title is string && data.title.size() > 0
+        && data.message is string && data.message.size() > 0
+        && data.type is string && data.type.size() > 0
+        && (data.otherTypeLabel == null || data.otherTypeLabel is string)
+        && (data.expiresAt == null || data.expiresAt is timestamp)
+        && data.updatedAt is timestamp
+        && noticeIdentityUnchanged(data, old)
+        && data.keys().hasOnly(noticeFields());
+    }
+
+    // Draft -> Published only: content is frozen, `publishedAt` is set.
+    function noticePublishIsValid() {
+      let data = request.resource.data;
+      let old = resource.data;
+      return old.status == 'draft' && data.status == 'published'
+        && data.publishedAt is timestamp
+        && data.title == old.title && data.message == old.message
+        && data.type == old.type && data.otherTypeLabel == old.otherTypeLabel
+        && data.expiresAt == old.expiresAt
+        && data.updatedAt is timestamp
+        && noticeIdentityUnchanged(data, old)
+        && data.keys().hasOnly(noticeFields());
+    }
+
+    // Published -> Closed only: content and `publishedAt` are frozen.
+    function noticeCloseIsValid() {
+      let data = request.resource.data;
+      let old = resource.data;
+      return old.status == 'published' && data.status == 'closed'
+        && data.publishedAt == old.publishedAt
+        && data.title == old.title && data.message == old.message
+        && data.type == old.type && data.otherTypeLabel == old.otherTypeLabel
+        && data.expiresAt == old.expiresAt
+        && data.updatedAt is timestamp
+        && noticeIdentityUnchanged(data, old)
+        && data.keys().hasOnly(noticeFields());
+    }
+
+    function noticeUpdateIsValid() {
+      return noticeEditIsValid() || noticePublishIsValid() || noticeCloseIsValid();
+    }
+
+    // This project has no separate parent account - a parent signs in
+    // as the student (see docs/database-architecture.md) - so "is this
+    // caller eligible for a students/parents-audience notice" is exactly
+    // `isStudentOfBatch`'s existing active-student check, just without a
+    // specific batch to compare yet (that's `targetKey` membership,
+    // below).
+    function isStudentCaller() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/students/$(request.auth.uid))
+        && callerStudentDoc().active == true;
+    }
+
+    // The finite set of `targetKey` values THIS caller may ever receive -
+    // built from their own current class/batch (Set 17 section 20: use
+    // CURRENT context, never the notice's original one). Reused for both
+    // `get`/`list` below and for the client query in
+    // `myNoticesProvider`/`notice_repository.dart`, so the query's own
+    // `targetKey whereIn [...]` filter is exactly what this function
+    // checks - the "Firestore query-shape requirement" this project's
+    // docs describe: a `list` rule branch that depends on a per-document
+    // field is only provable when the query itself is constrained to
+    // match.
+    function studentNoticeTargetKeys() {
+      let s = callerStudentDoc();
+      return ['all', 'students', 'students:class:' + s.classId, 'students:batch:' + s.batchId];
+    }
+
+    match /notices/{noticeId} {
+      allow get, list: if isAdmin()
+        || (isTeacher() && resource.data.status == 'published' && resource.data.targetKey in ['all', 'teachers'])
+        || (resource.data.status == 'published' && isStudentCaller()
+          && resource.data.targetKey in studentNoticeTargetKeys());
+      allow create: if isAdmin() && newNoticeIsValid();
+      allow update: if isAdmin() && noticeUpdateIsValid();
+      allow delete: if false;
+    }
+
     // Offline tests (Set 4, extended Set 14 with academicSessionId/
     // classId/subjectId snapshots of the batch/subject at creation time,
     // and an active/inactive status reusing the same convention as
@@ -769,7 +967,11 @@ service cloud.firestore {
     // in this project). `batchId` is null for a broadcast event
     // (currently only announcements); `studentUid` targets one student
     // specifically (currently only fee payments) on top of/instead of a
-    // batch.
+    // batch. Distinct from `notices` above (Set 17): this collection is
+    // auto-generated by other features' controllers and read-only for
+    // every role; `notices` is admin-authored, has a draft/published/
+    // closed lifecycle, and per-user read state. Neither collection
+    // feeds the other - see docs/database-architecture.md.
     function notificationFields() {
       return ['type', 'batchId', 'studentUid', 'title', 'body', 'relatedId', 'createdAt'];
     }

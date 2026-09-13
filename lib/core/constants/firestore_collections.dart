@@ -56,4 +56,15 @@ abstract final class FirestoreCollections {
   // One reusable model with a `type` field, instead of two duplicated
   // structures.
   static const academicWork = 'academicWork';
+
+  // Added in Set 17 - admin-authored, targeted, published/closed notices
+  // (Notices management). Deliberately NOT named `notifications`: that
+  // name is already taken by the Set 4/5 auto-generated event trail
+  // (`NotificationEvent`/`recordNotificationEvent`), a narrower, read-only
+  // feed with no admin authoring, targeting, or read state - a distinct
+  // feature this set does not touch (see docs/database-architecture.md's
+  // "Notices (Set 17) vs the Set 4/5 notification event log"). Per-user
+  // read state lives at `users/{uid}/noticeReadStates/{noticeId}`, not a
+  // top-level collection.
+  static const notices = 'notices';
 }

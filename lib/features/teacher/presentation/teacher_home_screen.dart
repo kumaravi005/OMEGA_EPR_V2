@@ -5,6 +5,7 @@ import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/nav_tile.dart';
 import '../../auth/application/auth_providers.dart';
+import '../../notices/data/notice_read_state.dart';
 
 /// Teacher's landing screen: attendance (view own), homework, assignments
 /// and tests/results for whichever batch they're working with. Full
@@ -16,6 +17,7 @@ class TeacherHomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final account = ref.watch(currentUserAccountProvider).valueOrNull;
+    final unreadNotices = ref.watch(unreadNoticeCountProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -56,6 +58,12 @@ class TeacherHomeScreen extends ConsumerWidget {
                   icon: Icons.notifications_outlined,
                   label: 'Notifications',
                   onTap: () => context.push(AppRoutes.teacherNotifications),
+                ),
+                NavTile(
+                  icon: Icons.notification_important_outlined,
+                  label: 'Notices',
+                  badgeCount: unreadNotices,
+                  onTap: () => context.push(AppRoutes.teacherNotices),
                 ),
               ],
             ),

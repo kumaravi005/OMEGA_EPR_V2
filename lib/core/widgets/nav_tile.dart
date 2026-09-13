@@ -9,11 +9,17 @@ class NavTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+
+  /// An unread-style count shown next to the chevron when > 0 (Set 17
+  /// section 23) - omitted entirely (0, the default) for every existing
+  /// caller, so this is purely additive.
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +28,29 @@ class NavTile extends StatelessWidget {
       child: ListTile(
         leading: Icon(icon),
         title: Text(label),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (badgeCount > 0) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.error,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  badgeCount > 99 ? '99+' : '$badgeCount',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onError,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+            ],
+            const Icon(Icons.chevron_right),
+          ],
+        ),
         onTap: onTap,
       ),
     );

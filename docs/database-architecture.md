@@ -1328,6 +1328,15 @@ above:
   above).
 - `notifications`: admin/teacher create; readable by admin/teacher and by
   whichever student(s) it targets (see "Notification targeting" above).
+- `notices` (Set 17, NOT the same collection as `notifications` above -
+  see "Notices (Set 17)" below): admin-only `create`/`update`, `delete`
+  never allowed. Admin `get`/`list` unconstrained; a teacher only
+  `published` notices with `targetKey in ['all', 'teachers']`; a
+  student/parent only `published` notices whose `targetKey` matches
+  their own current class/batch/broadcast. `users/{uid}/noticeReadStates`
+  is `isSelf(userId)`-scoped `get`/`list`/`create` only - never `update`
+  (immutable once created) - so one user can never see or change
+  another's read state.
 - `gallery`/`banners`/`upcomingBatches`/`advertisements`/`announcements`/
   `institutes`: public read of active content (see "Public reads" above);
   admin-only write.
@@ -1381,10 +1390,10 @@ filtered to the caller's own uid had the identical problem, since
 - `FirestoreRepository.watchWhere(builder)` (`lib/data/repositories/firestore_repository.dart`) -
   a query-constrained sibling to `watchAll()`. Every batch-scoped
   provider (`batchAttendanceProvider`, `teacherOwnAttendanceProvider`,
-  `batchTestsProvider`, `studentVisibleAcademicWorkProvider` - Set 16)
-  now calls this with `.where(...)` clauses matching exactly what the
-  rule checks, instead of `watchAll()` + a client-side `.where()` on the
-  Dart list.
+  `batchTestsProvider`, `studentVisibleAcademicWorkProvider` - Set 16,
+  `myNoticesProvider` - Set 17) now calls this with `.where(...)` clauses
+  matching exactly what the rule checks, instead of `watchAll()` + a
+  client-side `.where()` on the Dart list.
 - `ownStudentProfileProvider(uid)` (`features/student/data/student_repository.dart`) -
   resolves the signed-in student's own record via `.watchById(uid)` (a
   `get`, always allowed for `isSelf`), replacing every "list all
@@ -1431,3 +1440,265 @@ client-side filter - the latter looks correct in every manual admin
 test (since admin bypasses the whole problem) and only fails for the
 actual target user, which is exactly how this went unnoticed across
 several sets.
+
+**Two different "combine two fields" shapes, and why only one is used
+for a single query**: `myNotificationsProvider`'s three-simple-queries
+design above avoids `Filter.or(...)` across two different fields
+(`batchId`/`studentUid`) - a logical OR, which commonly needs a
+manually-created composite index. `studentVisibleAcademicWorkProvider`
+(Set 16) and `myNoticesProvider` (Set 17) instead chain two `.where()`
+calls - a logical AND (`batchId == ... AND status in [...]`, or
+`targetKey in [...] AND status == 'published'`) - which Cloud Firestore
+satisfies via its own automatic single-field indexes without a manual
+composite index, the same "index merging" that already covers
+equality-only queries. These are not the same query shape, and one
+being safe doesn't imply the other is: reach for the three-queries-
+merged-in-Dart pattern for an OR across fields, and a single chained
+`.where()` for an AND.
+
+## Notices (Set 17)
+
+```
+notices/{noticeId}
+  title, message
+  type          "general" | "academic" | "examTest" | "homework" |
+                 "attendance" | "fee" | "event" | "important" | "other"
+  otherTypeLabel (only when type == "other")
+  audience      "all" | "students" | "parents" | "teachers"   - how the
+                 admin describes who this is for
+  scope         "institute" | "class" | "batch"   - how far it reaches;
+                 always "institute" for audience "all"/"teachers"
+  academicSessionId (nullable)   display-only snapshot of the session
+                 active at creation time - NEVER part of targeting, see
+                 "Current vs historical context" below
+  classId (nullable)    set for scope "class" and "batch"
+  batchId (nullable)    set only for scope "batch"
+  targetKey      the ONE field every visibility check and every
+                 recipient query actually depends on - see "Targeting:
+                 one derived field, not four" below
+  status         "draft" | "published" | "closed"   - one-way only,
+                 see "Lifecycle" below
+  createdBy, createdAt, updatedAt
+  publishedAt (nullable)   set once, the moment status first becomes
+                 "published" (immediately, if created already published)
+  expiresAt (nullable)   display/"active list" concern only, never a
+                 rules dependency - see "Expiry" below
+
+users/{uid}/noticeReadStates/{noticeId}
+  readAt         presence of this document means "read"; absence means
+                 unread - nothing is ever written for an unread notice
+```
+
+### Notices (Set 17) vs the Set 4/5 notification event log
+
+This project already had a `notifications` collection and a shared
+`NotificationsScreen` before Set 17 (see "Public content, enquiries,
+callback requests and notifications (Set 5)" above) - but that system is
+a narrow, **auto-generated, read-only event trail**: other features'
+controllers call `recordNotificationEvent`/`recordFeePaymentNotification`/
+`recordAnnouncementNotification` (`core/services/notification_hook.dart`)
+whenever something notification-worthy happens, and nobody ever creates,
+edits, publishes, or reads-vs-unreads one of those events directly. Set
+17 asks for something categorically different: an admin **authors**
+content, chooses an **audience**, **publishes** it on their own schedule,
+can **close** it later, and every recipient gets their own **read/unread**
+state. Building that on top of (or by renaming) the existing collection
+would have meant bolting a lifecycle, targeting model, and per-user read
+state onto documents that other already-shipped controllers write in a
+completely different, much narrower shape - a real risk of breaking Sets
+4-16's existing notification hooks for a benefit (schema reuse) that
+doesn't materialize, since the two feed opposite directions (one is
+system-to-user, the other is admin-to-user). So Set 17 is a new,
+separate collection (`notices`, not `notifications`) and a new, separate
+feature folder (`features/notices/`, not `features/notifications/`) -
+the two coexist, neither reads nor writes the other, and each role sees
+both as two distinct dashboard entries ("Notifications" and "Notices").
+Per Set 17's own section 25, nothing was added to make any existing
+module (Tests/Results/Attendance/Homework/Fees) call into
+`NoticeController` automatically - that stays a manual admin action.
+
+### Audience targeting, and why there is no separate parent login
+
+Set 17 asks for `NoticeAudience.students` and `NoticeAudience.parents`
+to be independently selectable ("All Students", "All Parents", "Class 9
+Students", "Class 9 Parents", ...). This project has never had a
+separate parent account or login (see `users` collection's `role` enum:
+`admin | teacher | student` only, and the Student/parent's own account
+in "Role authorization, generally") - a parent uses the same account and
+device session as their child. Consequently `NoticeAudience.students`
+and `NoticeAudience.parents` are delivered **identically**: both resolve
+to the exact same `targetKey` at the same scope (see below), so a
+"Class 9 Parents" notice and a "Class 9 Students" notice targeting the
+same class land in the exact same inbox for the exact same signed-in
+accounts. `audience` only changes how the notice is *labelled* on the
+admin's list and the recipient's details screen ("Intended for:
+Parents") - it is never a second, narrower access boundary layered on
+top of "student." This is a deliberate, explicit application of Set 17's
+own instruction: "Do not create a separate parent profile architecture
+in this set if it does not already exist. Reuse the current
+authentication/access model."
+
+### Targeting: one derived field, not four
+
+A notice's eligibility depends on up to four fields at once (`audience`,
+`scope`, `classId`, `batchId`), but Firestore can only prove a `list`
+rule when the query is constrained to match every field the rule
+depends on (see "Firestore query-shape requirement" below). Rather than
+require a query with four separate `.where()` clauses (some of them
+conditionally present depending on scope - a shape that changes per
+notice and can't be expressed as one static query), `Notice.computeTargetKey`
+collapses all four into one string, computed identically in Dart and in
+`firestore.rules`' `expectedNoticeTargetKey` (there is no shared-code
+path between the two, so they're kept in sync by hand and cross-
+referenced in comments on both sides):
+
+- `"all"` - the `all` audience, always institute-wide.
+- `"teachers"` - the `teachers` audience, always institute-wide.
+- `"students"` - `students`/`parents` audience, institute-wide.
+- `"students:class:<classId>"` - `students`/`parents` audience, scoped
+  to one class.
+- `"students:batch:<batchId>"` - `students`/`parents` audience, scoped
+  to one batch.
+
+A recipient's whole feed is then a single query: `.where('targetKey',
+whereIn: [the caller's own finite set of applicable keys]).where('status',
+isEqualTo: 'published')` - two fields, but both equality-family (see the
+"index merging" note above), the same shape already proven safe for
+`studentVisibleAcademicWorkProvider`. A teacher's applicable keys are
+always `['all', 'teachers']`; a student/parent's are `['all', 'students',
+'students:class:<their current classId>', 'students:batch:<their
+current batchId>']`, built from their own `students/{uid}` document via
+`callerStudentDoc()` in rules and `ownStudentProfileProvider` in Dart.
+Admin's own management list (`allNoticesProvider`) is an unconstrained
+scan instead - `isAdmin()` is role-only, so any query shape is safe for
+that branch, matching every other admin list in this project.
+
+### Lifecycle: one-way, unlike `AcademicWorkStatus`
+
+Draft -> Published -> Closed, but **one-way** - unlike Set 16's
+`AcademicWorkStatus` (freely reversible in either direction, since that
+spec explicitly allowed "un-publishing a mistake" or "reopening a closed
+item"). Set 17's own spec only ever lists forward admin actions ("edit
+draft / publish draft / close published notification" - never "reopen"
+or "unpublish"), so this instead mirrors Set 14's one-way
+`resultPublished`: `noticeEditIsValid` only allows content changes while
+`status` stays `draft` (so a notice's title/message/type/expiry can
+never change once anyone might have already seen it), `noticePublishIsValid`
+only allows `draft -> published` (freezing content, stamping
+`publishedAt`), and `noticeCloseIsValid` only allows `published ->
+closed` (freezing content further, nothing else changes). A notice is
+never deleted (`allow delete: if false`, matching "do not allow
+dangerous destructive deletion of published notifications") - closing is
+the only way a published notice stops being active, and it remains
+fully visible in the admin's own history list afterward, exactly like a
+closed `AcademicWork` item.
+
+### Read/unread architecture
+
+A massive per-notice array of recipient uids, or a write touching every
+recipient's document whenever one notice is published, doesn't scale
+and isn't needed at this project's size (~200 users total). Instead,
+read state is a **per-user subcollection**: `users/{uid}/noticeReadStates/{noticeId}`,
+one tiny document created **only** the moment that user opens that
+notice (`NoticeDetailsScreen` calls `markNoticeRead` once, guarded by a
+`_markedRead` flag so re-renders of the same screen don't retry the
+write). Absence of a document means unread - nothing is ever written for
+a notice the user hasn't opened yet, so publishing a notice to "all
+students" is exactly one write (the notice itself), not one per
+student. The read-state document is immutable once created
+(`firestore.rules` denies `update` on it entirely) - there is no need to
+ever "unread" something, so `markNoticeRead` checks
+`myNoticeReadStatesProvider`'s current value first and skips the write
+entirely if already marked, rather than relying on the rule to reject a
+harmless no-op update.
+
+`unreadNoticeCountProvider` is a plain derived `Provider<int>`:
+`myNoticesProvider`'s current list minus whatever ids appear in
+`myNoticeReadStatesProvider`'s current set - recalculated live from two
+already-open streams, not a stored counter anywhere. At ~200 users and
+at most a few hundred notices total, scanning the caller's own (tiny,
+already-loaded) read-state subcollection in full is simpler and more
+correct than maintaining a counter that could drift, matching Set 17's
+own instruction to "prioritize correctness and simplicity over
+premature optimization" at this scale.
+
+### Security
+
+- Admin: full `create`/`update` (subject to `newNoticeIsValid`/
+  `noticeUpdateIsValid`'s one-way-lifecycle rules above) and unconstrained
+  `get`/`list` (role-only, safe for any query shape). Never `delete`.
+- Teacher: `get`/`list` only where `status == 'published'` and
+  `targetKey in ['all', 'teachers']` - narrower than this project's usual
+  "any active teacher may read broadly" (Tests/Attendance/AcademicWork),
+  because Set 17's own spec explicitly scopes teacher visibility to
+  "notifications intended for teachers," not everything. No `create`/
+  `update` branch exists for `isTeacher()` at all - notice authoring is
+  admin-only, full stop, with no analogue to Set 16's "no Teacher ->
+  Batch module yet" fallback discussion, since Set 17 never asks for
+  teacher authoring in the first place.
+- Student/parent (one shared account - see above): `get`/`list` only
+  where `status == 'published'` and `targetKey` is one of their own
+  current class/batch/broadcast keys (`studentNoticeTargetKeys()`).
+  Never a draft, never another class/batch's notice.
+- Every role's read-state write is scoped to `isSelf(userId)` on the
+  `users/{userId}/noticeReadStates` path segment itself - a per-path
+  check, not a per-document one, so it needs no query-shape reasoning at
+  all and one user can never touch another's read state.
+- No rule anywhere lets a non-admin change `title`/`message`/`type`/
+  `audience`/`scope`/`academicSessionId`/`classId`/`batchId`/`targetKey`
+  - `noticeUpdateIsValid` is reachable by `isAdmin()` only, and even the
+  admin branch keeps every targeting/identity field pinned to its
+  original value via `noticeIdentityUnchanged`.
+
+### Current vs historical context
+
+A notice's own `academicSessionId`/`classId`/`batchId` are snapshotted
+at creation and never change afterward, matching this project's usual
+historical-integrity philosophy (Batch/Attendance/Test/AcademicWork all
+do the same) - but unlike those collections, a notice's *visibility* is
+deliberately based on the recipient's **current** class/batch, not a
+snapshot of who was enrolled when it was created. A "Class 9" notice
+reaches whoever is *currently* in Class 9 (via their live
+`students/{uid}.classId`), for as long as it stays `published` - a
+student who moves from Class 9 to Class 10 the next day stops matching
+it immediately, and a student who newly joins Class 9 starts matching
+it immediately, with no re-targeting step required. If a student moves
+from Batch A to Batch B, the notice itself still says "Batch A" forever
+(the snapshot), but that student simply stops seeing it, exactly as if
+it had never targeted Batch B - "choose a clear and consistent rule and
+document it" (Set 17 section 20). This is different from Set 16's
+`AcademicWork`, where a moved student loses access to their *old*
+batch's homework/attendance history entirely (an accepted trade-off
+there); here there is no "history" question at all, because a notice's
+audience is always evaluated against whoever is currently eligible, not
+who was eligible when it was published.
+
+### Expiry
+
+`expiresAt` is optional and purely a display/"active list" concern -
+`Notice.isExpired(now)` is computed on demand from the current time,
+exactly like `AcademicWork.isOverdue`, never a stored boolean that could
+drift stale. It is **not** a `firestore.rules` dependency: an
+expired-but-still-`published` notice was legitimately visible to its
+recipients and stays fully readable (via `get`/`list`) - expiry only
+affects which section of `MyNoticesScreen` it renders in (the active
+feed filters expired items out client-side), never Firestore access
+itself. This keeps the query shape unchanged from the no-expiry case
+(still just `targetKey`/`status`), avoiding a third field the rule and
+every recipient query would otherwise need to agree on.
+
+### Why push notifications are not implemented, and future compatibility
+
+Set 17 explicitly asks for in-app notifications only, and this project
+has no Cloud Functions (Spark plan, see "Why no Cloud Functions") to
+trigger an actual FCM push from - the same reason `notifications`/
+`NotificationEvent` (Set 4/5) never grew push delivery either (see "What's
+deliberately not here yet" in docs/architecture.md). `Notice` is already
+shaped so that adding push delivery later is additive, not a rework: it
+already carries exactly what a push payload needs (`title`, `message`,
+`type`, and enough targeting information - `audience`/`scope`/`classId`/
+`batchId` - to know who to notify) the moment `status` becomes
+`published`. A future Cloud Function (once/if this project moves to
+Blaze) could watch for that transition and fan out FCM messages using
+the very same `targetKey` grouping this document already computes -
+nothing about the current model would need to change to support that.
