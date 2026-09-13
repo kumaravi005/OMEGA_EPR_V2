@@ -14,6 +14,7 @@ abstract final class AppRoutes {
   static const adminTeachers = '/admin/teachers';
   static const adminNewTeacher = '/admin/teachers/new';
   static const adminBatches = '/admin/batches';
+  static const adminTeacherAssignments = '/admin/teacher-assignments';
   static const adminStudents = '/admin/students';
   static const adminNewStudent = '/admin/students/new';
   static const adminFeeDues = '/admin/fee-dues';
@@ -53,6 +54,7 @@ abstract final class AppRoutes {
   static const adminSubjects = '/admin/configuration/subjects';
 
   static const teacher = '/teacher';
+  static const teacherAssignments = '/teacher/assignments';
   static const teacherAttendance = '/teacher/attendance';
   static const teacherAcademicWork = '/teacher/homework-assignments';
   static const teacherTests = '/teacher/tests';

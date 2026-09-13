@@ -63,9 +63,8 @@ lib/
       data/                 TeacherProfile model (+ dedupeSubjectIds, a
                              pure helper so "no duplicate subject" holds
                              regardless of caller), Firestore repository
-                             provider (+ activeTeachersProvider, ready
-                             for a future teacher-batch-subject
-                             assignment picker).
+                             provider (+ activeTeachersProvider, used by
+                             Set 22's assignment form to pick a teacher).
       application/          TeacherFormController (create/update a
                              profile, setActive).
       presentation/         TeacherListScreen (search + subject/status
@@ -78,8 +77,8 @@ lib/
                              information / Subjects taught / Account
                              information, call/WhatsApp,
                              activate/deactivate), TeacherHomeScreen (nav
-                             hub: attendance, homework, assignments,
-                             tests).
+                             hub: my assignments (Set 22), attendance,
+                             homework, assignments, tests).
     student/                Student-as-a-managed-record (Set 3, admission
                              wired to Set 9/10 master data in Set 11) +
                              the student/parent's own app area (Set 2
@@ -183,6 +182,29 @@ lib/
       presentation/         BatchListScreen (search + session/class/status
                              filters), BatchFormDialog (create/edit,
                              including fee configuration).
+    teacher_assignments/ (Set 22)   The actual teacher -> class/batch/
+                             subject teaching assignment - distinct from
+                             `TeacherProfile.subjectIds` (capability only).
+                             See "Teacher assignments (Set 22)" below.
+      data/                 TeacherAssignment model (+ idFor, the
+                             deterministic-id duplicate-prevention
+                             scheme) and repository (+
+                             allTeacherAssignmentsProvider,
+                             ownTeacherAssignmentsProvider,
+                             assignmentsForTeacherProvider,
+                             assignmentsForBatchProvider,
+                             assignmentsForSubjectProvider,
+                             assignmentsMatching, isDuplicateAssignment,
+                             subjectOptionsForAssignment).
+      application/          TeacherAssignmentController
+                             (createAssignment/setActive).
+      presentation/         TeacherAssignmentsScreen (admin: search +
+                             teacher/session/class/batch/subject/status
+                             filters, Add Assignment, Activate/
+                             Deactivate), TeacherAssignmentFormDialog
+                             (Teacher -> Session -> Class -> Batch ->
+                             Subject cascade), MyAssignmentsScreen
+                             (teacher's own read-only assignment list).
     attendance/ (Set 4, extended Set 13)   Student attendance (one record
                              per batch/date, never per subject) and
                              teacher attendance (admin-marked, teacher
@@ -1017,6 +1039,135 @@ exact schema.
   this master data in Set 11, tests in Set 14, homework/assignments -
   unified into `academic_work/` - in Set 16 - see below.)
 
+## Teacher assignments (Set 22)
+
+Set 12 (teacher management) deliberately established `TeacherProfile.
+subjectIds` as CAPABILITY ONLY - "which subjects this teacher is capable
+of teaching", independent of any class or batch - and explicitly left
+"teacher -> batch assignment" as future work. Set 22 builds that missing
+layer: `TeacherAssignment` (`teacher_assignments/`), the ACTUAL current
+teaching responsibility. The two concepts stay separate models, never
+merged:
+
+```
+TeacherProfile.subjectIds        CAPABILITY  - "can teach Math/Science"
+TeacherAssignment                 ASSIGNMENT  - "IS teaching Class 8 ->
+                                    Batch A -> Science, in 2026-27"
+```
+
+- **Cascading identity, reusing every Set 9/10/12 master-data provider
+  as-is**: an assignment is Teacher -> Academic Session -> Class -> Batch
+  -> Subject. Nothing new was built for this cascade - `TeacherAssignment
+  FormDialog` reuses `activeTeachersProvider` (Set 12),
+  `allAcademicSessionsProvider`/`activeSchoolClassesProvider`/
+  `allSubjectsProvider` (Set 9) and `activeBatchesProvider` +
+  `batchesForSessionAndClass` (Set 10, the exact same "Session -> Class ->
+  matching batches" lookup Student Admission's form already uses) without
+  modification. The one genuinely new piece is `subjectOptionsForAssignment`
+  - the INTERSECTION of "subjects this class offers"
+  (`SchoolClass.subjectIds`) and "subjects this teacher can teach"
+  (`TeacherProfile.subjectIds`) - so a Class-9-only subject can never be
+  offered for a Class-5 assignment, and a teacher can never be assigned a
+  subject outside their configured capability. No override exists (the
+  spec said to stop and ask before inventing one; none was needed).
+- **Selecting a new value clears what it invalidates**: changing Teacher
+  clears the chosen Subject (capability may differ); changing Class
+  clears both Batch and Subject (both depend on the class). Session/
+  Teacher/Class/Batch/Subject are otherwise independent state, matching
+  the same cascade-clearing behavior Student Admission's form already
+  has.
+- **Duplicate prevention is structural, not just a validation step**: the
+  document id is deterministic - `TeacherAssignment.idFor` -
+  `<teacherId>_<academicSessionId>_<batchId>_<subjectId>`, the exact same
+  technique Set 13 used for `attendance` (`batchId_dateKey`) and
+  `teacherAttendance` (`teacherUid_dateKey`). Two ACTIVE assignments for
+  the same teacher+session+batch+subject cannot exist as separate
+  documents - they would BE the same document. `isDuplicateAssignment`
+  (checked before every create, both in the app and mirrored as
+  `TeacherAssignmentController.createAssignment`'s own `getById` guard)
+  gives a clear "this assignment already exists" message rather than a
+  rule rejection, and refuses even when the existing record is currently
+  inactive - re-enabling a lapsed assignment is done via Activate on the
+  list (the same historical document), never by creating a second one.
+- **No display names are snapshotted**, unlike `TestDefinition.subject`/
+  `AcademicWork.subject`: this set builds the only two screens that read
+  `teacherAssignments` (the admin management screen and the teacher's own
+  read-only view), and both resolve teacher/class/batch/subject/session
+  names live from their existing Set 9/10/12 providers - there is no
+  existing consumer expecting a plain snapshotted string the way an
+  already-generated PDF report or a closed homework item needs one. This
+  keeps the model to the "smallest appropriate" shape instead of adding
+  fields with no current reader.
+- **Deactivate, never delete** (`TeacherAssignmentController.setActive`):
+  the same convention as Batch/Teacher/Student/TestDefinition. Only
+  `active`/`updatedBy`/`updatedAt` ever change after creation -
+  `firestore.rules`' `teacherAssignmentUpdateIsValid` pins every identity
+  field (teacherId/session/class/batch/subject/createdBy/createdAt) to
+  its original value, so an assignment's own history can never be
+  rewritten - not by an edit, not by the teacher later changing
+  capability, not by the class's subject configuration changing, not by
+  the batch or teacher being deactivated, not by a new academic session
+  starting. `TeacherFormController.setActive` (deactivating a teacher
+  overall) was inspected and confirmed to already leave
+  `teacherAssignments` completely untouched - it only ever writes to the
+  `teachers`/`users` documents.
+- **Assignments never carry forward between sessions automatically**:
+  each is tied to one `academicSessionId`; starting a new session and
+  wanting the same teacher/batch/subject combination requires a new
+  assignment (a new document, since the id embeds the session) - no
+  auto-copy step exists, matching the spec's explicit "do not assume
+  assignments carry forward" instruction.
+- **Rules cross-validate the batch relationship server-side, not just
+  client-side** (section 19's "validate in Firestore rules where
+  feasible"): `assignmentBatchIsConsistent` performs one extra `get()` on
+  the referenced `batches/{batchId}` document and rejects a write whose
+  `academicSessionId`/`classId` don't match the batch's own - the same
+  `get()`-inside-a-rule technique `isStudentOfBatch` already uses. A
+  client cannot construct an assignment that claims a batch belongs to a
+  session/class it doesn't.
+- **Reusable query layer** (section 22): `allTeacherAssignmentsProvider`
+  (admin, unconstrained `watchAll()` - safe, since the admin caller's own
+  rule branch has no per-document dependency, exactly like
+  `allStudentAttendanceProvider`), `ownTeacherAssignmentsProvider`
+  (teacher's own, server-side `.where('teacherId', ==, uid)` via
+  `watchWhere` - required, since a teacher's rule branch DOES depend on
+  `teacherId` per document, the same reasoning as
+  `teacherOwnAttendanceProvider`), plus derived, client-side
+  `assignmentsForTeacherProvider`/`assignmentsForBatchProvider`/
+  `assignmentsForSubjectProvider` and the pure `assignmentsMatching`
+  filter function - all available for a future teacher-scoped
+  attendance/homework/test module to consume, without this set wiring
+  any of them into those modules itself (see below).
+- **Deliberately NOT wired into attendance/homework/tests/notices/results
+  in this set** (sections 12-16, read literally): admin attendance
+  marking, `academicWork` creation, and `tests`/`testResults` writes stay
+  exactly as admin-only as Set 13/14/16 left them - no rule was narrowed,
+  no teacher write access was opened, no automatic notice/result side
+  effect was added. The spec's own words were "make assignments available
+  as a trusted source for FUTURE teacher-scoped operations" - this set
+  delivers that trusted source (the model, the rules, and the query
+  layer above), not a retrofit of every module that could theoretically
+  use it.
+- **Two small UI surfaces, reusing every existing pattern**:
+  `TeacherAssignmentsScreen` (admin: search + teacher/session/class/
+  batch/subject/status filters, an "Add assignment" FAB, an Activate/
+  Deactivate `PopupMenuButton` per row) is the same shape as
+  `BatchListScreen`/`TeacherListScreen`; `TeacherAssignmentFormDialog` is
+  the same `AlertDialog` + cascading-dropdown shape as
+  `BatchFormDialog`/`CreateAcademicWorkDialog`. `MyAssignmentsScreen`
+  (teacher-facing, read-only - "only Admin manages assignments," section
+  10) is a plain list, reached from a new "My assignments" `NavTile` on
+  `TeacherHomeScreen`; admin reaches the management screen from a new
+  "Teacher assignments" `NavTile` on `AdminDashboardScreen`, right after
+  "Batches".
+- **No "Edit" beyond Activate/Deactivate**: teacherId/session/class/batch/
+  subject together ARE an assignment's identity (embedded in its document
+  id) - there is nothing else on the model to edit, so section 8's "Edit
+  Assignment where appropriate" resolves to "the only appropriate edit is
+  its active status," already covered by Activate/Deactivate. Changing
+  any identity field is, by definition, a different assignment - create a
+  new one instead.
+
 ## What's deliberately not here yet
 
 - An online payment gateway/checkout (Razorpay/Stripe/PayPal/UPI deep-
@@ -1066,11 +1217,17 @@ exact schema.
   Attendance/Homework/Fees) - Set 17's own scope boundary. Those modules
   may call into `NoticeController` in a later set; nothing does yet.
 - Enforcing "teacher may only manage their *assigned* class/subject" at
-  the rules level - there is still no Teacher -> Batch assignment
-  module (Set 12's own scope boundary). Tests (Set 14) keep the
-  original "any active teacher may manage any batch's" read access with
-  admin-only writes; homework/assignments (Set 16) go further and
-  disable teacher *creation* entirely rather than invent an
+  the rules level - Set 22 built the Teacher -> Batch/Subject assignment
+  module itself (see "Teacher assignments (Set 22)" below), but
+  deliberately did NOT use it to narrow any existing read/write rule:
+  attendance/tests/testResults/academicWork keep exactly the access they
+  had before (any active teacher may read/work with any batch, writes
+  admin-only per Set 14/16's own decisions) - the spec's own instruction
+  was "make assignments available as a trusted source for FUTURE
+  teacher-scoped operations", not to retrofit today's rules with it. Tests
+  (Set 14) keep the original "any active teacher may manage any batch's"
+  read access with admin-only writes; homework/assignments (Set 16) go
+  further and disable teacher *creation* entirely rather than invent an
   unsupported batch-authorization scheme - see docs/database-
   architecture.md for the full reasoning either way.
 - A telecaller role - enquiry/callback management is admin-only by

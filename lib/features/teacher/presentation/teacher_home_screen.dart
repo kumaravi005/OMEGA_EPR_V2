@@ -40,6 +40,11 @@ class TeacherHomeScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(AppSpacing.md),
               children: [
                 NavTile(
+                  icon: Icons.assignment_ind_outlined,
+                  label: 'My assignments',
+                  onTap: () => context.push(AppRoutes.teacherAssignments),
+                ),
+                NavTile(
                   icon: Icons.event_available_outlined,
                   label: 'My attendance',
                   onTap: () => context.push(AppRoutes.teacherAttendance),

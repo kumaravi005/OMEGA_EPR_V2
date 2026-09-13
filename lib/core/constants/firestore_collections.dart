@@ -83,4 +83,10 @@ abstract final class FirestoreCollections {
   // planning placeholder for a possible future fee-STRUCTURE catalogue,
   // a different concept from a payment ledger).
   static const feePayments = 'feePayments';
+
+  // Added in Set 22 - the actual teacher -> class/batch/subject teaching
+  // assignment (distinct from `teachers.subjectIds`, which is only
+  // capability - see docs/database-architecture.md's "Teacher
+  // assignments (Set 22)").
+  static const teacherAssignments = 'teacherAssignments';
 }

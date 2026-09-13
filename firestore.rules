@@ -659,6 +659,77 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Teacher -> class/batch/subject teaching assignments (Set 22) - the
+    // ACTUAL teaching responsibility, distinct from `teachers.subjectIds`
+    // (capability only). Document id is deterministic
+    // (`<teacherId>_<academicSessionId>_<batchId>_<subjectId>`, see
+    // `TeacherAssignment.idFor`), so the same combination can never exist
+    // as two documents - the same duplicate-prevention technique already
+    // used for `attendance`/`teacherAttendance`. Admin-only to write; a
+    // teacher may read only their own (`resource.data.teacherId ==
+    // request.auth.uid`), matching `teacherAttendance` exactly. `classId`
+    // is cross-checked against the referenced batch's own `classId`/
+    // `academicSessionId` at write time (section 19 - "validate the
+    // relationship in Firestore rules where feasible") via one extra
+    // `get()`, the same technique `isStudentOfBatch` already uses to read
+    // a related document inside a rule.
+    function teacherAssignmentFields() {
+      return [
+        'teacherId', 'academicSessionId', 'classId', 'batchId', 'subjectId', 'active',
+        'createdBy', 'updatedBy', 'createdAt', 'updatedAt'
+      ];
+    }
+
+    function assignmentBatchIsConsistent(academicSessionId, classId, batchId) {
+      let batch = get(/databases/$(database)/documents/batches/$(batchId)).data;
+      return batch.academicSessionId == academicSessionId && batch.classId == classId;
+    }
+
+    function newTeacherAssignmentIsValid(assignmentId) {
+      let data = request.resource.data;
+      return assignmentId == data.teacherId + '_' + data.academicSessionId + '_' + data.batchId + '_' + data.subjectId
+        && data.teacherId is string && data.teacherId.size() > 0
+        && data.academicSessionId is string && data.academicSessionId.size() > 0
+        && data.classId is string && data.classId.size() > 0
+        && data.batchId is string && data.batchId.size() > 0
+        && data.subjectId is string && data.subjectId.size() > 0
+        && data.active is bool
+        && data.createdBy is string
+        && data.updatedBy is string
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasOnly(teacherAssignmentFields())
+        && assignmentBatchIsConsistent(data.academicSessionId, data.classId, data.batchId);
+    }
+
+    // The app only ever updates `active`/`updatedBy`/`updatedAt`
+    // (`TeacherAssignmentController.setActive`) - every identity field is
+    // pinned to its previous value, so an assignment's
+    // teacher/session/class/batch/subject can never be rewritten after
+    // creation (section 18 - historical integrity).
+    function teacherAssignmentUpdateIsValid() {
+      let data = request.resource.data;
+      let old = resource.data;
+      return data.teacherId == old.teacherId
+        && data.academicSessionId == old.academicSessionId
+        && data.classId == old.classId
+        && data.batchId == old.batchId
+        && data.subjectId == old.subjectId
+        && data.createdBy == old.createdBy
+        && data.createdAt == old.createdAt
+        && data.active is bool
+        && data.updatedBy is string
+        && data.keys().hasOnly(teacherAssignmentFields());
+    }
+
+    match /teacherAssignments/{assignmentId} {
+      allow get: if isAdmin() || (isSignedIn() && resource.data.teacherId == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.teacherId == request.auth.uid);
+      allow create: if isAdmin() && newTeacherAssignmentIsValid(assignmentId);
+      allow update: if isAdmin() && teacherAssignmentUpdateIsValid();
+      allow delete: if false;
+    }
+
     // Homework and assignments, unified (Set 16 - replaces the separate
     // Set 4 `homework`/`assignments` collections; see docs/database-
     // architecture.md for the full rationale). One reusable model with a

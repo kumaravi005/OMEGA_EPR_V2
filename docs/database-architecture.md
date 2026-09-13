@@ -1429,6 +1429,63 @@ references it from ever pointing at a vanished document; `students`
 still uses its own free-text `className`/`board` fields (see
 docs/architecture.md) and is unaffected either way.
 
+## Teacher assignments (Set 22)
+
+```
+teacherAssignments/{assignmentId}   deterministic id, see below
+  teacherId            string    references teachers/{uid}
+  academicSessionId    string    references academicSessions/{id}
+  classId              string    references classes/{id} - cross-checked
+                                   against the batch's own classId at
+                                   write time, see below
+  batchId              string    references batches/{id}
+  subjectId            string    references subjects/{id}
+  active               bool      deactivate, never delete
+  createdBy, updatedBy string    admin uid
+  createdAt, updatedAt timestamp
+```
+
+`assignmentId` is deterministic:
+`<teacherId>_<academicSessionId>_<batchId>_<subjectId>` (see
+`TeacherAssignment.idFor`) - the same duplicate-prevention technique
+`attendance` (`batchId_dateKey`) and `teacherAttendance`
+(`teacherUid_dateKey`) already use. Two ACTIVE assignments for the same
+teacher+session+batch+subject can never exist as separate documents -
+they would be the same document. `classId` isn't part of the id (a batch
+belongs to exactly one class, so `batchId` alone already disambiguates
+it), but every write is cross-checked at the rules level:
+`assignmentBatchIsConsistent` performs a `get()` on the referenced
+`batches/{batchId}` document and rejects the write if its
+`academicSessionId`/`classId` don't match what was submitted - the same
+in-rule `get()` technique `isStudentOfBatch` already uses to read a
+related document.
+
+This is the actual teaching ASSIGNMENT, distinct from
+`teachers/{uid}.subjectIds` (Set 12), which is only teaching CAPABILITY -
+independent of any class/batch. No display name (teacher/class/batch/
+subject/session) is snapshotted here: this set builds the only two
+screens that read this collection (an admin management screen, and the
+teacher's own read-only view), both of which resolve every name live
+from the existing Set 9/10/12 providers - unlike `TestDefinition.subject`
+or `AcademicWork.subject`, there is no existing consumer that needs a
+plain snapshotted string yet.
+
+Admin-only to `create`/`update`; `delete` is always denied - matching the
+project's "deactivate, never delete" convention for every operational
+record. `teacherAssignmentUpdateIsValid` pins every identity field
+(teacherId/academicSessionId/classId/batchId/subjectId/createdBy/
+createdAt) to its previous value, so the only field an `update` can ever
+actually change is `active` (plus `updatedBy`/`updatedAt`) -
+`TeacherAssignmentController.setActive` is the only thing that ever calls
+`update` on this collection. A teacher may `get`/`list` only their own
+(`resource.data.teacherId == request.auth.uid`), the same shape as
+`teacherAttendance`; a student/parent has no access at all.
+
+Assignments are session-specific and never carry forward automatically:
+starting a new academic session and wanting the same teacher/batch/
+subject combination requires creating a new assignment (a new document,
+since the id embeds the session).
+
 ## Security posture (this phase)
 
 `storage.rules` still **denies all reads and writes** - Storage itself
@@ -1501,6 +1558,12 @@ above:
   batch's, matching the homework/assignments/tests pattern.
 - `teacherAttendance`: admin-only to write; a teacher may `get`/`list`
   only their own (`resource.data.teacherUid == request.auth.uid`).
+- `teacherAssignments` (Set 22): admin-only to `create`/`update` (an
+  `update` may only ever change `active`/`updatedBy`/`updatedAt` - see
+  "Teacher assignments (Set 22)" above); a teacher may `get`/`list` only
+  their own (`resource.data.teacherId == request.auth.uid`), same shape
+  as `teacherAttendance`; `delete` never allowed; no student/parent
+  access at all.
 - `academicWork` (Set 16, replacing `homework`/`assignments`):
   admin-only to create/update - teacher creation is deliberately
   disabled (see "Why teacher creation is disabled..." above), a

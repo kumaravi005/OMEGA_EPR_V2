@@ -58,6 +58,8 @@ import 'features/teacher/presentation/teacher_form_screen.dart';
 import 'features/teacher/presentation/teacher_home_screen.dart';
 import 'features/teacher/presentation/teacher_list_screen.dart';
 import 'features/teacher/presentation/teacher_profile_screen.dart';
+import 'features/teacher_assignments/presentation/my_assignments_screen.dart';
+import 'features/teacher_assignments/presentation/teacher_assignments_screen.dart';
 import 'features/results/presentation/combined_result_screen.dart';
 import 'features/results/presentation/results_hub_screen.dart';
 import 'features/results/presentation/test_result_screen.dart';
@@ -137,6 +139,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.adminBatches,
         builder: (context, state) => const BatchListScreen(),
+      ),
+
+      GoRoute(
+        path: AppRoutes.adminTeacherAssignments,
+        builder: (context, state) => const TeacherAssignmentsScreen(),
       ),
 
       GoRoute(
@@ -344,6 +351,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.teacher,
         builder: (context, state) => const TeacherHomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.teacherAssignments,
+        builder: (context, state) => const MyAssignmentsScreen(),
       ),
       GoRoute(
         path: AppRoutes.teacherAttendance,

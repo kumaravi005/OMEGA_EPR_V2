@@ -47,6 +47,11 @@ class AdminDashboardScreen extends ConsumerWidget {
                   onTap: () => context.push(AppRoutes.adminBatches),
                 ),
                 NavTile(
+                  icon: Icons.assignment_ind_outlined,
+                  label: 'Teacher assignments',
+                  onTap: () => context.push(AppRoutes.adminTeacherAssignments),
+                ),
+                NavTile(
                   icon: Icons.people_alt_outlined,
                   label: 'Students',
                   onTap: () => context.push(AppRoutes.adminStudents),
