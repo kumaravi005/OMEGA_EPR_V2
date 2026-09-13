@@ -91,13 +91,18 @@ lib/
                              `students/{uid}/admissions/{admissionId}`
                              (initial admission, or a later batch
                              transfer - see "Student admission (Set 11)"
-                             below); Payment model. Firestore repository
-                             providers (admissions/payments are both
-                             per-student subcollections - see
-                             docs/database-architecture.md).
+                             below); Payment model - LEGACY as of Set 19
+                             (see `fees/` below), kept only so pre-Set-19
+                             payments recorded at
+                             `students/{uid}/payments` stay visible.
+                             Firestore repository providers (admissions/
+                             payments are both per-student subcollections
+                             - see docs/database-architecture.md).
       application/          StudentFormController (admit/update/
-                             changeBatch/setActive - see below),
-                             PaymentController (record a payment).
+                             changeBatch/setActive - see below). The old
+                             PaymentController (recorded a payment at the
+                             legacy subcollection) was removed in Set 19 -
+                             see `fees/application/fee_payment_controller.dart`.
       presentation/         StudentListScreen (search + session/class/
                              batch/status filters), StudentFormScreen
                              (new admission: full form incl. session ->
@@ -109,12 +114,56 @@ lib/
                              InstallmentEntryDialog (shared by both),
                              StudentProfileScreen (Student information /
                              Parent & contact / Academic information /
-                             Fee agreement / Account information /
-                             payment history, call/WhatsApp,
-                             activate/deactivate), FeeDuesScreen,
-                             AddPaymentDialog, StudentHomeScreen (nav
-                             hub: attendance, homework, assignments,
-                             results).
+                             Account information, call/WhatsApp,
+                             activate/deactivate, and a link into
+                             `fees/`'s StudentFeeDetailsScreen - the old
+                             inline fee-agreement card and "Record
+                             payment" button moved there in Set 19),
+                             StudentFeeScreen (student/parent's own fee
+                             summary/installments/history - rewritten in
+                             Set 19 to read the new ledger, see `fees/`
+                             below), StudentHomeScreen (nav hub:
+                             attendance, homework, assignments, results,
+                             fees).
+    fees/ (Set 19)          Fee Collection & Payment Management - admin
+                             records payments against a student's
+                             EXISTING Set 11 `StudentAdmission` fee
+                             agreement (no second fee-agreement system;
+                             see docs/database-architecture.md's "Fee
+                             Collection & Payment Management (Set 19)").
+      data/                 FeePayment model (a top-level `feePayments`
+                             ledger, not another `students/{uid}`
+                             subcollection - see the docs section above
+                             for why) + repository providers;
+                             fee_calculator.dart - pure functions
+                             (totalActiveFeePaymentAmount,
+                             combinedTotalPaid/combinedBalanceDue -
+                             combining the new ledger with any legacy
+                             history, computeInstallmentRows,
+                             computeFeeStatus), the same reusable-
+                             calculation-engine pattern as
+                             `result_calculator.dart`/`attendance_stats.dart`;
+                             fee_summary.dart - `allStudentFeeSummariesProvider`,
+                             the admin Fee Management list's per-student
+                             rollup.
+      application/          FeePaymentController (recordPayment -
+                             validates amount/admission/outstanding
+                             balance BEFORE an admin check, atomic
+                             payment-number generation via
+                             SequenceService; reversePayment - a narrow
+                             partial update, never a delete or amount
+                             edit).
+      presentation/         FeeManagementScreen (admin "Fees": search +
+                             class/batch/session/board/status filters),
+                             StudentFeeDetailsScreen (admin: academic
+                             info / current fee agreement / installment
+                             schedule / payment summary / history +
+                             Record/Reverse actions), RecordPaymentDialog
+                             (amount -> date -> mode -> reference ->
+                             remark -> optional installment, with a live
+                             Current Fee/Total Paid/Due/This Payment/
+                             Remaining Due review before confirming),
+                             ReversePaymentDialog (reason required).
     batches/ (Set 3, extended Set 10)   Batch catalogue - each batch
                              belongs to exactly one academic session and
                              class (Set 9 master data), optionally a
@@ -794,6 +843,27 @@ exact schema.
 
 ## What's deliberately not here yet
 
+- An online payment gateway/checkout (Razorpay/Stripe/PayPal/UPI deep-
+  link/webhook/subscription billing) - Set 19 is explicitly a MANUAL
+  fee-recording module; admin records a payment after receiving it
+  outside the app, exactly like every other "no paid services" boundary
+  in this project.
+- A printed fee receipt/statement (PDF or otherwise) - Set 19 section 20
+  deliberately stops at "structure payment data so a future receipt is
+  straightforward" (`FeePayment` already carries a unique
+  `paymentNumber` and every figure a receipt would need), not at
+  building the A4 report designer integration itself.
+- A fee summary card on the admin dashboard (Set 19 section 27's own
+  "if the current Admin dashboard has suitable summary cards" is
+  conditional - `AdminDashboardScreen` is a plain list of `NavTile`s with
+  no summary-card section at all to extend, unlike the student
+  dashboard's stat-card grid, so nothing was added rather than
+  introducing a new dashboard-summary pattern for one figure).
+- Automated payment reminders or payment notifications beyond the
+  existing `recordFeePaymentNotification` hook (Set 5, reused as-is by
+  `FeePaymentController.recordPayment` - a payment being recorded is
+  already a notification-worthy event exactly like it always was; Set 19
+  adds no NEW notification integration).
 - Every public-content image (gallery/banner/advertisement/upcoming-batch
   poster) - Storage isn't enabled on this project (see
   docs/firebase-setup.md), so as of Set 5 every such field is a plain

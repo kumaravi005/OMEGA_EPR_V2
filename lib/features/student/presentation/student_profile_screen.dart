@@ -6,15 +6,11 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/contact_actions.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
-import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../application/student_form_controller.dart';
-import '../data/payment.dart';
-import '../data/student_admission.dart';
 import '../data/student_profile.dart';
 import '../data/student_repository.dart';
-import 'add_payment_dialog.dart';
 import 'change_batch_dialog.dart';
 
 class StudentProfileScreen extends ConsumerWidget {
@@ -76,9 +72,6 @@ class _ProfileBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final paymentsAsync = ref.watch(studentPaymentsProvider(student.uid));
-    final admissionsAsync = ref.watch(studentAdmissionsProvider(student.uid));
-
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640),
@@ -224,15 +217,21 @@ class _ProfileBody extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            paymentsAsync.when(
-              loading: () => const AppCard(child: LoadingView()),
-              error: (error, stackTrace) => AppCard(
-                child: ErrorView(message: 'Could not load payments.\n$error'),
-              ),
-              data: (payments) => _FeeSummaryCard(
-                student: student,
-                payments: payments,
-                admissions: admissionsAsync.valueOrNull ?? const [],
+            AppCard(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Fees & payments',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  AppButton(
+                    label: 'Open',
+                    onPressed: () =>
+                        context.push('${AppRoutes.adminFeeDues}/${student.uid}'),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -252,44 +251,6 @@ class _ProfileBody extends ConsumerWidget {
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Payment history',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: () => showAddPaymentDialog(
-                    context,
-                    studentUid: student.uid,
-                    batchId: student.batchId,
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Record payment'),
-                ),
-              ],
-            ),
-            paymentsAsync.when(
-              loading: () => const SizedBox.shrink(),
-              error: (error, stackTrace) => const SizedBox.shrink(),
-              data: (payments) {
-                if (payments.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                    child: EmptyView(message: 'No payments recorded yet.'),
-                  );
-                }
-                return Column(
-                  children: [
-                    for (final payment in payments)
-                      _PaymentTile(payment: payment),
-                  ],
-                );
-              },
             ),
           ],
         ),
@@ -328,106 +289,11 @@ class _PhotoAvatar extends StatelessWidget {
   }
 }
 
-class _FeeSummaryCard extends StatelessWidget {
-  const _FeeSummaryCard({
-    required this.student,
-    required this.payments,
-    required this.admissions,
-  });
-
-  final StudentProfile student;
-  final List<Payment> payments;
-  final List<StudentAdmission> admissions;
-
-  @override
-  Widget build(BuildContext context) {
-    final paid = totalPaid(payments);
-    final remaining = due(student, payments);
-    final currentAdmission = admissions
-        .where((a) => a.admissionId == student.currentAdmissionId)
-        .firstOrNull;
-
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Fee agreement', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.sm),
-          _InfoRow(
-            label: 'Standard fee',
-            value: '₹${student.standardFee.toStringAsFixed(0)}',
-          ),
-          _InfoRow(
-            label: 'Final agreed fee',
-            value: '₹${student.finalFee.toStringAsFixed(0)}',
-          ),
-          if (student.discount != 0)
-            _InfoRow(
-              label: 'Discount / difference',
-              value: '₹${student.discount.toStringAsFixed(0)}',
-            ),
-          if (student.feeReason != null && student.feeReason!.isNotEmpty)
-            _InfoRow(label: 'Remark', value: student.feeReason!),
-          _InfoRow(label: 'Payment plan', value: student.paymentPlan.label),
-          if (student.paymentPlan == PaymentPlan.installment &&
-              currentAdmission != null &&
-              currentAdmission.installments.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Installment schedule',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            for (final item in currentAdmission.installments)
-              _InfoRow(
-                label: item.label,
-                value:
-                    '₹${item.amount.toStringAsFixed(0)} - '
-                    'due ${'${item.dueDate.toLocal()}'.split(' ').first} '
-                    '(${item.status.label})',
-              ),
-          ],
-          const Divider(height: AppSpacing.lg),
-          _InfoRow(label: 'Total paid', value: '₹${paid.toStringAsFixed(0)}'),
-          _InfoRow(
-            label: remaining < 0 ? 'Advance' : 'Due',
-            value: '₹${remaining.abs().toStringAsFixed(0)}',
-            valueColor: remaining > 0
-                ? Theme.of(context).colorScheme.error
-                : null,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PaymentTile extends StatelessWidget {
-  const _PaymentTile({required this.payment});
-
-  final Payment payment;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        title: Text(
-          '₹${payment.amount.toStringAsFixed(0)} - ${payment.mode.label}',
-        ),
-        subtitle: Text(
-          '${payment.date.toLocal()}'.split(' ').first +
-              (payment.remark != null ? ' - ${payment.remark}' : ''),
-        ),
-      ),
-    );
-  }
-}
-
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value, this.valueColor});
+  const _InfoRow({required this.label, required this.value});
 
   final String label;
   final String value;
-  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -443,9 +309,7 @@ class _InfoRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: valueColor),
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),
         ],

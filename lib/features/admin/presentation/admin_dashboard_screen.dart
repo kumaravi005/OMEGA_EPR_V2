@@ -53,7 +53,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                 ),
                 NavTile(
                   icon: Icons.currency_rupee_outlined,
-                  label: 'Fee dues',
+                  label: 'Fees',
                   onTap: () => context.push(AppRoutes.adminFeeDues),
                 ),
                 NavTile(

@@ -9,6 +9,8 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../batches/data/batch.dart';
 import '../../batches/data/batch_repository.dart';
+import '../../fees/data/fee_calculator.dart';
+import '../../fees/data/fee_payment_repository.dart';
 import '../../report_templates/data/report_layout_template_repository.dart';
 import '../../report_templates/presentation/widgets/report_layout_picker.dart';
 import '../../student/data/student_profile.dart';
@@ -279,16 +281,28 @@ class _StudentReportExportScreenState
 
       final rows = <StudentReportRow>[];
       for (final student in filtered) {
-        final payments = await ref
+        final legacyPayments = await ref
             .read(paymentRepositoryProvider(student.uid))
             .getAll();
-        final studentDue = due(student, payments);
+        // Combined with the Set 19 `feePayments` ledger (active only) so
+        // this export stays accurate for payments recorded after Set 19,
+        // not just the legacy subcollection - see
+        // docs/database-architecture.md's "Fee Collection & Payment
+        // Management (Set 19)".
+        final feePayments = await ref
+            .read(feePaymentRepositoryProvider)
+            .getWhere((query) => query.where('studentId', isEqualTo: student.uid));
+        final studentDue = combinedBalanceDue(
+          finalFee: student.finalFee,
+          feePayments: feePayments,
+          legacyPayments: legacyPayments,
+        );
         if (widget.showDuesOnlyFilter && _duesOnly && studentDue <= 0) continue;
         rows.add(
           StudentReportRow(
             student: student,
             batchName: batchNames[student.batchId] ?? student.batchId,
-            paid: totalPaid(payments),
+            paid: combinedTotalPaid(feePayments: feePayments, legacyPayments: legacyPayments),
             due: studentDue,
           ),
         );

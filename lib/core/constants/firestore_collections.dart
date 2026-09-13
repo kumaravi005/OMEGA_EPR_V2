@@ -67,4 +67,20 @@ abstract final class FirestoreCollections {
   // read state lives at `users/{uid}/noticeReadStates/{noticeId}`, not a
   // top-level collection.
   static const notices = 'notices';
+
+  // Added in Set 19 - the real fee-payment ledger, superseding the Set 3
+  // `students/{uid}/payments` subcollection (kept, unmodified, only for
+  // pre-Set-19 historical reads - see docs/database-architecture.md's
+  // "Fee Collection & Payment Management (Set 19)"). A TOP-LEVEL
+  // collection, not a subcollection: a payment must snapshot its
+  // studentId/admissionId/academicSessionId/classId/batchId at creation
+  // and never move when the student's CURRENT admission/batch later
+  // changes, and a top-level shape lets `allFeePaymentsProvider` (admin's
+  // Fee Management list) query across every student in one place, same
+  // as `academicWork`/`notices`/`tests`. Deliberately NOT named
+  // `payments` (already informally reserved for the legacy
+  // subcollection's literal path segment) or `fees` (an unused Set 1
+  // planning placeholder for a possible future fee-STRUCTURE catalogue,
+  // a different concept from a payment ledger).
+  static const feePayments = 'feePayments';
 }

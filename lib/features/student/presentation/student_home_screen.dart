@@ -11,6 +11,8 @@ import '../../academic_work/data/academic_work_repository.dart';
 import '../../attendance/data/attendance_repository.dart';
 import '../../attendance/data/student_attendance_record.dart';
 import '../../auth/application/auth_providers.dart';
+import '../../fees/data/fee_calculator.dart';
+import '../../fees/data/fee_payment_repository.dart';
 import '../../notices/data/notice_read_state.dart';
 import '../../notifications/data/my_notifications_provider.dart';
 import '../../tests/data/test_repository.dart';
@@ -73,7 +75,8 @@ class _DashboardBody extends ConsumerWidget {
     final attendanceAsync = ref.watch(batchAttendanceProvider(batchId));
     final academicWorkAsync = ref.watch(studentVisibleAcademicWorkProvider(batchId));
     final testsAsync = ref.watch(batchTestsProvider(batchId));
-    final paymentsAsync = ref.watch(studentPaymentsProvider(studentUid));
+    final legacyPaymentsAsync = ref.watch(studentPaymentsProvider(studentUid));
+    final feePaymentsAsync = ref.watch(studentFeePaymentsProvider(studentUid));
     final notificationsAsync = ref.watch(myNotificationsProvider);
 
     final myAttendance =
@@ -101,10 +104,13 @@ class _DashboardBody extends ConsumerWidget {
         ?.where((t) => t.date.isAfter(now))
         .length;
 
-    final paid = paymentsAsync.valueOrNull == null
+    final feeDue = (legacyPaymentsAsync.valueOrNull == null || feePaymentsAsync.valueOrNull == null)
         ? null
-        : totalPaid(paymentsAsync.valueOrNull!);
-    final feeDue = paid == null ? null : finalFee - paid;
+        : combinedBalanceDue(
+            finalFee: finalFee,
+            feePayments: feePaymentsAsync.valueOrNull!,
+            legacyPayments: legacyPaymentsAsync.valueOrNull!,
+          );
 
     final notificationCount = notificationsAsync.valueOrNull?.length;
     final unreadNotices = ref.watch(unreadNoticeCountProvider);

@@ -46,7 +46,8 @@ import 'features/reports/presentation/fee_dues_export_screen.dart';
 import 'features/reports/presentation/reports_hub_screen.dart';
 import 'features/reports/presentation/student_export_screen.dart';
 import 'features/reports/presentation/test_result_export_screen.dart';
-import 'features/student/presentation/fee_dues_screen.dart';
+import 'features/fees/presentation/fee_management_screen.dart';
+import 'features/fees/presentation/student_fee_details_screen.dart';
 import 'features/student/presentation/student_fee_screen.dart';
 import 'features/student/presentation/student_form_screen.dart';
 import 'features/student/presentation/student_home_screen.dart';
@@ -158,7 +159,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: AppRoutes.adminFeeDues,
-        builder: (context, state) => const FeeDuesScreen(),
+        builder: (context, state) => const FeeManagementScreen(),
+      ),
+      GoRoute(
+        path: '${AppRoutes.adminFeeDues}/:uid',
+        builder: (context, state) =>
+            StudentFeeDetailsScreen(studentUid: state.pathParameters['uid']!),
       ),
 
       GoRoute(

@@ -483,27 +483,45 @@ standard fee 9000, final fee 7500, reason "approved discount" - both
 figures and the reason are stored permanently on the student record.
 
 Every payment/due calculation (`totalPaid`, `due`, `dueLabel` in
-`student_repository.dart`) uses `finalFee`, never `standardFee` - this is
-what "future fee calculations must use the student's final agreed fee"
-means in practice. `due` can go negative (student has paid more than
-`finalFee`); `dueLabel` renders that as "Advance ₹X" rather than a
+`student_repository.dart` - superseded, for any payment recorded from
+Set 19 onward, by `combinedTotalPaid`/`combinedBalanceDue` in
+`features/fees/data/fee_calculator.dart`, see "Fee Collection & Payment
+Management (Set 19)" below) uses `finalFee`, never `standardFee` - this
+is what "future fee calculations must use the student's final agreed
+fee" means in practice. `due` can go negative (student has paid more
+than `finalFee`); `dueLabel` renders that as "Advance ₹X" rather than a
 confusing negative "Due". As of Set 11 these top-level `standardFee`/
 `finalFee`/`feeReason`/`paymentPlan` fields are always the CURRENT
-admission's values (kept in sync by `admitStudent`/`changeBatch`) -
-payments themselves are never split per-admission, since a student only
-ever has one active admission at a time.
+admission's values (kept in sync by `admitStudent`/`changeBatch`).
+
+**Historical note, superseded by Set 19**: this section originally said
+"payments themselves are never split per-admission, since a student only
+ever has one active admission at a time" - true of the Set 3 `payments`
+subcollection (a flat list with no `admissionId` field at all), but Set
+19's own core principle ("historical financial data must never be
+rewritten by later admission/fee changes") requires exactly the
+opposite: every NEW payment must record which admission it was paid
+against, so a later batch transfer's new admission can never be
+confused with - or silently inherit - the old one's payment history. See
+"Fee Collection & Payment Management (Set 19)" below for the resulting
+`feePayments` ledger, which the legacy `payments` subcollection sits
+alongside, unmodified, rather than being retrofitted with a field it was
+never designed to carry.
 
 ### Why payments and admissions are their own subcollections, not top-level collections
 
 `students/{uid}/payments` and `students/{uid}/admissions` both scope
 naturally to rules (`isAdmin() || isSelf(studentId)`, same as the
-student's own document) and to queries (the fee-dues screen never needs
-to query payments *across* students - it filters `students`, then reads
-each matching student's own payment subcollection; nothing ever needs to
-list admissions across every student either). No composite index is
-needed anywhere for either: every list is fetched whole and
-filtered/sorted client-side, which is fine at this project's scale
-(~200 students).
+student's own document) and to queries (the pre-Set-19 fee-dues screen
+never needed to query payments *across* students - it filtered
+`students`, then read each matching student's own payment subcollection;
+nothing ever needs to list admissions across every student either). No
+composite index is needed anywhere for either: every list is fetched
+whole and filtered/sorted client-side, which is fine at this project's
+scale (~200 students). This reasoning still holds for `admissions` and
+for the legacy `payments` subcollection exactly as before - Set 19 only
+changes where NEW payments are written (see below), not this section's
+logic for the collections it was written about.
 
 ### Call / WhatsApp
 
@@ -1434,13 +1452,28 @@ above:
 - `students/{uid}/payments`: `isAdmin() || isSelf(studentId)` only - a
   teacher has **no** access to payment data at all, matching "teacher
   cannot modify fees" (and, more strongly, cannot even read them). Only
-  admin may `create` (never update/delete - append-only).
+  admin may `create` (never update/delete - append-only). LEGACY as of
+  Set 19 - kept exactly as-is for pre-Set-19 history; nothing writes new
+  documents here anymore (see `feePayments` below).
 - `students/{uid}/admissions` (Set 11): `isAdmin() || isSelf(studentId)`
   only - same "teacher has no fee access" posture as payments, stricter
   than the parent `students` document (which a teacher CAN read). Only
   admin may `create`; the only `update` ever allowed is flipping `active`
   to `false` when a newer admission supersedes this one - every
-  financial/academic figure is otherwise permanent once created.
+  financial/academic figure is otherwise permanent once created. Set 19
+  reads this collection's CURRENT (`active == true`) record as the
+  authoritative fee agreement for every fee screen - see "Fee Collection
+  & Payment Management (Set 19)" below.
+- `feePayments` (Set 19, top-level, NOT nested under `students/{uid}` -
+  see "Fee Collection & Payment Management (Set 19)" below for why):
+  admin-only `create` and a narrowly-restricted `update` (active ->
+  reversed ONLY, every other field pinned to its original value via
+  `feePaymentReversalIsValid`); `delete` never allowed. `get`/`list`:
+  `isAdmin()` (unconstrained - role-only, safe for any query shape) or
+  `isSelf(resource.data.studentId)`/a `list` query constrained by
+  `.where('studentId', ==, uid)` for a student/parent reading their own
+  payments only - no teacher branch, matching the legacy `payments`
+  subcollection's posture exactly.
 - `counters` (Set 11): admin-only `get`/`create`/`update`, `list` denied
   outright (nothing ever needs to enumerate counters, only read one by
   its known id) - see "Admission numbers" above. `nextNumber` may only
@@ -1959,3 +1992,235 @@ is enforced entirely by `firestore.rules`, evaluated by Firestore itself
 at no additional cost on the Spark plan. Anti-abuse (length caps, a
 `createdAt` freshness bound) is likewise pure Firestore Rules logic, not
 a CAPTCHA/App Check/Cloud Function integration.
+
+## Fee Collection & Payment Management (Set 19)
+
+```
+feePayments/{paymentId}                  top-level - see "Why a top-level
+                                           collection" below
+  paymentNumber   e.g. "PAY0001" - assigned once via SequenceService
+                   (sequence name "feePayments"), never changes
+  studentId, admissionId, academicSessionId, classId, batchId
+                   snapshotted at creation, NEVER rewritten afterward -
+                   not even by a reversal
+  amount, paymentDate
+  mode            "cash" | "upi" | "bankTransfer" | "cheque" | "other"
+                   (reuses the existing Payment.PaymentMode enum)
+  referenceNumber (optional - a UPI/bank transaction id)
+  remark (optional, <=500 chars)
+  installmentIndex (optional - which row of the admission's OWN
+                     `installments` list this was allocated to)
+  installmentLabel (optional - that installment's label AT THE TIME of
+                     this payment, a display snapshot)
+  finalFeeAtPayment   the admission's finalFee at the moment of payment -
+                       an immutable snapshot, never used for today's due
+                       calculation (see "Fee agreement vs. payment
+                       history" below)
+  status          "active" | "reversed" - see "Reversal, not deletion"
+  reversedBy, reversedAt, reversalReason (all null until reversed)
+  collectedBy, createdAt
+```
+
+### Reusing Set 11, not building a second fee-agreement system
+
+Set 19's own working rules are explicit: "do not create a second fee
+agreement system... reuse StudentAdmission fee data." Nothing new was
+built for the fee AGREEMENT itself - `StudentAdmission.standardFee`/
+`finalFee`/`feeReason`/`paymentPlan`/`installments` (Set 11) remain the
+single source of truth, read directly by every Set 19 screen via the
+student's CURRENT (`active == true`) admission record. `InstallmentScheduleItem`
+(Set 11) is reused as-is for the schedule shape - no second installment
+model was created. The only genuinely new thing Set 19 adds is the
+payment LEDGER (`feePayments`) that records money received against that
+existing agreement.
+
+### Why a top-level collection, not another `students/{uid}` subcollection
+
+Section "Why payments and admissions are their own subcollections" above
+explains why the Set 3 `payments` subcollection made sense for what it
+was asked to do. Set 19 needs something that subcollection shape can't
+give cleanly: `FeeManagementScreen` (admin's "Fees" list) must show every
+student's paid/due/status in one screen, which means querying (or at
+least aggregating) payments ACROSS every student - exactly the kind of
+query a per-student subcollection can't do without either 200 separate
+reads-of-a-list (workable, but no better than a top-level collection)
+or a Firestore collection-group query (a capability this project has
+never used and Set 19 doesn't need to introduce). A top-level
+`feePayments`, one document per payment, lets `allFeePaymentsProvider`
+(admin, unconstrained `watchAll()` - role-only rule branch, safe for any
+query shape, same reasoning as `academicWork`/`notices`) read every
+payment in one listener, while a student/parent's own view
+(`studentFeePaymentsProvider`) stays query-constrained by
+`.where('studentId', ==, uid)` - a single equality filter, no composite
+index, matching `notices`/`academicWork`'s already-proven query-shape
+pattern.
+
+### Fee agreement vs. payment history - the mandatory separation
+
+Set 19's own core principle: **historical financial data must never be
+rewritten by later admission/fee changes.** Concretely:
+
+- `FeePayment.admissionId`/`academicSessionId`/`classId`/`batchId`/
+  `finalFeeAtPayment` are fixed at creation and appear nowhere in any
+  update path (`newFeePaymentIsValid` only fires on `create`;
+  `feePaymentReversalIsValid` explicitly requires every one of these to
+  equal its old value). A student's `StudentAdmission.finalFee` being
+  edited later (or superseded by a new admission entirely) cannot alter
+  what a past `FeePayment` document says it was paid against.
+- Every "how much has this student paid / how much do they owe" figure
+  (`combinedTotalPaid`, `combinedBalanceDue` in
+  `features/fees/data/fee_calculator.dart`) is calculated FRESH from
+  live `FeePayment` documents plus the CURRENT active admission's
+  `finalFee` - never from a cached/stored total, and never from
+  `finalFeeAtPayment` (that field exists purely as a receipt/statement
+  snapshot for a future printed document, per section 20's "structure
+  payment data so future receipt generation is straightforward" - see
+  below).
+- A batch transfer (`ChangeBatchDialog`, Set 11) creates a NEW
+  `StudentAdmission` and flips the old one's `active` to `false` - it
+  never touches existing `FeePayment` documents. Every payment recorded
+  against the OLD admission keeps that admission's id forever; a NEW
+  payment recorded after the transfer references the NEW admission.
+  `StudentFeeDetailsScreen`/`StudentFeeScreen` both read payments by
+  `studentId` (not `admissionId`) so a student's full history stays
+  visible across a transfer, but each payment's own `admissionId` never
+  changes - "old payment history remains attached to its original
+  admission... do not merge old and new admission financial histories"
+  (sections 25-26) is satisfied by construction, not by any special-case
+  code.
+
+### Payment numbers: the same `SequenceService` pattern as admission numbers
+
+`formatPaymentNumber(n)` ("PAY0001") mirrors `formatAdmissionNumber(n)`
+("STU0001") exactly - a separate pure function, directly unit tested.
+`FeePaymentController.recordPayment` calls
+`sequenceService.next('feePayments')` (a NEW named sequence, its own
+`counters/feePayments` document, independent of `counters/students`)
+before writing the payment document - the counter increment is itself
+atomic (a Firestore transaction inside `SequenceService`), so two
+payments recorded at nearly the same moment can never receive the same
+number, exactly the same "atomic counter, then a normal write" shape
+Set 11 already established (not one giant transaction covering the
+whole multi-step flow - this project has never done that, and Set 19
+doesn't start).
+
+### Reversal, not deletion
+
+"Financial records should not be casually editable... do not delete
+payment history" (section 9). A `FeePayment` is either `active` or
+`reversed` - there is no third state and no way back from `reversed`.
+Reversing sets `status`/`reversedBy`/`reversedAt`/`reversalReason` via a
+narrow partial `.update()` (`feePaymentReversalIsValid`, admin-only);
+every other field - amount, mode, date, context - is pinned to its
+original value by the rule itself, so a reversal can never quietly
+double as an edit. `totalActiveFeePaymentAmount` excludes reversed
+payments from the total paid/due calculation; `totalReversedFeePaymentAmount`
+reports them separately (the "Total Reversed" figure). The document
+itself is never deleted (`allow delete: if false`) and always remains in
+`Payment History` (struck through in the UI, not hidden) - "reversed
+remains in history... reversal does not delete the original payment."
+Correcting a mistake is then just: reverse the wrong one, record a new,
+correct payment - never edit the wrong one's amount.
+
+### Installment allocation and status - always derived
+
+`InstallmentScheduleItem.status` (Set 11: `pending`/`paid`) is a field
+nothing in this codebase has ever written to `paid` - Set 19 leaves it
+untouched (removing it would be its own migration, and it does no
+harm sitting unused) but deliberately never reads it either. Every
+installment's real-time status comes from `computeInstallmentRows`
+(`fee_calculator.dart`), which:
+
+1. Applies any payment explicitly allocated to an installment
+   (`FeePayment.installmentIndex`, set via `RecordPaymentDialog`'s
+   optional "Apply to installment" picker) to that installment's balance
+   first.
+2. Pools every UNALLOCATED payment's amount and spends it across the
+   remaining installments in DUE-DATE order (earliest first) - "if no
+   installment is selected, apply the payment toward the overall
+   outstanding balance" (section 12), interpreted so the schedule
+   display still reflects reality even when admin never allocates a
+   single payment to a specific row.
+3. Derives a display status per installment: `Paid` (remaining <= 0),
+   `Overdue` (remaining > 0 and `dueDate` has passed - regardless of any
+   partial payment already applied), `Partially Paid` (remaining > 0,
+   not yet due, something has been paid), or `Due` (remaining > 0, not
+   yet due, nothing paid). A fully paid installment can never become
+   `Overdue`, no matter how far past its due date - remaining <= 0 wins
+   over every other check.
+
+A student's overall `FeeStatus` (`computeFeeStatus`) is likewise always
+derived: `Paid` when the balance due is settled (or overpaid);
+otherwise `Overdue` if ANY installment row is overdue; otherwise
+`Partially Paid` if something has been paid; otherwise `Due`. None of
+this is ever stored - "do not store a fragile permanent installment
+status" / "do not store a fragile status that can become stale"
+(sections 13, 19) are satisfied by computing it fresh on every screen
+load, the same reusable-calculation-engine pattern already established
+by `result_calculator.dart` (Set 15) and `attendance_stats.dart` (Set
+13).
+
+### Preventing an overpayment, and why that check lives in the app, not the rule
+
+Section 8: "prefer rejecting an amount that would make total paid exceed
+the applicable final fee... do not invent credit-balance behavior."
+`FeePaymentController.recordPayment` rejects `amount > currentDue` (a
+small epsilon tolerance for floating-point rounding) BEFORE writing -
+`currentDue` is the figure `RecordPaymentDialog` already computed and
+displayed to admin in its "review before confirm" step (section 7), not
+a fresh read, since this project has no Cloud Function to run a
+transactional aggregate-and-validate step and a genuine double-booking
+race is vanishingly unlikely for a single-institute admin team at this
+scale. This is intentionally an APP-level check, not a `firestore.rules`
+one: Firestore Rules cannot SUM a collection's documents (there is no
+aggregate operator available inside a rule), so proving "this write
+would not exceed the final fee" server-side would require either a
+Cloud Function (not available on Spark, and forbidden by this project's
+own constraints) or a denormalized running-total field on the admission
+document that every payment write would need to keep in perfect sync -
+exactly the "fragile stored aggregate counter" section 10 says to avoid
+creating "unless absolutely necessary". This mirrors an already-accepted
+precedent in this exact codebase: "Only one active academic session" is
+also enforced client-side only, with the identical documented reasoning
+("getting this wrong has no security consequence - a display
+inconsistency, not unauthorized access"). The actor here is always
+ADMIN (the only role that can ever create a `FeePayment` at all) - the
+same trust level already extended to every other admin-authored
+financial/administrative field in this project.
+
+### Receipt foundation, without building the receipt (Set 19 section 20)
+
+No PDF/A4 receipt is generated in Set 19 - but every `FeePayment`
+already carries what one would need: a unique `paymentNumber`, the
+student/admission/academic context, the amount/date/mode/reference, and
+`finalFeeAtPayment` (so a receipt printed later can still say "final fee
+at the time: ₹X" even if the agreement has since changed). No separate
+receipt collection was introduced - a future receipt screen reads this
+same document.
+
+### Security
+
+- Admin: full `create`/reverse (`update`) access; unconstrained
+  `get`/`list` (role-only, safe for any query shape).
+- Student/parent (one shared login - see Set 17's `NoticeAudience` doc
+  comment for why): `get`/`list` only their OWN payments
+  (`studentId == their uid`) - never another student's, and never a
+  write of any kind.
+- Teacher: no access at all - "no existing project rule explicitly
+  requires it" (section 21), and the legacy `payments` subcollection
+  never granted teacher access either, so this isn't even a narrowing
+  relative to before.
+- No non-admin path exists to create a payment, edit one, reverse one,
+  or change any part of the underlying fee agreement (`StudentAdmission`
+  writes stay exactly as admin-only as Set 11 left them - Set 19 adds no
+  new way to touch `finalFee`/discount/installments).
+
+### No online payments, no paid services (sections 4, 28)
+
+Every payment mode (`cash`/`upi`/`bankTransfer`/`cheque`/`other`) is
+something admin selects AFTER money has already changed hands outside
+the app - there is no payment gateway integration, no UPI deep-link
+checkout, no webhook, no subscription billing, and none of Razorpay/
+Stripe/PayPal appear anywhere in this project's dependencies. Recording
+a payment is a plain Firestore write, same cost (free, Spark plan) as
+every other write in this project.

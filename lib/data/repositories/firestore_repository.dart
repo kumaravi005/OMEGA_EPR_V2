@@ -40,6 +40,22 @@ class FirestoreRepository<T> {
         .toList();
   }
 
+  /// Like [getAll], but scoped by [builder] (`.where(...)`) - a one-shot
+  /// counterpart to [watchWhere], for the same reason: a query-constrained
+  /// read is required whenever the collection's `list` rule depends on a
+  /// document field (see [watchWhere]'s doc comment). Used for a single
+  /// point-in-time fetch (e.g. computing a total before validating a new
+  /// write) rather than an ongoing listener.
+  Future<List<T>> getWhere(
+    Query<Map<String, dynamic>> Function(Query<Map<String, dynamic>> query)
+    builder,
+  ) async {
+    final snapshot = await builder(_dataSource.raw).get();
+    return snapshot.docs
+        .map((doc) => _fromFirestore(doc.id, doc.data()))
+        .toList();
+  }
+
   Stream<List<T>> watchAll() {
     return _dataSource.watchAll().map(
       (snapshot) => snapshot.docs

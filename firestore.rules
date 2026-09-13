@@ -381,6 +381,87 @@ service cloud.firestore {
       }
     }
 
+    // Fee Collection & Payment Management (Set 19) - the real payment
+    // ledger, a TOP-LEVEL collection (not nested under `students/{uid}`
+    // like the legacy `payments` subcollection above, which is kept
+    // exactly as-is, read-only, for pre-Set-19 history - see docs/
+    // database-architecture.md). `studentId`/`admissionId`/
+    // `academicSessionId`/`classId`/`batchId`/`finalFeeAtPayment` are
+    // snapshotted at creation and NEVER change afterward - not even a
+    // reversal may touch them - so a later admission/batch change, or a
+    // later edit to the admission's own fee agreement, can never rewrite
+    // what a past payment actually was (Set 19's core "historical
+    // financial data must never be rewritten" principle).
+    //
+    // Admin-only to create/update; a student/parent may read only their
+    // OWN payments (`isSelf(resource.data.studentId)` for `get`, and a
+    // `list` query constrained by `.where('studentId', ==, uid)` for the
+    // same reason `academicWork`/`notices` need a query-shape-matching
+    // filter - see "Firestore query-shape requirement" below). No
+    // teacher branch at all - "no existing project rule explicitly
+    // requires" teacher fee access (Set 19 section 21), and none of the
+    // legacy `payments` subcollection's rules grant it either. `delete`
+    // is never allowed - a mistaken payment is reversed, never removed.
+    function feePaymentFields() {
+      return [
+        'paymentNumber', 'studentId', 'admissionId', 'academicSessionId', 'classId', 'batchId', 'amount',
+        'paymentDate', 'mode', 'referenceNumber', 'remark', 'installmentIndex', 'installmentLabel',
+        'finalFeeAtPayment', 'status', 'reversedBy', 'reversedAt', 'reversalReason', 'collectedBy', 'createdAt'
+      ];
+    }
+
+    function newFeePaymentIsValid() {
+      let data = request.resource.data;
+      return data.paymentNumber is string && data.paymentNumber.size() > 0
+        && data.studentId is string && data.studentId.size() > 0
+        && data.admissionId is string && data.admissionId.size() > 0
+        && data.academicSessionId is string && data.academicSessionId.size() > 0
+        && data.classId is string && data.classId.size() > 0
+        && data.batchId is string && data.batchId.size() > 0
+        && data.amount is number && data.amount > 0
+        && data.paymentDate is timestamp
+        && data.mode in ['cash', 'upi', 'bankTransfer', 'cheque', 'other']
+        && (data.referenceNumber == null || (data.referenceNumber is string && data.referenceNumber.size() <= 60))
+        && (data.remark == null || (data.remark is string && data.remark.size() <= 500))
+        && (data.installmentIndex == null || (data.installmentIndex is number && data.installmentIndex >= 0))
+        && (data.installmentLabel == null || data.installmentLabel is string)
+        && data.finalFeeAtPayment is number && data.finalFeeAtPayment >= 0
+        && data.status == 'active'
+        && data.reversedBy == null && data.reversedAt == null && data.reversalReason == null
+        && data.collectedBy == request.auth.uid
+        && data.createdAt is timestamp
+        && data.keys().hasOnly(feePaymentFields());
+    }
+
+    // The ONLY update ever allowed: active -> reversed. Every other field
+    // is pinned to its original value - a reversal corrects the ledger by
+    // adding a marker, never by touching what was actually recorded.
+    function feePaymentReversalIsValid() {
+      let data = request.resource.data;
+      let old = resource.data;
+      return old.status == 'active' && data.status == 'reversed'
+        && data.reversedBy == request.auth.uid
+        && data.reversedAt is timestamp
+        && data.reversalReason is string && data.reversalReason.size() > 0 && data.reversalReason.size() <= 500
+        && data.paymentNumber == old.paymentNumber && data.studentId == old.studentId
+        && data.admissionId == old.admissionId && data.academicSessionId == old.academicSessionId
+        && data.classId == old.classId && data.batchId == old.batchId
+        && data.amount == old.amount && data.paymentDate == old.paymentDate
+        && data.mode == old.mode && data.referenceNumber == old.referenceNumber
+        && data.remark == old.remark && data.installmentIndex == old.installmentIndex
+        && data.installmentLabel == old.installmentLabel && data.finalFeeAtPayment == old.finalFeeAtPayment
+        && data.collectedBy == old.collectedBy && data.createdAt == old.createdAt
+        && data.keys().hasOnly(feePaymentFields());
+    }
+
+    match /feePayments/{paymentId} {
+      allow get: if isAdmin() || isSelf(resource.data.studentId);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.studentId == request.auth.uid);
+      allow create: if isAdmin() && newFeePaymentIsValid();
+      allow update: if isAdmin() && feePaymentReversalIsValid();
+      allow delete: if false;
+    }
+
     // Batches (Set 3, extended Set 10 with academic-session/class/board
     // links + fee configuration): a shared reference catalogue, not
     // sensitive personal data, so any signed-in account may read it -
