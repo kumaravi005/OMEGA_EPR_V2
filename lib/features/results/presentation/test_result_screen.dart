@@ -249,8 +249,14 @@ class _ResultBody extends ConsumerWidget {
     final studentsAsync = ref.watch(allStudentsProvider);
     final resultsAsync = ref.watch(testResultsForTestProvider(testId));
 
-    if (testAsync.isLoading || studentsAsync.isLoading) {
+    if (testAsync.isLoading || studentsAsync.isLoading || resultsAsync.isLoading) {
       return const LoadingView();
+    }
+    if (studentsAsync.hasError) {
+      return ErrorView(message: 'Could not load students.\n${studentsAsync.error}');
+    }
+    if (resultsAsync.hasError) {
+      return ErrorView(message: 'Could not load results.\n${resultsAsync.error}');
     }
     final test = testAsync.valueOrNull;
     if (test == null) return const ErrorView(message: 'Test not found.');

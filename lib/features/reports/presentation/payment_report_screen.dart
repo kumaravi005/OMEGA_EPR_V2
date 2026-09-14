@@ -317,6 +317,15 @@ class _PaymentReportScreenState extends ConsumerState<PaymentReportScreen> {
       }).toList()
         ..sort((a, b) => b.paymentDate.compareTo(a.paymentDate));
 
+      if (filtered.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No payments match these filters.')),
+          );
+        }
+        return;
+      }
+
       final rows = [
         for (final payment in filtered)
           PaymentReportRow(

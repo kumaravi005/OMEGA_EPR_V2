@@ -339,6 +339,15 @@ class _StudentReportExportScreenState
         return true;
       }).toList();
 
+      if (filtered.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No students match these filters.')),
+          );
+        }
+        return;
+      }
+
       final rows = <StudentReportRow>[];
       for (final student in filtered) {
         final legacyPayments = await ref

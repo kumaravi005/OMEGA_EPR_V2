@@ -1388,6 +1388,71 @@ Nothing about attendance's rule changed in this set.
     record's identity or historical figures. No migrations were run or
     needed.
 
+## Set 25: production-readiness audit
+
+A controlled pass across the whole application (routing/role boundaries,
+loading/empty/error states, form validation, destructive-action
+protection, duplication, Firestore rules) using three parallel read-only
+audits before touching anything. Most areas were confirmed already
+correct and left unchanged (per this set's own "only change what
+inspection shows is genuinely wrong" rule) - see docs/database-
+architecture.md's "Set 25 audit summary" for the full checklist of what
+was verified clean. Genuine issues found and fixed:
+
+- **`RecordPaymentDialog` had its own private `_validateAmount`**
+  duplicating `core/utils/validators.dart`'s `Validators.amount` -
+  exactly the duplication that function's own doc comment already
+  claimed had been eliminated everywhere, including "payment recording."
+  It hadn't been, for this one screen. Fixed by deleting the private
+  copy and calling `Validators.amount(value, label: 'Amount', allowZero:
+  false)` instead - already covered by `test/core/utils/validators_test.dart`,
+  so no new test was needed. (Investigated and deliberately did NOT add:
+  an "overpayment" block/warning - `fee_calculator.dart`'s
+  `combinedBalanceDue` doc comment and the existing `Advance` fee status
+  make clear that a payment exceeding the current due is a legitimate,
+  already-supported outcome, not a data-entry mistake to prevent.)
+- **Four report/export screens generated an output with a header row
+  and zero data rows, silently**, when the selected filters matched
+  nothing (`FeeDueReportScreen`, `PaymentReportScreen`,
+  `StudentReportExportScreen`, `TestResultExportScreen`) - an admin could
+  easily believe the export "worked" and only discover the emptiness
+  after opening the file. Each now checks its filtered row/roster count
+  first and shows a plain `SnackBar` ("No students/payments match these
+  filters." / "No active students in this batch.") instead of
+  generating anything, matching this project's "explain what's empty"
+  empty-state convention used everywhere else.
+- **`TestResultScreen`/`CombinedResultScreen` didn't check `hasError`**
+  on their students/results providers - a genuine Firestore error would
+  silently collapse to an empty list and show the misleading `EmptyView(
+  message: 'No students in this batch.')` instead of a real error.
+  `CombinedResultScreen` also didn't include `resultsAsync` in its
+  loading check, so a still-loading results stream could briefly read as
+  "zero results." Both now check `hasError` (returning `ErrorView`) and
+  `isLoading` on every provider they read, matching the pattern already
+  used correctly by `student_fee_details_screen.dart`/`student_fee_screen.dart`.
+- **Stale doc comments corrected** (no behavior change):
+  `TeacherHomeScreen`'s comment still said teacher-scoped dashboards were
+  "a later phase" (Set 22/23 already built them); `AdminDashboardScreen`'s
+  said "full dashboards/reports are a later phase" (Set 20/21 already
+  built them). `student_repository.dart`'s legacy pre-Set-19
+  `totalPaid`/`due`/`dueLabel` functions (confirmed to have zero current
+  production call sites - every live fee screen uses
+  `fee_calculator.dart` instead) gained an explicit "LEGACY, do not call
+  from new code" comment rather than being deleted, since deleting them
+  would also require deleting `test/features/student/fee_calculation_test.dart`'s
+  coverage of them - reducing test coverage for no functional gain, which
+  this set's own rules forbid.
+- **No Firestore rules changes** - the audit found the rules
+  architecture (role gating, fee-reversal restriction, notice public/
+  private separation, delete-denial on every historical collection)
+  already correct; per this set's explicit instruction, no rule was
+  touched without a genuine issue to fix.
+- **No route/navigation/duplication issues found** - direct-URL role
+  gating (`router.dart`'s `_redirect`, a plain `path.startsWith(home)`
+  check) was traced through concretely and confirmed to block every
+  cross-role path; no duplicate models, collections, calculation
+  engines, or authorization helpers were found anywhere in Sets 1-24.
+
 ## What's deliberately not here yet
 
 - An online payment gateway/checkout (Razorpay/Stripe/PayPal/UPI deep-

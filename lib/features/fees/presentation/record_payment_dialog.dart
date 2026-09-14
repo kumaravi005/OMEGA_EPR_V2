@@ -124,14 +124,6 @@ class _RecordPaymentDialogState extends ConsumerState<_RecordPaymentDialog> {
     }
   }
 
-  String? _validateAmount(String? value) {
-    final requiredError = Validators.required(value, message: 'Amount is required');
-    if (requiredError != null) return requiredError;
-    final parsed = double.tryParse(value!);
-    if (parsed == null || parsed <= 0) return 'Enter a valid amount';
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     final amount = double.tryParse(_amountController.text) ?? 0;
@@ -161,7 +153,8 @@ class _RecordPaymentDialogState extends ConsumerState<_RecordPaymentDialog> {
                   label: 'Amount',
                   enabled: !_isSubmitting,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  validator: _validateAmount,
+                  validator: (value) =>
+                      Validators.amount(value, label: 'Amount', allowZero: false),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 ListTile(

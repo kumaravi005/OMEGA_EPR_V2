@@ -278,6 +278,15 @@ class _FeeDueReportScreenState extends ConsumerState<FeeDueReportScreen> {
       }).toList()
         ..sort((a, b) => a.student.name.compareTo(b.student.name));
 
+      if (filtered.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No students match these filters.')),
+          );
+        }
+        return;
+      }
+
       final rows = [
         for (final summary in filtered)
           FeeReportRow(

@@ -7,10 +7,14 @@ import '../../../core/widgets/nav_tile.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../notices/data/notice_read_state.dart';
 
-/// Teacher's landing screen: attendance (view own), homework, assignments
-/// and tests/results for whichever batch they're working with. Full
-/// batch/class-scoped dashboards (e.g. "only my assigned classes") are a
-/// later phase - see docs/architecture.md.
+/// Teacher's landing screen: My assignments (Set 22/23's actual
+/// teaching-scope list), Mark attendance/My attendance, Homework &
+/// Assignments, Tests & results - each screen restricts write actions to
+/// whatever the teacher's own active `TeacherAssignment`s currently cover
+/// (see docs/architecture.md's "Teacher-scoped academic operations (Set
+/// 23)"). No admin-only functionality (fees, teacher/student
+/// administration, teacher assignment management, configuration, report
+/// templates) is ever reachable from here.
 class TeacherHomeScreen extends ConsumerWidget {
   const TeacherHomeScreen({super.key});
 

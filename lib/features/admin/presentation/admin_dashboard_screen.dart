@@ -6,8 +6,12 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/nav_tile.dart';
 import '../../auth/application/auth_providers.dart';
 
-/// Admin's landing screen: a simple list of the sections built so far.
-/// Full dashboards/reports are a later phase.
+/// Admin's landing screen: a single list of every admin section, ordered
+/// by domain adjacency (accounts/teachers/batches/assignments/students/
+/// fees/attendance/homework/tests/results, then enquiries, then public
+/// content, then configuration/notices/reports) rather than grouped under
+/// visual section headers - this project's established "one flat NavTile
+/// list per role" pattern (see `TeacherHomeScreen`/`StudentHomeScreen`).
 class AdminDashboardScreen extends ConsumerWidget {
   const AdminDashboardScreen({super.key});
 

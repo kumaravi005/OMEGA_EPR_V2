@@ -96,6 +96,14 @@ final studentAdmissionsProvider =
           );
     });
 
+/// LEGACY (pre-Set-19) - sums only the old `students/{uid}/payments`
+/// subcollection, with no concept of a reversed payment. No current
+/// screen calls this; every live fee/due calculation uses
+/// `fee_calculator.dart`'s `combinedTotalPaid`/`combinedBalanceDue`/
+/// `computeFeeStatus` instead, which also account for the Set 19
+/// `feePayments` ledger and exclude reversed entries. Kept only so
+/// `test/features/student/fee_calculation_test.dart` still exercises the
+/// original pre-Set-19 formula - do not call this from new code.
 double totalPaid(List<Payment> payments) =>
     payments.fold(0, (sum, payment) => sum + payment.amount);
 

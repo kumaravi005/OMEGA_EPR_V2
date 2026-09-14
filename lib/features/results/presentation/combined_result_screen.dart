@@ -294,6 +294,12 @@ class _CombinedResultTable extends ConsumerWidget {
     if (studentsAsync.isLoading || resultsAsync.isLoading) {
       return const LoadingView();
     }
+    if (studentsAsync.hasError) {
+      return ErrorView(message: 'Could not load students.\n${studentsAsync.error}');
+    }
+    if (resultsAsync.hasError) {
+      return ErrorView(message: 'Could not load results.\n${resultsAsync.error}');
+    }
     final allStudents = studentsAsync.valueOrNull ?? const <StudentProfile>[];
     final testIds = tests.map((t) => t.testId).toSet();
     final allResults = (resultsAsync.valueOrNull ?? const <TestResult>[])

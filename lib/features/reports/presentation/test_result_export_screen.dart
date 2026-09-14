@@ -244,6 +244,14 @@ class _TestResultExportScreenState
       final roster =
           students.where((s) => s.batchId == _batchId && s.active).toList()
             ..sort((a, b) => a.name.compareTo(b.name));
+      if (roster.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No active students in this batch.')),
+          );
+        }
+        return;
+      }
       final allResults = await ref.read(testResultRepositoryProvider).getAll();
       final allTests = await ref.read(testRepositoryProvider).getAll();
       // Fetched fresh, baked into a one-time snapshot - see

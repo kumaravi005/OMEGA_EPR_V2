@@ -2662,3 +2662,74 @@ is adding `'paymentReport'` to `newReportTemplateIsValid()`'s allowed
 about who can read `reportTemplates` changed. No report screen is
 reachable from a student/teacher/parent route; the Reports Hub and every
 screen under it live exclusively under `/admin/reports/...`.
+
+## Set 25 audit summary
+
+Set 25 was a production-readiness audit across the whole application,
+not a new feature set - see docs/architecture.md's "Set 25:
+production-readiness audit" for the handful of genuine fixes it made
+(all in `lib/`, none in `firestore.rules`). What follows is the
+checklist of areas that were actively inspected and confirmed ALREADY
+correct, so this doesn't need re-litigating in a future set:
+
+- **Route-level role gating**: `router.dart`'s `_redirect` computes
+  `home = _homeFor(account.role)` (`/admin`, `/teacher`, or `/student`)
+  and denies anything not starting with it. Every route constant in
+  `app_routes.dart` falls under one of those three prefixes or the two
+  explicitly public paths (`/`, `/login`) - there is no route reachable
+  by a signed-in user that escapes this check, confirmed by enumerating
+  every constant, not merely spot-checking a few.
+- **Destructive deletion**: grepped every presentation file for a
+  delete affordance touching Students/Teachers/Batches/Academic
+  Sessions/Subjects/Boards/TeacherAssignments/Tests/Notices/
+  FeePayments/Attendance - none exists; every one of those uses
+  activate/deactivate (or, for payments, reverse). The only two
+  collections with `allow delete: if isAdmin()` in `firestore.rules` are
+  `reportTemplates`/`reportLayoutTemplates`, exactly the two collections
+  this project has always documented as genuinely deletable admin
+  preferences, not business records.
+- **Fee reversal rule**: `feePaymentReversalIsValid()` still requires
+  `old.status == 'active' && data.status == 'reversed'` and pins every
+  other field to its previous value - reversal cannot be used to alter a
+  payment's amount/date/student, only to flag it reversed.
+- **Notices public/private boundary**: the `notices` `allow get, list`
+  rule's unauthenticated-visitor branch is still exactly `(resource.data.status
+  == 'published' && resource.data.isPublic == true)`, structurally unable
+  to leak a draft or a non-public notice to an anonymous caller.
+- **No unintended public/permissive rule** exists anywhere in
+  `firestore.rules` - the only collections with any unauthenticated read
+  access are `institutes`, `classes`, `boards`, `gallery`, `banners`,
+  `upcomingBatches`, `advertisements`, `announcements`, and `notices`
+  (isPublic branch only) - the exact, unchanged Set 5/9/18 list.
+- **No duplication** was found in: Firestore collection name constants
+  (every string in `firestore_collections.dart` is unique and always
+  referenced via the constant, never re-typed as a literal); the result/
+  ranking engine (`computeSubjectResults`/`computeCombinedResults`/
+  `rankByPercentage`, each defined once, reused by every screen and the
+  Set 20 export); the fee engine (`fee_calculator.dart`'s exports are the
+  only place due/status/overpayment math happens - see below for the one
+  UNUSED legacy exception); the teacher-scope authorization primitives
+  (`teacherIsAssignedTo` in rules, `teacherCanOperateOn`/
+  `distinctActiveBatchScopes` in Dart); the session/class/batch and
+  class/subject cascade helpers (`batchesForSessionAndClass`/
+  `subjectOptionsForAssignment`); and every top-level "all X"
+  `StreamProvider`.
+- **One confirmed-unused legacy duplicate, kept, not deleted**:
+  `student_repository.dart`'s pre-Set-19 `totalPaid`/`due`/`dueLabel`
+  functions have zero call sites in `lib/` (every live fee screen uses
+  `fee_calculator.dart`'s `combinedTotalPaid`/`combinedBalanceDue`/
+  `computeFeeStatus` instead, which additionally account for the Set 19
+  `feePayments` ledger and exclude reversed payments). They were left in
+  place rather than deleted, because `test/features/student/fee_calculation_test.dart`
+  still exercises them directly - removing the functions would also mean
+  removing that test coverage, which Set 25's own rules forbid ("do not
+  reduce test coverage") for a change with no functional benefit (they
+  do nothing at runtime today). They now carry an explicit "LEGACY - do
+  not call from new code" doc comment instead.
+- **`auditLogs`** is declared in `firestore_collections.dart` but has no
+  corresponding `match` block in `firestore.rules` - it safely falls
+  through to the file's final `allow read, write: if false` catch-all.
+  This is the same "planned but not yet implemented" status already
+  documented for this collection since Set 1 (see "Planned collections"
+  near the top of this file) - not a Set 25 finding requiring a rule
+  addition, since nothing in this project writes to it.
