@@ -134,6 +134,7 @@ class _MarksBodyState extends ConsumerState<_MarksBody> {
             ref.watch(ownTeacherAssignmentsProvider(account.uid)).valueOrNull ??
                 const [],
             academicSessionId: widget.test.academicSessionId,
+            classId: widget.test.classId,
             batchId: widget.test.batchId,
             subjectId: widget.test.subjectId,
           )

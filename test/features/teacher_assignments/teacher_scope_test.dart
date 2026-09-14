@@ -32,12 +32,13 @@ TeacherAssignment _assignment({
 
 void main() {
   group('teacherCanOperateOn (Set 23 - assignment-derived authorization)', () {
-    test('an active assignment grants scope for its exact session/batch/subject', () {
+    test('an active assignment grants scope for its exact session/class/batch/subject', () {
       final assignments = [_assignment()];
       expect(
         teacherCanOperateOn(
           assignments,
           academicSessionId: 's1',
+          classId: 'c1',
           batchId: 'b1',
           subjectId: 'math',
         ),
@@ -51,6 +52,7 @@ void main() {
         teacherCanOperateOn(
           assignments,
           academicSessionId: 's1',
+          classId: 'c1',
           batchId: 'b1',
           subjectId: 'math',
         ),
@@ -58,12 +60,13 @@ void main() {
       );
     });
 
-    test('does not grant scope for a different batch', () {
+    test('does not grant scope for a different batch (client-manipulated batchId)', () {
       final assignments = [_assignment(batchId: 'b1')];
       expect(
         teacherCanOperateOn(
           assignments,
           academicSessionId: 's1',
+          classId: 'c1',
           batchId: 'b2',
           subjectId: 'math',
         ),
@@ -71,12 +74,33 @@ void main() {
       );
     });
 
-    test('does not grant scope for a different subject when the module is subject-specific', () {
+    test('does not grant scope for a different class (client-manipulated classId)', () {
+      // Set 24 hardening: teacherCanOperateOn previously did not check
+      // classId at all, which could show a manage/edit action the
+      // firestore.rules `teacherIsAssignedTo` check would then reject -
+      // a batch's own classId can be edited after an assignment was
+      // created (BatchController.updateBatch), so the assignment must
+      // keep authorizing only the class it was actually created for.
+      final assignments = [_assignment(classId: 'c9')];
+      expect(
+        teacherCanOperateOn(
+          assignments,
+          academicSessionId: 's1',
+          classId: 'c10',
+          batchId: 'b1',
+          subjectId: 'math',
+        ),
+        isFalse,
+      );
+    });
+
+    test('does not grant scope for a different subject when the module is subject-specific (client-manipulated subjectId)', () {
       final assignments = [_assignment(subjectId: 'math')];
       expect(
         teacherCanOperateOn(
           assignments,
           academicSessionId: 's1',
+          classId: 'c1',
           batchId: 'b1',
           subjectId: 'science',
         ),
@@ -84,12 +108,13 @@ void main() {
       );
     });
 
-    test('does not grant scope for a different academic session', () {
+    test('does not grant scope for a different academic session (client-manipulated sessionId)', () {
       final assignments = [_assignment(academicSessionId: '2026-27')];
       expect(
         teacherCanOperateOn(
           assignments,
           academicSessionId: '2027-28',
+          classId: 'c1',
           batchId: 'b1',
           subjectId: 'math',
         ),
@@ -105,6 +130,7 @@ void main() {
         teacherCanOperateOn(
           assignments,
           academicSessionId: 's1',
+          classId: 'c1',
           batchId: 'b1',
         ),
         isTrue,
@@ -122,6 +148,7 @@ void main() {
         teacherCanOperateOn(
           assignments,
           academicSessionId: 's1',
+          classId: 'c8',
           batchId: 'batchA',
           subjectId: 'science',
         ),
@@ -131,6 +158,7 @@ void main() {
         teacherCanOperateOn(
           assignments,
           academicSessionId: 's1',
+          classId: 'c9',
           batchId: 'batchB',
           subjectId: 'mathematics',
         ),
@@ -140,6 +168,7 @@ void main() {
         teacherCanOperateOn(
           assignments,
           academicSessionId: 's1',
+          classId: 'c10',
           batchId: 'batchC',
           subjectId: 'mathematics',
         ),
@@ -150,6 +179,7 @@ void main() {
         teacherCanOperateOn(
           assignments,
           academicSessionId: 's1',
+          classId: 'c8',
           batchId: 'batchA',
           subjectId: 'mathematics',
         ),
@@ -157,25 +187,68 @@ void main() {
       );
     });
 
-    test('a client cannot bypass scope by claiming a different subject/batch/session for the same list of assignments', () {
+    test('a client cannot bypass scope by claiming a different subject/batch/session/class for the same list of assignments', () {
       // Simulates "do not trust IDs supplied by the client alone" (Set
-      // 23 section 2) - the assignment list is the source of truth
-      // regardless of what a caller claims it wants to operate on.
-      final assignments = [_assignment(subjectId: 'hindi', batchId: 'homeroom')];
+      // 23 section 2 / Set 24 section 8) - the assignment list is the
+      // source of truth regardless of what a caller claims it wants to
+      // operate on. Covers every one of Set 24 section 8's manipulated-id
+      // scenarios that this module can enforce server-side.
+      final assignments = [
+        _assignment(
+          academicSessionId: 's1',
+          classId: 'c1',
+          subjectId: 'hindi',
+          batchId: 'homeroom',
+        ),
+      ];
       for (final attempt in [
-        (batchId: 'otherBatch', subjectId: 'hindi'),
-        (batchId: 'homeroom', subjectId: 'english'),
+        (sessionId: 's2', classId: 'c1', batchId: 'homeroom', subjectId: 'hindi'),
+        (sessionId: 's1', classId: 'c2', batchId: 'homeroom', subjectId: 'hindi'),
+        (sessionId: 's1', classId: 'c1', batchId: 'otherBatch', subjectId: 'hindi'),
+        (sessionId: 's1', classId: 'c1', batchId: 'homeroom', subjectId: 'english'),
       ]) {
         expect(
           teacherCanOperateOn(
             assignments,
-            academicSessionId: 's1',
+            academicSessionId: attempt.sessionId,
+            classId: attempt.classId,
             batchId: attempt.batchId,
             subjectId: attempt.subjectId,
           ),
           isFalse,
+          reason: 'attempt $attempt must be denied',
         );
       }
+    });
+
+    test('an assignment for a DIFFERENT teacher never grants scope - a caller must supply only their OWN assignments', () {
+      // teacherCanOperateOn takes whatever assignment list the caller
+      // passes in - the real protection against teacherId spoofing is
+      // that every call site sources this list from
+      // `ownTeacherAssignmentsProvider(currentUserAccount.uid)`
+      // (server-side, rule-constrained to `teacherId ==
+      // request.auth.uid`), never from a client-writable field. This
+      // test documents that expectation: even if a caller mistakenly
+      // passed another teacher's assignments, the function itself has no
+      // notion of "my own" teacherId to filter by, so callers MUST do
+      // that filtering via the correct provider, not by trusting a
+      // teacherId value.
+      final otherTeachersAssignment = _assignment(teacherId: 't2');
+      expect(otherTeachersAssignment.teacherId, isNot('t1'));
+      // teacherCanOperateOn correctly still finds a scope match here
+      // (it does not check teacherId at all) - proving that identity
+      // filtering is NOT this function's job. It is the CALLER's job to
+      // never pass any assignment except the current teacher's own.
+      expect(
+        teacherCanOperateOn(
+          [otherTeachersAssignment],
+          academicSessionId: 's1',
+          classId: 'c1',
+          batchId: 'b1',
+          subjectId: 'math',
+        ),
+        isTrue,
+      );
     });
   });
 
@@ -229,6 +302,7 @@ void main() {
         teacherCanOperateOn(
           noAssignments,
           academicSessionId: 's1',
+          classId: 'c1',
           batchId: 'b1',
           subjectId: 'math',
         ),

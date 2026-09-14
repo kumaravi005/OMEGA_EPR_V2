@@ -186,8 +186,8 @@ List<Subject> subjectOptionsForAssignment({
 // ---------------------------------------------------------------------
 
 /// Whether [assignments] authorize the teacher who holds them to operate
-/// on [academicSessionId]/[batchId] - and, when [subjectId] is given,
-/// that EXACT subject too. Only `active` assignments count (Set 23
+/// on [academicSessionId]/[classId]/[batchId] - and, when [subjectId] is
+/// given, that EXACT subject too. Only `active` assignments count (Set 23
 /// section 15: a deactivated assignment must immediately stop granting
 /// access). Pass `subjectId: null` for a module that is not
 /// subject-specific (attendance - see [TeacherAssignment]'s doc comment
@@ -197,9 +197,18 @@ List<Subject> subjectOptionsForAssignment({
 /// its tests call it directly, and it mirrors exactly what
 /// `firestore.rules`' `teacherIsAssignedTo` checks server-side, so the
 /// client never shows an action the rules would then reject.
+///
+/// [classId] is REQUIRED (Set 24 hardening - a pre-Set-24 version of this
+/// function omitted it, which could show a manage/edit action the rule
+/// would then reject): a batch's own `classId` can be edited after an
+/// assignment was created (`BatchController.updateBatch` allows it), and
+/// an assignment must keep authorizing only the class it was actually
+/// created for, exactly like `firestore.rules`' `teacherIsAssignedTo`
+/// checks `assignment.classId == classId`, not just batch/session/subject.
 bool teacherCanOperateOn(
   List<TeacherAssignment> assignments, {
   required String academicSessionId,
+  required String classId,
   required String batchId,
   String? subjectId,
 }) {
@@ -207,6 +216,7 @@ bool teacherCanOperateOn(
     (a) =>
         a.active &&
         a.academicSessionId == academicSessionId &&
+        a.classId == classId &&
         a.batchId == batchId &&
         (subjectId == null || a.subjectId == subjectId),
   );

@@ -639,6 +639,16 @@ service cloud.firestore {
     // write. This is the SAME class of accepted, explicitly-documented
     // trade-off this project has made before, not a new or lesser
     // standard invented for Set 23.
+    //
+    // Set 24 re-investigated this from first principles (re-confirmed the
+    // 10-call budget against Firebase's own docs, re-costed a bounded
+    // check against both the class's and the teacher's own subject
+    // lists, and identified but deliberately rejected the one
+    // architectural change that would close it - see docs/database-
+    // architecture.md's "Teacher-scoped Firestore rules (Set 23-24)" for
+    // the full writeup) and made NO change here: this remains the
+    // safest practical implementation available under this project's
+    // constraints, not an unexamined carry-over.
     match /attendance/{recordId} {
       allow get: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);
       allow list: if isAdmin() || isTeacher() || isStudentOfBatch(resource.data.batchId);

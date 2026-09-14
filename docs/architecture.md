@@ -1307,6 +1307,87 @@ until an admin creates an actual assignment for it.
   remain available for any future admin-side use but were not needed by
   this set.
 
+## Set 24: teacher-scope hardening & security audit
+
+Set 24's brief was to re-investigate whether Set 23's one documented gap
+(attendance's teacher-write rule) can now be closed, and to run a
+cross-module audit of everything Sets 22-23 built. It re-verified the
+Firestore rules limitation from first principles (see docs/database-
+architecture.md's "Teacher-scoped Firestore rules (Set 23-24)" for the
+full technical writeup, including the confirmed 10-document-access-call
+budget per single-document request and why every alternative technique
+is either unsafe at this project's real scale or explicitly prohibited by
+this project's own constraints) and concluded: **the limitation is
+genuine, not a shortcut - it stays undone, exactly as documented, rather
+than being "solved" with a workaround that would fail in production.**
+Nothing about attendance's rule changed in this set.
+
+- **One real bug found and fixed**: `teacherCanOperateOn` (Set 23) did
+  not check `classId` at all, even though `firestore.rules`'
+  `teacherIsAssignedTo` always has. In the narrow case where an admin
+  edits a batch's `classId` after a teacher was assigned to it (Set 10's
+  `BatchController.updateBatch` allows this), the Dart-side check could
+  say "yes, show the Edit/Publish/Enter-marks button" for an action the
+  rule would then actually reject - not a security hole (the rule still
+  correctly denies; failure is closed, not open), but a genuine
+  UI/rules mirroring bug and a bad user experience (a button that always
+  fails). Fixed by adding a required `classId` parameter to
+  `teacherCanOperateOn` and passing it at all three call sites
+  (`AcademicWorkDetailsScreen`, `TestDetailsScreen`, `EnterMarksScreen`).
+  This is the only code change this set made to Sets 22/23's actual
+  logic - everything else was audit/documentation.
+- **Cross-module audit findings (no further changes needed)**:
+  - Admin access is unconditional in every rule this project has ever
+    written (`isAdmin() || ...`) - confirmed unchanged for attendance/
+    academicWork/tests/testResults/teacherAssignments/notices/results.
+  - An inactive teacher (`users/{uid}.active == false`) loses ALL
+    teacher-role rule branches immediately, project-wide, via the
+    existing `isTeacher()`/`callerAccount().active` check (Set 2) -
+    nothing Set 22/23-specific was needed here; deactivating a teacher
+    (`TeacherFormController.setActive`) already flips both `teachers/
+    {uid}.active` and `users/{uid}.active` together.
+  - An inactive assignment loses authorization immediately for
+    academicWork/tests/testResults (`teacherIsAssignedTo` checks
+    `.active == true` on every call, never a cached/stale read) and, at
+    the application layer, for attendance too (`distinctActiveBatchScopes`
+    filters to `active` before ever offering a batch in the picker).
+  - Results (Set 15) and Notices (Set 17) were re-checked and confirmed
+    to have no teacher-assignment relevance at all: Results has no
+    teacher route in `router.dart` at all (structurally unreachable by a
+    teacher account, not just hidden), and Notices' teacher branch reads
+    only `published` notices targeted at `all`/`teachers` - unrelated to
+    batch/subject scope, unchanged by Set 22/23, nothing to hardener.
+  - `teacherIsAssignedTo` (rules) and `teacherCanOperateOn`/
+    `distinctActiveBatchScopes` (Dart) remain the ONLY authorization
+    primitives - no `teacherCanCreateTest()`/`teacherCanCreateHomework()`-
+    style duplicate helpers exist; `academicWorkTeacherScopeMatches`/
+    `testTeacherScopeMatches`/`testResultTeacherScopeMatches` (rules) are
+    thin, module-specific argument adapters around the one shared
+    primitive, not reimplementations of it.
+  - Every teacher-facing controller (`AttendanceController`/
+    `AcademicWorkController`/`TestController`) already converts ANY
+    thrown error - including a Firestore `permission-denied` from a
+    scope violation - into one generic, friendly `XFailure` message via
+    `catch (_) { throw const XFailure('...') }` / `catch (error) { if
+    (error is XFailure) rethrow; throw const XFailure('...'); }`, and
+    every calling screen displays only `failure.message`, never a raw
+    exception. No internal rule detail is ever exposed; no crash; no
+    silent false-success path exists anywhere in these flows. Confirmed
+    by inspection, no changes were needed.
+  - No new composite indexes exist anywhere in this project
+    (`firestore.indexes.json` stays `{"indexes": [], "fieldOverrides":
+    []}`) - every Set 22/23 query is a single-field equality `.where()`
+    (`teacherId ==`), which Firestore never needs a composite index for.
+  - Historical data integrity was re-checked across attendance, tests,
+    academicWork, student admissions, fee payments and teacher
+    assignments - every collection's `delete` rule is still `if false`,
+    and every "deactivate" controller method (`TestController.setActive`,
+    `AcademicWorkController.setStatus`, `TeacherAssignmentController.
+    setActive`, `TeacherFormController.setActive`, `BatchController.
+    setActive`) only ever flips a status/active field, never rewrites a
+    record's identity or historical figures. No migrations were run or
+    needed.
+
 ## What's deliberately not here yet
 
 - An online payment gateway/checkout (Razorpay/Stripe/PayPal/UPI deep-
@@ -1362,14 +1443,21 @@ until an admin creates an actual assignment for it.
   batch/subject an active `TeacherAssignment` actually grants, checked
   server-side via `teacherIsAssignedTo`. Reads on all three stay exactly
   as broad as before (any active teacher). `attendance` writes are the
-  ONE remaining, explicitly documented exception - Firestore Rules cannot
-  safely check "any active assignment, for an unknown subject" for a
-  batch-level (non-subject) record without an unsafe/oversized rule or
-  duplicated data, so that collection's write rule stays role-based
+  ONE remaining, DELIBERATELY UNRESOLVED exception - Set 24
+  re-investigated this from first principles (confirmed Firestore's
+  actual 10-document-access-call budget against its own documentation,
+  re-derived why every alternative technique is either unsafe at this
+  project's real scale or explicitly prohibited) and concluded the
+  limitation is genuine, not a shortcut: Firestore Rules cannot safely
+  check "any active assignment, for an unknown subject" for a
+  batch-level (non-subject) record without an unsafe/oversized rule, a
+  duplicated assignment index, or Cloud Functions/custom claims - all
+  ruled out. That collection's write rule stays role-based
   (`isAdmin() || isTeacher()`), with the application (not the rules)
   restricting which batch a teacher's UI ever offers - see
   docs/database-architecture.md's "Teacher-scoped Firestore rules (Set
-  23)" for the full reasoning.
+  23-24)" for the full reasoning, the confirmed budget figures, and the
+  one identified-but-rejected architectural change that would close it.
 - A telecaller role - enquiry/callback management is admin-only by
   explicit requirement (Set 5).
 - An enquiry-to-admission conversion workflow (Set 18's own scope

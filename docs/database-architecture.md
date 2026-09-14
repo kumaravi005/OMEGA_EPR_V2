@@ -1486,7 +1486,7 @@ starting a new academic session and wanting the same teacher/batch/
 subject combination requires creating a new assignment (a new document,
 since the id embeds the session).
 
-## Teacher-scoped Firestore rules (Set 23)
+## Teacher-scoped Firestore rules (Set 23-24)
 
 Set 22 built `teacherAssignments` with nothing reading it yet. Set 23
 uses it to authorize teacher WRITES to `academicWork`, `tests` and
@@ -1593,6 +1593,87 @@ plainly, not glossed over: it is a known, accepted limitation of what
 Firestore Security Rules can express without either an unsafe rule or
 prohibited infrastructure, consistent with this project's existing
 "any active teacher may work with any batch" trade-offs elsewhere.
+
+### Set 24 re-investigation: does a clean fix exist now?
+
+Set 24's explicit brief was to re-verify this from first principles
+rather than take the Set 23 writeup at its word. What was actually
+re-checked:
+
+- **The 10-document-access-call budget was re-confirmed directly against
+  Firebase's own security-rules documentation** (not re-derived from
+  memory): "A given security rules request can perform a maximum of 10
+  document access calls" for a single-document request, and "using these
+  functions executes a read operation in your database... even if your
+  rules reject the request" (so a failed bounded-unroll attempt is not
+  even free). The documentation also notes "some document access calls
+  may be cached" but does **not** specify the exact conditions under
+  which a repeated `get()` on the identical path is or isn't counted
+  twice - this project has no Firestore emulator rules-testing harness
+  (no Node/JS test tooling has ever been part of this Flutter project;
+  introducing one purely to empirically probe an undocumented caching
+  detail was judged out of proportion for what it would answer, and an
+  emulator's rule-evaluation engine is not guaranteed to enforce the
+  exact same resource limits as production Firestore, so a passing
+  emulator experiment would not have been trustworthy evidence anyway).
+  Given that ambiguity, the only responsible basis for a security
+  decision is the DOCUMENTED, worst-case figure - not an assumption that
+  caching will save enough calls to fit.
+- **A bounded-unroll against the class's configured `subjectIds`** was
+  re-costed precisely: 1 call to read `classes/{classId}.subjectIds`,
+  plus up to 2 calls (`exists()` + `get()`) per candidate subject already
+  spent evaluating `isAdmin()`/`isTeacher()` (each does its own `exists()`
+  + `get()` against `users/{uid}`, worst case ~2-4 calls before any
+  attendance-specific logic even runs). At Set 9's own seeded scale (10
+  subjects for classes 9-12), a worst-case evaluation could need well
+  over 10 calls just for the bounded-unroll portion, before adding the
+  role-check overhead - confirmed to exceed budget, not merely
+  theoretically capable of exceeding it.
+- **A bounded-unroll against the TEACHER's OWN capability list
+  (`TeacherProfile.subjectIds`) instead of the class's** was considered
+  as a tighter bound (a teacher's own capability list is typically much
+  smaller than a class's full subject list, and Set 22's own assignment
+  form already guarantees every assignment's subject is a member of the
+  assignee's capability list, so this bound would be exhaustive, not
+  approximate). It was rejected anyway: `TeacherProfile.subjectIds` has
+  no admin-enforced upper bound either (nothing stops an admin from
+  giving one teacher many subjects), so this is the same class of
+  scale-dependent fragility as option 2 above, just with a probabilistic
+  argument ("usually small") standing in for a guarantee - not an
+  acceptable basis for a security control.
+- **The minimum architectural change that WOULD close this gap** was
+  identified precisely, so it's on record rather than hand-waved:
+  restructure `teacherAssignments` so its primary key drops `subjectId`
+  (`teacherId + academicSessionId + batchId` only), with the assigned
+  subject(s) stored as a field (e.g. a list) on that one document instead
+  of one document per subject. That single document would then answer
+  "does this teacher have ANY assignment to this batch" with exactly the
+  ONE `exists()`+`get()` pair `academicWork`/`tests` already use for
+  their exact-subject checks - genuinely solving the problem, without a
+  second collection or duplicated data. **This was deliberately NOT
+  implemented in Set 24**, because it fails the spec's own "clearly
+  justified" bar: it would rewrite Set 22's already-shipped assignment
+  identity/uniqueness scheme (a set this project was explicitly told not
+  to redo), and it would either (a) collapse "active" to apply to an
+  entire batch's worth of subjects at once - regressing Set 22 section
+  7's explicit support for deactivating one subject-assignment
+  independently of another for the same teacher+batch - or (b) require
+  replacing the simple `active: bool` field with a per-subject active
+  map and materially more complex update-validation rules, which is a
+  genuine data-model redesign, not "hardening." The actual, current
+  exposure this closes is narrow (a deliberately crafted direct API
+  write bypassing the app UI - not a mistake reachable through normal
+  use of the product), and Set 24's own instructions are explicit that
+  "security correctness is more important than pretending the limitation
+  is solved" but equally that an unjustified redesign is not the answer
+  either.
+
+**Conclusion: the Set 23 design remains the safest practical
+implementation and is unchanged by Set 24.** The one real bug Set 24
+found and fixed was unrelated to this limitation - see docs/
+architecture.md's "Set 24: teacher-scope hardening & security audit" for
+the `teacherCanOperateOn` `classId` fix, which affects `academicWork`/
+`tests`, not `attendance`.
 
 ## Security posture (this phase)
 

@@ -91,6 +91,7 @@ class _DetailsBody extends ConsumerWidget {
             ref.watch(ownTeacherAssignmentsProvider(account.uid)).valueOrNull ??
                 const [],
             academicSessionId: test.academicSessionId,
+            classId: test.classId,
             batchId: test.batchId,
             subjectId: test.subjectId,
           )
