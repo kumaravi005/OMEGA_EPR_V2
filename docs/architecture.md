@@ -1406,11 +1406,21 @@ was verified clean. Genuine issues found and fixed:
   It hadn't been, for this one screen. Fixed by deleting the private
   copy and calling `Validators.amount(value, label: 'Amount', allowZero:
   false)` instead - already covered by `test/core/utils/validators_test.dart`,
-  so no new test was needed. (Investigated and deliberately did NOT add:
-  an "overpayment" block/warning - `fee_calculator.dart`'s
-  `combinedBalanceDue` doc comment and the existing `Advance` fee status
-  make clear that a payment exceeding the current due is a legitimate,
-  already-supported outcome, not a data-entry mistake to prevent.)
+  so no new test was needed. (Investigated and deliberately did NOT add
+  an "overpayment" block/warning to the dialog - Set 26 found that a
+  block already exists one layer down, in `FeePaymentController.
+  recordPayment`, per Set 19's own explicit "do not invent credit-balance
+  behavior" requirement - see docs/database-architecture.md's "Preventing
+  an overpayment, and why that check lives in the app, not the rule" for
+  the full, pre-existing rationale. This Set 25 bullet originally
+  described this as "a payment exceeding the current due is a legitimate,
+  already-supported outcome" - that was imprecise: a SINGLE payment can
+  never exceed the current due (the controller rejects it); the `Advance`
+  fee status exists for the narrower, separate case of a fee AGREEMENT
+  being corrected downward after payments were already recorded, not for
+  free-form overpayment entry. Corrected here in Set 26 - no code
+  changed, since the controller's existing behavior was already correct
+  and intentional.)
 - **Four report/export screens generated an output with a header row
   and zero data rows, silently**, when the selected filters matched
   nothing (`FeeDueReportScreen`, `PaymentReportScreen`,
