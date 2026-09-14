@@ -1,13 +1,22 @@
 # Firebase Setup
 
-This project has **not** been connected to a real Firebase project. No
-Firebase values (API keys, project ID, app IDs, etc.) have been invented
-or guessed anywhere in this codebase — `lib/firebase_options.dart` is a
-placeholder that intentionally throws until you generate the real file.
+**Set 27 update**: this project IS now connected to a real Firebase
+project (`omega-education-centre-9a3b3` - see `.firebaserc`) -
+`lib/firebase_options.dart`, `android/app/google-services.json` are the
+real, committed values (Firebase client config is not a secret; see
+"Security" in docs/development-rules.md for why). `firestore.rules` has
+been deployed to it repeatedly across every set that changed it. No
+Firebase value anywhere in this codebase has ever been invented or
+guessed. An admin account already exists in that project - step 7 below
+does not need to be repeated.
 
-Follow these steps in order. Steps 1-5 and 7 are one-time, done once by
-whoever owns the Firebase project. Step 6 (`flutter run`) is what anyone
-building the app runs locally each time.
+Everything below is still the accurate, step-by-step reference for
+connecting a **different** Firebase project (a fresh clone pointed at
+your own project, a staging/test project, or recovering from a lost
+`.firebaserc`/`firebase_options.dart`) - follow it in order in that case.
+Steps 1-5 and 7 are one-time, done once by whoever owns the Firebase
+project. Step 6 (`flutter run`) is what anyone building the app runs
+locally each time.
 
 ## 1. Create the Firebase project
 
@@ -133,10 +142,10 @@ flutter pub get
 flutter run -d chrome   # or an Android emulator / device
 ```
 
-With Firebase configured, the app's foundation screen should show
-**"Signed out — sign-in screens are added in the authentication phase."**
-instead of the "Unable to reach authentication service" error you'd see
-without a real Firebase project connected.
+With Firebase configured, the app should load the public institute home
+page and its Login screen should work, instead of the "Unable to reach
+authentication service" error you'd see without a real Firebase project
+connected.
 
 ## 7. Create the first admin account
 
