@@ -9,6 +9,14 @@ abstract final class AppColors {
   static const primaryDark = Color(0xFF143E77);
   static const secondary = Color(0xFF2FA084);
 
+  /// Brand accent sampled from the real Omega logo (branding/logo.png),
+  /// same value used for the maskable PWA icon background in Set 28. A
+  /// controlled accent only (badges, highlights, splash) - never a
+  /// dominant surface color, per Set 29's "do not make the whole app
+  /// yellow" direction.
+  static const accent = Color(0xFFFFDD00);
+  static const onAccent = Color(0xFF1B1F24);
+
   static const background = Color(0xFFF5F7FA);
   static const surface = Color(0xFFFFFFFF);
 

@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/app_constants.dart';
 import 'core/services/auth_service.dart';
 import 'core/theme/app_theme.dart';
-import 'core/widgets/loading_view.dart';
 import 'core/widgets/offline_banner.dart';
+import 'core/widgets/splash_view.dart';
 import 'features/auth/application/auth_providers.dart';
 import 'features/auth/application/device_id_service.dart';
 import 'router.dart';
@@ -38,9 +38,7 @@ class _OmegaAppState extends ConsumerState<OmegaApp> {
       builder: (context, child) {
         final isResolvingAuth = ref.watch(authStateChangesProvider).isLoading;
         if (isResolvingAuth) {
-          return const Scaffold(
-            body: LoadingView(message: 'Connecting to Omega...'),
-          );
+          return const SplashView(message: 'Connecting to Omega...');
         }
         return OfflineBanner(child: child ?? const SizedBox.shrink());
       },

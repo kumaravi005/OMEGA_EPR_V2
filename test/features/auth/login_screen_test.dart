@@ -12,6 +12,7 @@ void main() {
         const ProviderScope(child: MaterialApp(home: LoginScreen())),
       );
 
+      await tester.ensureVisible(find.byType(AppButton));
       await tester.tap(find.byType(AppButton));
       await tester.pump();
 

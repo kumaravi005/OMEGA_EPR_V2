@@ -3,153 +3,204 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/nav_tile.dart';
+import '../../../core/widgets/dashboard_header.dart';
+import '../../../core/widgets/nav_grid_tile.dart';
+import '../../../core/widgets/section_header.dart';
 import '../../auth/application/auth_providers.dart';
 
-/// Admin's landing screen: a single list of every admin section, ordered
-/// by domain adjacency (accounts/teachers/batches/assignments/students/
-/// fees/attendance/homework/tests/results, then enquiries, then public
-/// content, then configuration/notices/reports) rather than grouped under
-/// visual section headers - this project's established "one flat NavTile
-/// list per role" pattern (see `TeacherHomeScreen`/`StudentHomeScreen`).
+/// Admin's landing screen: every admin section, grouped under visual
+/// headers by domain (people & academics, fees, communication, front
+/// office/website, system) instead of one long flat list - the same 22
+/// destinations as before, just organized so the screen reads as a
+/// control center rather than a scroll-heavy menu.
 class AdminDashboardScreen extends ConsumerWidget {
   const AdminDashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final account = ref.watch(currentUserAccountProvider).valueOrNull;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Admin'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
-            onPressed: () => ref.read(authControllerProvider).logout(),
-          ),
-        ],
-      ),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: ListView(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              children: [
-                NavTile(
-                  icon: Icons.manage_accounts_outlined,
-                  label: 'Login accounts',
-                  onTap: () => context.push(AppRoutes.adminAccounts),
-                ),
-                NavTile(
-                  icon: Icons.school_outlined,
-                  label: 'Teachers',
-                  onTap: () => context.push(AppRoutes.adminTeachers),
-                ),
-                NavTile(
-                  icon: Icons.groups_outlined,
-                  label: 'Batches',
-                  onTap: () => context.push(AppRoutes.adminBatches),
-                ),
-                NavTile(
-                  icon: Icons.assignment_ind_outlined,
-                  label: 'Teacher assignments',
-                  onTap: () => context.push(AppRoutes.adminTeacherAssignments),
-                ),
-                NavTile(
-                  icon: Icons.people_alt_outlined,
-                  label: 'Students',
-                  onTap: () => context.push(AppRoutes.adminStudents),
-                ),
-                NavTile(
-                  icon: Icons.currency_rupee_outlined,
-                  label: 'Fees',
-                  onTap: () => context.push(AppRoutes.adminFeeDues),
-                ),
-                NavTile(
-                  icon: Icons.event_available_outlined,
-                  label: 'Attendance',
-                  onTap: () => context.push(AppRoutes.adminAttendance),
-                ),
-                NavTile(
-                  icon: Icons.menu_book_outlined,
-                  label: 'Homework & Assignments',
-                  onTap: () => context.push(AppRoutes.adminAcademicWork),
-                ),
-                NavTile(
-                  icon: Icons.assignment_outlined,
-                  label: 'Tests',
-                  onTap: () => context.push(AppRoutes.adminTests),
-                ),
-                NavTile(
-                  icon: Icons.leaderboard_outlined,
-                  label: 'Results',
-                  onTap: () => context.push(AppRoutes.adminResults),
-                ),
-                NavTile(
-                  icon: Icons.contact_phone_outlined,
-                  label: 'Visitor enquiries',
-                  onTap: () => context.push(AppRoutes.adminEnquiries),
-                ),
-                NavTile(
-                  icon: Icons.call_outlined,
-                  label: 'Callback requests (history)',
-                  onTap: () => context.push(AppRoutes.adminCallbackRequests),
-                ),
-                NavTile(
-                  icon: Icons.photo_library_outlined,
-                  label: 'Gallery',
-                  onTap: () => context.push(AppRoutes.adminGallery),
-                ),
-                NavTile(
-                  icon: Icons.view_carousel_outlined,
-                  label: 'Banners',
-                  onTap: () => context.push(AppRoutes.adminBanners),
-                ),
-                NavTile(
-                  icon: Icons.calendar_month_outlined,
-                  label: 'Upcoming batches',
-                  onTap: () => context.push(AppRoutes.adminUpcomingBatches),
-                ),
-                NavTile(
-                  icon: Icons.campaign_outlined,
-                  label: 'Advertisements',
-                  onTap: () => context.push(AppRoutes.adminAdvertisements),
-                ),
-                NavTile(
-                  icon: Icons.announcement_outlined,
-                  label: 'Announcements',
-                  onTap: () => context.push(AppRoutes.adminAnnouncements),
-                ),
-                NavTile(
-                  icon: Icons.settings_outlined,
-                  label: 'Configuration',
-                  onTap: () => context.push(AppRoutes.adminConfiguration),
-                ),
-                NavTile(
-                  icon: Icons.notifications_outlined,
-                  label: 'Notifications',
-                  onTap: () => context.push(AppRoutes.adminNotifications),
-                ),
-                NavTile(
-                  icon: Icons.notification_important_outlined,
-                  label: 'Notices',
-                  onTap: () => context.push(AppRoutes.adminNotices),
-                ),
-                NavTile(
-                  icon: Icons.summarize_outlined,
-                  label: 'Reports & exports',
-                  onTap: () => context.push(AppRoutes.adminReports),
-                ),
-                NavTile(
-                  icon: Icons.badge_outlined,
-                  label: 'Report templates',
-                  onTap: () => context.push(AppRoutes.adminReportTemplates),
-                ),
-              ],
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DashboardHeader(
+              greeting: greetingFor(DateTime.now()),
+              roleLabel: 'Admin',
+              name: account?.displayName,
+              onSignOut: () => ref.read(authControllerProvider).logout(),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SectionHeader('People & academics'),
+                  _Grid([
+                    _Dest(
+                      Icons.manage_accounts_outlined,
+                      'Login accounts',
+                      AppRoutes.adminAccounts,
+                    ),
+                    _Dest(
+                      Icons.school_outlined,
+                      'Teachers',
+                      AppRoutes.adminTeachers,
+                    ),
+                    _Dest(
+                      Icons.groups_outlined,
+                      'Batches',
+                      AppRoutes.adminBatches,
+                    ),
+                    _Dest(
+                      Icons.assignment_ind_outlined,
+                      'Teacher assignments',
+                      AppRoutes.adminTeacherAssignments,
+                    ),
+                    _Dest(
+                      Icons.people_alt_outlined,
+                      'Students',
+                      AppRoutes.adminStudents,
+                    ),
+                    _Dest(
+                      Icons.event_available_outlined,
+                      'Attendance',
+                      AppRoutes.adminAttendance,
+                    ),
+                    _Dest(
+                      Icons.menu_book_outlined,
+                      'Homework',
+                      AppRoutes.adminAcademicWork,
+                    ),
+                    _Dest(
+                      Icons.assignment_outlined,
+                      'Tests',
+                      AppRoutes.adminTests,
+                    ),
+                    _Dest(
+                      Icons.leaderboard_outlined,
+                      'Results',
+                      AppRoutes.adminResults,
+                    ),
+                  ]),
+                  const SectionHeader('Fees'),
+                  _Grid([
+                    _Dest(
+                      Icons.currency_rupee_outlined,
+                      'Fees',
+                      AppRoutes.adminFeeDues,
+                    ),
+                  ]),
+                  const SectionHeader('Communication'),
+                  _Grid([
+                    _Dest(
+                      Icons.notifications_outlined,
+                      'Notifications',
+                      AppRoutes.adminNotifications,
+                    ),
+                    _Dest(
+                      Icons.notification_important_outlined,
+                      'Notices',
+                      AppRoutes.adminNotices,
+                    ),
+                  ]),
+                  const SectionHeader('Front office & website'),
+                  _Grid([
+                    _Dest(
+                      Icons.contact_phone_outlined,
+                      'Visitor enquiries',
+                      AppRoutes.adminEnquiries,
+                    ),
+                    _Dest(
+                      Icons.call_outlined,
+                      'Callback requests',
+                      AppRoutes.adminCallbackRequests,
+                    ),
+                    _Dest(
+                      Icons.photo_library_outlined,
+                      'Gallery',
+                      AppRoutes.adminGallery,
+                    ),
+                    _Dest(
+                      Icons.view_carousel_outlined,
+                      'Banners',
+                      AppRoutes.adminBanners,
+                    ),
+                    _Dest(
+                      Icons.calendar_month_outlined,
+                      'Upcoming batches',
+                      AppRoutes.adminUpcomingBatches,
+                    ),
+                    _Dest(
+                      Icons.campaign_outlined,
+                      'Advertisements',
+                      AppRoutes.adminAdvertisements,
+                    ),
+                    _Dest(
+                      Icons.announcement_outlined,
+                      'Announcements',
+                      AppRoutes.adminAnnouncements,
+                    ),
+                  ]),
+                  const SectionHeader('System'),
+                  _Grid([
+                    _Dest(
+                      Icons.settings_outlined,
+                      'Configuration',
+                      AppRoutes.adminConfiguration,
+                    ),
+                    _Dest(
+                      Icons.summarize_outlined,
+                      'Reports & exports',
+                      AppRoutes.adminReports,
+                    ),
+                    _Dest(
+                      Icons.badge_outlined,
+                      'Report templates',
+                      AppRoutes.adminReportTemplates,
+                    ),
+                  ]),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _Dest {
+  const _Dest(this.icon, this.label, this.route);
+
+  final IconData icon;
+  final String label;
+  final String route;
+}
+
+class _Grid extends StatelessWidget {
+  const _Grid(this.destinations);
+
+  final List<_Dest> destinations;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 3,
+      crossAxisSpacing: AppSpacing.sm,
+      mainAxisSpacing: AppSpacing.sm,
+      childAspectRatio: 0.95,
+      children: [
+        for (final dest in destinations)
+          NavGridTile(
+            icon: dest.icon,
+            label: dest.label,
+            onTap: () => context.push(dest.route),
+          ),
+      ],
     );
   }
 }

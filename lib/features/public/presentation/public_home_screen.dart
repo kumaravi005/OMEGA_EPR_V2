@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/routing/app_routes.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/contact_actions.dart';
 import '../../../core/utils/date_key.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/section_header.dart';
 import '../../enquiries/presentation/request_callback_dialog.dart';
 import '../../enquiries/presentation/submit_enquiry_dialog.dart';
 import '../../notices/data/notice.dart';
@@ -43,67 +45,62 @@ class PublicHomeScreen extends ConsumerWidget {
       body: SafeArea(
         child: Stack(
           children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 720),
-                child: ListView(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  children: [
-                    _HeroSection(
-                      instituteName: instituteName,
-                      tagline: profileAsync.valueOrNull?.tagline,
-                      logoUrl: profileAsync.valueOrNull?.logoUrl,
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    const _BannersSection(),
-                    const _UpcomingBatchesSection(),
-                    const _GallerySection(),
-                    const _AnnouncementsSection(),
-                    const _PublicNoticesSection(),
-                    _AboutSection(about: profileAsync.valueOrNull?.about),
-                    _ContactSection(profile: profileAsync.valueOrNull),
-                    const SizedBox(height: AppSpacing.md),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: AppButton(
-                            label: 'Admission enquiry',
-                            onPressed: () => showSubmitEnquiryDialog(context),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: AppButton(
-                            label: 'Request a callback',
-                            variant: AppButtonVariant.secondary,
-                            onPressed: () => showRequestCallbackDialog(context),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
+            ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _HeroSection(
+                  instituteName: instituteName,
+                  tagline: profileAsync.valueOrNull?.tagline,
+                  logoUrl: profileAsync.valueOrNull?.logoUrl,
                 ),
-              ),
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: AppButton(
+                                  label: 'Admission enquiry',
+                                  onPressed: () =>
+                                      showSubmitEnquiryDialog(context),
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              Expanded(
+                                child: AppButton(
+                                  label: 'Request a callback',
+                                  variant: AppButtonVariant.secondary,
+                                  onPressed: () =>
+                                      showRequestCallbackDialog(context),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const _BannersSection(),
+                          const _UpcomingBatchesSection(),
+                          const _GallerySection(),
+                          const _AnnouncementsSection(),
+                          const _PublicNoticesSection(),
+                          _AboutSection(about: profileAsync.valueOrNull?.about),
+                          _ContactSection(profile: profileAsync.valueOrNull),
+                          const SizedBox(height: AppSpacing.xl),
+                          _Footer(instituteName: instituteName),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const AdPopupTrigger(),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm, top: AppSpacing.lg),
-      child: Text(text, style: Theme.of(context).textTheme.headlineMedium),
     );
   }
 }
@@ -121,32 +118,94 @@ class _HeroSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        if (logoUrl != null && logoUrl!.isNotEmpty) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-            child: Image.network(
-              logoUrl!,
-              height: 96,
-              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+    final hasNetworkLogo = logoUrl != null && logoUrl!.isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.xl,
+        AppSpacing.md,
+        AppSpacing.xxl,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.vertical(
+          bottom: Radius.circular(AppSpacing.radiusLg),
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 104,
+            height: 104,
+            padding: const EdgeInsets.all(AppSpacing.xs),
+            decoration: const BoxDecoration(
+              color: AppColors.accent,
+              shape: BoxShape.circle,
+            ),
+            child: ClipOval(
+              child: hasNetworkLogo
+                  ? Image.network(
+                      logoUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Image.asset(
+                        'assets/branding/logo.png',
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : Image.asset('assets/branding/logo.png', fit: BoxFit.cover),
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-        Text(
-          instituteName,
-          style: Theme.of(context).textTheme.headlineLarge,
-          textAlign: TextAlign.center,
-        ),
-        if (tagline != null && tagline!.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.xs),
+          const SizedBox(height: AppSpacing.md),
           Text(
-            tagline!,
-            style: Theme.of(context).textTheme.bodyLarge,
+            instituteName,
+            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+              color: Colors.white,
+            ),
             textAlign: TextAlign.center,
           ),
+          if (tagline != null && tagline!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              tagline!,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: Colors.white70),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _Footer extends StatelessWidget {
+  const _Footer({required this.instituteName});
+
+  final String instituteName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const Divider(),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          instituteName,
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(color: AppColors.textSecondary),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          '© ${DateTime.now().year} $instituteName. All rights reserved.',
+          style: Theme.of(context).textTheme.bodySmall,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSpacing.lg),
       ],
     );
   }
@@ -219,7 +278,7 @@ class _UpcomingBatchesSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionTitle('Upcoming batches'),
+        const SectionHeader('Upcoming batches'),
         for (final batch in active)
           AppCard(
             child: Padding(
@@ -257,7 +316,7 @@ class _GallerySection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionTitle('Gallery'),
+        const SectionHeader('Gallery'),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -300,7 +359,7 @@ class _AnnouncementsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionTitle('Announcements'),
+        const SectionHeader('Announcements'),
         for (final item in active)
           AppCard(
             child: Padding(
@@ -333,7 +392,7 @@ class _AboutSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionTitle('About us'),
+        const SectionHeader('About us'),
         AppCard(child: Text(about!)),
       ],
     );
@@ -363,7 +422,7 @@ class _ContactSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionTitle('Contact us'),
+        const SectionHeader('Contact us'),
         AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,7 +488,7 @@ class _PublicNoticesSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionTitle('Notices'),
+        const SectionHeader('Notices'),
         for (final notice in notices)
           AppCard(
             child: ListTile(
