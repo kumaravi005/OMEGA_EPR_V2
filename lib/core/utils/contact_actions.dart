@@ -25,3 +25,15 @@ Future<bool> openWhatsApp(String phoneNumber) {
     mode: LaunchMode.externalApplication,
   );
 }
+
+/// Opens an admin-supplied external link (e.g. a hero banner's CTA URL).
+/// Returns false instead of throwing if [url] isn't a valid http(s) link,
+/// so a malformed admin-entered URL degrades to "nothing happens" rather
+/// than crashing the tap handler.
+Future<bool> openExternalLink(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
+    return Future.value(false);
+  }
+  return launchUrl(uri, mode: LaunchMode.externalApplication);
+}

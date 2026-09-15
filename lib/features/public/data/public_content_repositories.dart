@@ -57,14 +57,16 @@ final bannerRepositoryProvider = Provider<FirestoreRepository<BannerItem>>((
   );
 });
 
+int _bySortOrder(BannerItem a, BannerItem b) {
+  final bySortOrder = a.sortOrder.compareTo(b.sortOrder);
+  return bySortOrder != 0 ? bySortOrder : a.createdAt.compareTo(b.createdAt);
+}
+
 final allBannersProvider = StreamProvider<List<BannerItem>>((ref) {
   return ref
       .watch(bannerRepositoryProvider)
       .watchAll()
-      .map(
-        (items) =>
-            items.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
-      );
+      .map((items) => items.toList()..sort(_bySortOrder));
 });
 
 /// Public (and admin) - active items only. See [activeGalleryItemsProvider].
@@ -72,10 +74,7 @@ final activeBannersProvider = StreamProvider<List<BannerItem>>((ref) {
   return ref
       .watch(bannerRepositoryProvider)
       .watchWhere((query) => query.where('active', isEqualTo: true))
-      .map(
-        (items) =>
-            items.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
-      );
+      .map((items) => items.toList()..sort(_bySortOrder));
 });
 
 final upcomingBatchRepositoryProvider =

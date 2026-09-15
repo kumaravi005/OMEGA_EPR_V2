@@ -79,6 +79,7 @@ class PublicContentController {
     required bool active,
     required DateTime? displayFrom,
     required DateTime? displayUntil,
+    required int sortOrder,
   }) async {
     final now = DateTime.now();
     final banner = BannerItem(
@@ -91,6 +92,7 @@ class PublicContentController {
       active: active,
       displayFrom: displayFrom,
       displayUntil: displayUntil,
+      sortOrder: existing?.sortOrder ?? sortOrder,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     );
@@ -111,6 +113,22 @@ class PublicContentController {
       'updatedAt': Timestamp.now(),
     }),
   );
+
+  /// Persists a new display order for every banner in [orderedBanners] (its
+  /// index becomes the new `sortOrder`) in one atomic batch, so the public
+  /// carousel never briefly shows a partially-reordered list.
+  Future<void> reorderBanners(List<BannerItem> orderedBanners) => _run(() async {
+    final collection = _ref.read(bannerRepositoryProvider).collection;
+    final batch = collection.firestore.batch();
+    final now = Timestamp.now();
+    for (var i = 0; i < orderedBanners.length; i++) {
+      batch.update(collection.doc(orderedBanners[i].bannerId), {
+        'sortOrder': i,
+        'updatedAt': now,
+      });
+    }
+    await batch.commit();
+  });
 
   Future<void> saveUpcomingBatch({
     UpcomingBatch? existing,

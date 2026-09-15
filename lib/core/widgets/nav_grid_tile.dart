@@ -29,7 +29,7 @@ class NavGridTile extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.sm,
-            vertical: AppSpacing.md,
+            vertical: AppSpacing.sm,
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

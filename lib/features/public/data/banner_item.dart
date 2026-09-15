@@ -15,6 +15,7 @@ class BannerItem implements FirestoreDocument {
     required this.active,
     required this.displayFrom,
     required this.displayUntil,
+    required this.sortOrder,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -30,6 +31,9 @@ class BannerItem implements FirestoreDocument {
       active: map['active'] as bool,
       displayFrom: (map['displayFrom'] as Timestamp?)?.toDate(),
       displayUntil: (map['displayUntil'] as Timestamp?)?.toDate(),
+      // Defaults to 0 for banners created before Set 30 added ordering,
+      // so they sort first rather than failing to parse.
+      sortOrder: (map['sortOrder'] as int?) ?? 0,
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       updatedAt: (map['updatedAt'] as Timestamp).toDate(),
     );
@@ -44,6 +48,11 @@ class BannerItem implements FirestoreDocument {
   final bool active;
   final DateTime? displayFrom;
   final DateTime? displayUntil;
+
+  /// Admin-controlled display order on the public hero carousel (ascending
+  /// - lower first). Ties (e.g. several pre-Set-30 banners defaulting to 0)
+  /// fall back to [createdAt] - see `allBannersProvider`/`activeBannersProvider`.
+  final int sortOrder;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -72,6 +81,7 @@ class BannerItem implements FirestoreDocument {
       'displayUntil': displayUntil == null
           ? null
           : Timestamp.fromDate(displayUntil!),
+      'sortOrder': sortOrder,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };

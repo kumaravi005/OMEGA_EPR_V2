@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,12 +11,14 @@ import '../../../core/utils/contact_actions.dart';
 import '../../../core/utils/date_key.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/loading_view.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../enquiries/presentation/request_callback_dialog.dart';
 import '../../enquiries/presentation/submit_enquiry_dialog.dart';
 import '../../notices/data/notice.dart';
 import '../../notices/data/notice_repository.dart';
 import '../../notices/presentation/public_notice_dialog.dart';
+import '../data/banner_item.dart';
 import '../data/institute_profile.dart';
 import '../data/public_content_repositories.dart';
 import 'ad_popup.dart';
@@ -211,12 +215,24 @@ class _Footer extends StatelessWidget {
   }
 }
 
+/// Hero carousel section (Set 30): resolves the live, admin-ordered
+/// banner list and hands it to [_HeroCarousel], which owns the actual
+/// auto-slide/swipe/dot-indicator behavior. Kept separate from
+/// [_HeroCarousel] so the carousel's State isn't rebuilt from scratch on
+/// every Firestore emission - only when the resolved banner list itself
+/// changes (Flutter's normal widget-update diffing).
 class _BannersSection extends ConsumerWidget {
   const _BannersSection();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bannersAsync = ref.watch(activeBannersProvider);
+    if (bannersAsync.isLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+        child: LoadingView(),
+      );
+    }
     final live =
         bannersAsync.valueOrNull
             ?.where((b) => b.isLive(DateTime.now()))
@@ -224,43 +240,216 @@ class _BannersSection extends ConsumerWidget {
         const [];
     if (live.isEmpty) return const SizedBox.shrink();
 
-    return SizedBox(
-      height: 220,
-      child: PageView(
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: _HeroCarousel(banners: live),
+    );
+  }
+}
+
+class _HeroCarousel extends StatefulWidget {
+  const _HeroCarousel({required this.banners});
+
+  final List<BannerItem> banners;
+
+  @override
+  State<_HeroCarousel> createState() => _HeroCarouselState();
+}
+
+class _HeroCarouselState extends State<_HeroCarousel> {
+  final _controller = PageController();
+  Timer? _timer;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _restartAutoSlide();
+  }
+
+  @override
+  void didUpdateWidget(_HeroCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldIds = oldWidget.banners.map((b) => b.bannerId).join(',');
+    final newIds = widget.banners.map((b) => b.bannerId).join(',');
+    if (oldIds != newIds) {
+      _currentPage = 0;
+      if (_controller.hasClients) _controller.jumpToPage(0);
+      _restartAutoSlide();
+    }
+  }
+
+  void _restartAutoSlide() {
+    _timer?.cancel();
+    // Pause safely with 0 or 1 banner - nothing to slide to.
+    if (widget.banners.length <= 1) {
+      _timer = null;
+      return;
+    }
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
+      final next = (_currentPage + 1) % widget.banners.length;
+      _controller.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 20 / 9,
+      child: Stack(
         children: [
-          for (final banner in live)
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+              child: PageView.builder(
+                controller: _controller,
+                itemCount: widget.banners.length,
+                onPageChanged: (index) =>
+                    setState(() => _currentPage = index),
+                itemBuilder: (context, index) =>
+                    _HeroSlide(banner: widget.banners[index]),
+              ),
+            ),
+          ),
+          if (widget.banners.length > 1)
+            Positioned(
+              bottom: AppSpacing.sm,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                      child: Image.network(
-                        banner.imageUrl,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        errorBuilder: (_, _, _) => const Center(
-                          child: Icon(Icons.broken_image_outlined),
-                        ),
+                  for (var i = 0; i < widget.banners.length; i++)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: i == _currentPage ? 18 : 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: i == _currentPage
+                            ? AppColors.accent
+                            : Colors.white.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(3),
                       ),
-                    ),
-                  ),
-                  Text(
-                    banner.title,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  if (banner.description != null)
-                    Text(
-                      banner.description!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                 ],
               ),
             ),
         ],
       ),
+    );
+  }
+}
+
+class _HeroSlide extends StatelessWidget {
+  const _HeroSlide({required this.banner});
+
+  final BannerItem banner;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.network(
+          banner.imageUrl,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return const ColoredBox(
+              color: AppColors.background,
+              child: Center(child: CircularProgressIndicator()),
+            );
+          },
+          errorBuilder: (_, _, _) => const ColoredBox(
+            color: AppColors.background,
+            child: Center(
+              child: Icon(Icons.broken_image_outlined, size: 40),
+            ),
+          ),
+        ),
+        // Scrim so white title/description text stays readable over any
+        // uploaded poster image.
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomLeft,
+              end: Alignment.topRight,
+              colors: [
+                Colors.black.withValues(alpha: 0.55),
+                Colors.transparent,
+              ],
+              stops: const [0.0, 0.75],
+            ),
+          ),
+        ),
+        Positioned(
+          left: AppSpacing.md,
+          right: AppSpacing.md,
+          bottom: AppSpacing.lg,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                banner.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (banner.description != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  banner.description!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+              if (banner.ctaText != null && banner.ctaUrl != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: AppColors.onAccent,
+                    minimumSize: const Size(64, 36),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                    ),
+                  ),
+                  onPressed: () => openExternalLink(banner.ctaUrl!),
+                  child: Text(banner.ctaText!),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

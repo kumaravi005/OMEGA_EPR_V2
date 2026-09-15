@@ -1354,14 +1354,16 @@ service cloud.firestore {
       allow create: if isAdmin()
         && publicContentIsValid([
           'imageUrl', 'title', 'description', 'ctaText', 'ctaUrl', 'active', 'displayFrom', 'displayUntil',
-          'createdAt', 'updatedAt'
+          'sortOrder', 'createdAt', 'updatedAt'
         ])
-        && request.resource.data.imageUrl is string;
+        && request.resource.data.imageUrl is string
+        && request.resource.data.sortOrder is int;
       allow update: if isAdmin()
         && publicContentUpdateIsValid([
           'imageUrl', 'title', 'description', 'ctaText', 'ctaUrl', 'active', 'displayFrom', 'displayUntil',
-          'createdAt', 'updatedAt'
-        ]);
+          'sortOrder', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.sortOrder is int;
       allow delete: if false;
     }
 

@@ -12,6 +12,10 @@ import '../../application/public_content_controller.dart';
 import '../../data/banner_item.dart';
 import '../../data/public_content_repositories.dart';
 
+/// Admin management for the public homepage's hero carousel (Set 30).
+/// Banners are ordered by [BannerItem.sortOrder] - drag to reorder here,
+/// which the public carousel then reads directly (see
+/// `PublicHomeScreen`'s `_HeroCarouselSection`).
 class BannersScreen extends ConsumerWidget {
   const BannersScreen({super.key});
 
@@ -20,9 +24,12 @@ class BannersScreen extends ConsumerWidget {
     final bannersAsync = ref.watch(allBannersProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Banners')),
+      appBar: AppBar(title: const Text('Hero banners')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showBannerForm(context),
+        onPressed: () => _showBannerForm(
+          context,
+          nextSortOrder: bannersAsync.valueOrNull?.length ?? 0,
+        ),
         icon: const Icon(Icons.add),
         label: const Text('New banner'),
       ),
@@ -35,12 +42,50 @@ class BannersScreen extends ConsumerWidget {
             if (banners.isEmpty) {
               return const EmptyView(message: 'No banners yet.');
             }
-            return ListView.separated(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              itemCount: banners.length,
-              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-              itemBuilder: (context, index) =>
-                  _BannerTile(banner: banners[index]),
+            return Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                    AppSpacing.md,
+                    0,
+                  ),
+                  child: Text(
+                    'Recommended image size: 1200 x 540 px (20:9), JPG or PNG. '
+                    'Drag to reorder - the top banner shows first on the site.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+                Expanded(
+                  child: ReorderableListView.builder(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    itemCount: banners.length,
+                    onReorderItem: (oldIndex, newIndex) async {
+                      final reordered = banners.toList();
+                      final moved = reordered.removeAt(oldIndex);
+                      reordered.insert(newIndex, moved);
+                      final messenger = ScaffoldMessenger.of(context);
+                      try {
+                        await ref
+                            .read(publicContentControllerProvider)
+                            .reorderBanners(reordered);
+                      } on PublicContentFailure catch (failure) {
+                        messenger.showSnackBar(
+                          SnackBar(content: Text(failure.message)),
+                        );
+                      }
+                    },
+                    itemBuilder: (context, index) {
+                      final banner = banners[index];
+                      return _BannerTile(
+                        key: ValueKey(banner.bannerId),
+                        banner: banner,
+                      );
+                    },
+                  ),
+                ),
+              ],
             );
           },
         ),
@@ -50,7 +95,7 @@ class BannersScreen extends ConsumerWidget {
 }
 
 class _BannerTile extends ConsumerWidget {
-  const _BannerTile({required this.banner});
+  const _BannerTile({super.key, required this.banner});
 
   final BannerItem banner;
 
@@ -58,11 +103,30 @@ class _BannerTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Card(
       child: ListTile(
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          child: SizedBox(
+            width: 64,
+            height: 64 * 9 / 20,
+            child: Image.network(
+              banner.imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const ColoredBox(
+                color: Colors.black12,
+                child: Icon(Icons.broken_image_outlined, size: 18),
+              ),
+            ),
+          ),
+        ),
         title: Text(banner.title),
         subtitle: Text(
           banner.isLive(DateTime.now()) ? 'Live now' : 'Not currently live',
         ),
-        onTap: () => _showBannerForm(context, existing: banner),
+        onTap: () => _showBannerForm(
+          context,
+          existing: banner,
+          nextSortOrder: banner.sortOrder,
+        ),
         trailing: Switch(
           value: banner.active,
           onChanged: (value) async {
@@ -81,17 +145,23 @@ class _BannerTile extends ConsumerWidget {
   }
 }
 
-void _showBannerForm(BuildContext context, {BannerItem? existing}) {
+void _showBannerForm(
+  BuildContext context, {
+  BannerItem? existing,
+  required int nextSortOrder,
+}) {
   showDialog<void>(
     context: context,
-    builder: (context) => _BannerFormDialog(existing: existing),
+    builder: (context) =>
+        _BannerFormDialog(existing: existing, nextSortOrder: nextSortOrder),
   );
 }
 
 class _BannerFormDialog extends ConsumerStatefulWidget {
-  const _BannerFormDialog({this.existing});
+  const _BannerFormDialog({this.existing, required this.nextSortOrder});
 
   final BannerItem? existing;
+  final int nextSortOrder;
 
   @override
   ConsumerState<_BannerFormDialog> createState() => _BannerFormDialogState();
@@ -120,16 +190,25 @@ class _BannerFormDialogState extends ConsumerState<_BannerFormDialog> {
 
   bool _isSubmitting = false;
   String? _errorMessage;
+  String _previewUrl = '';
 
   @override
   void initState() {
     super.initState();
     _displayFrom = widget.existing?.displayFrom;
     _displayUntil = widget.existing?.displayUntil;
+    _previewUrl = _imageUrlController.text.trim();
+    _imageUrlController.addListener(_onImageUrlChanged);
+  }
+
+  void _onImageUrlChanged() {
+    final trimmed = _imageUrlController.text.trim();
+    if (trimmed != _previewUrl) setState(() => _previewUrl = trimmed);
   }
 
   @override
   void dispose() {
+    _imageUrlController.removeListener(_onImageUrlChanged);
     _imageUrlController.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
@@ -172,6 +251,7 @@ class _BannerFormDialogState extends ConsumerState<_BannerFormDialog> {
             active: _active,
             displayFrom: _displayFrom,
             displayUntil: _displayUntil,
+            sortOrder: widget.nextSortOrder,
           );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -197,6 +277,30 @@ class _BannerFormDialogState extends ConsumerState<_BannerFormDialog> {
                 Text(
                   _errorMessage!,
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              Text(
+                'Recommended size: 1200 x 540 px (20:9 aspect ratio), JPG or PNG.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              if (_previewUrl.isNotEmpty) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  child: AspectRatio(
+                    aspectRatio: 20 / 9,
+                    child: Image.network(
+                      _previewUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const ColoredBox(
+                        color: Colors.black12,
+                        child: Center(
+                          child: Icon(Icons.broken_image_outlined),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
               ],
