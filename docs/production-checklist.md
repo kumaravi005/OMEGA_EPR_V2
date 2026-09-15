@@ -69,19 +69,42 @@ flutter build web --release
 
 ## 5. Deployment
 
-This repository does **not** currently configure Firebase Hosting (no
-`hosting` key in `firebase.json`) — `build/web/` is a plain static
-site that can be served by **any** static web host (Firebase Hosting,
-Netlify, a plain nginx/Apache server, GitHub Pages, etc.). To use
-Firebase Hosting specifically, a one-time setup is needed first:
+**Firebase Hosting is not configured in this repository** (confirmed
+again as of Set 28 — no `hosting` key in `firebase.json`, and no
+`.firebase/` cache directory). `build/web/` is a plain static site that
+can be served by **any** static web host (Firebase Hosting, Netlify, a
+plain nginx/Apache server, GitHub Pages, etc.) — nothing about the app
+itself requires Firebase Hosting specifically.
 
-1. `firebase init hosting` (choose the existing project; when asked for
-   the public directory, enter `build/web`; answer "No" to configuring
-   as a single-page app rewrite unless you know you want that; answer
-   "No" to setting up automatic builds/deploys with GitHub unless
-   wanted).
+**Running `firebase init hosting` or `firebase deploy --only hosting` is
+a one-time setup step and a user-facing production action — it must be
+explicitly requested by you before it is run. It is not something to do
+as a side effect of a code change.** When you're ready, the steps are:
+
+1. `firebase init hosting` (choose the existing project,
+   `omega-education-centre-9a3b3`; when asked for the public directory,
+   enter `build/web`; answer "No" to configuring as a single-page app
+   rewrite unless you know you want that; answer "No" to setting up
+   automatic builds/deploys with GitHub unless wanted).
 2. `firebase deploy --only hosting`
-3. Verify the printed Hosting URL loads the app and Login works.
+3. Verify the printed Hosting URL (`https://omega-education-centre-9a3b3.web.app`
+   or similar) loads the app and Login works.
+4. **Custom domain (optional)**: if you want the app on your own domain
+   instead of the default `*.web.app`/`*.firebaseapp.com` one, that's a
+   separate step done from Firebase Console → Hosting → **Add custom
+   domain**, which will ask you to add a DNS record at your domain
+   registrar — this needs you to own/control a domain already; nothing
+   here invents or assumes one.
+
+### Before the very first production deployment
+
+- [ ] The real institute logo has been provided and the web/PWA icon
+      files updated (see this file's "Known, accepted limitations"
+      section below, and docs/architecture.md's Set 28 notes, for
+      exactly what was still outstanding as of the last audit).
+- [ ] Section 1-4 of this checklist all pass.
+- [ ] You have explicitly decided (and, if Firebase Hosting, explicitly
+      authorized) which host will serve `build/web/`.
 
 Whichever host is used:
 
@@ -191,9 +214,13 @@ After every deployment (app build, rules change, or both):
   already configurable at runtime (Admin → Configuration → Institute
   Profile, used on the public site and in generated report letterheads),
   but the static browser-tab/home-screen icon files were never replaced
-  with real branding. Replacing them needs the actual institute logo
-  artwork from the institute - see the Set 27 report for exactly what's
-  needed.
+  with real branding, since no local logo artwork file exists anywhere
+  in this repository to generate them from (Set 27 and Set 28 both
+  confirmed this by inspection). `web/manifest.json`'s `theme_color`/
+  `background_color` were corrected in Set 28 to match the app's actual
+  primary color (`#1E5AA8`, was Flutter's default `#0175C2`), but the
+  icon PNGs themselves still need the institute's real logo artwork -
+  see the Set 28 report for exactly what's needed and where to send it.
 - **Android/iOS are registered in Firebase but were never the actual
   development target** - every screen in this app was built and tested
   as a web dashboard. The Firebase project has Android/iOS apps
