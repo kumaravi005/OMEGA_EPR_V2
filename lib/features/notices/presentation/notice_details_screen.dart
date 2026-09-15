@@ -94,30 +94,48 @@ class _DetailsBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // An anonymous public visitor (see the public notices section on the
-    // public home page) reaches this same screen for a notice that is
-    // both published and `isPublic` - they must never see internal
-    // targeting/academic-scope information (Set 18 section 7), so that
-    // whole card is gated on being signed in at all, not just on role.
-    final isSignedIn = ref.watch(currentUserAccountProvider).valueOrNull != null;
-    // `academicSessions`/`batches` still require sign-in (unlike
-    // `classes`/`boards`, which Set 18 made public) - only watch them for
-    // a signed-in viewer, so an anonymous public visitor never issues a
-    // query firestore.rules would reject anyway.
-    final sessions = isSignedIn
-        ? ref.watch(allAcademicSessionsProvider).valueOrNull ?? []
-        : const <AcademicSession>[];
-    final classes = isSignedIn
-        ? ref.watch(allSchoolClassesProvider).valueOrNull ?? []
-        : const <SchoolClass>[];
-    final batches = isSignedIn
-        ? ref.watch(allBatchesProvider).valueOrNull ?? []
-        : const <Batch>[];
+    final expired = notice.isExpired(DateTime.now());
 
+    if (!isAdmin) {
+      // Teacher/student/parent/public: just what a reader actually needs
+      // - heading, body, and when it was published - no boxed sections,
+      // no internal type/targeting/record-keeping detail.
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            children: [
+              Text(notice.title, style: Theme.of(context).textTheme.headlineSmall),
+              if (expired && notice.status == NoticeStatus.published) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Expired',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              Text(notice.message, style: Theme.of(context).textTheme.bodyLarge),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Published ${dateKey(notice.publishedAt ?? notice.createdAt)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Admin only from here on - resolve the display names the
+    // "Targeting" card below needs (admin is always signed in, so these
+    // queries are always safe to issue).
+    final sessions = ref.watch(allAcademicSessionsProvider).valueOrNull ?? const <AcademicSession>[];
+    final classes = ref.watch(allSchoolClassesProvider).valueOrNull ?? const <SchoolClass>[];
+    final batches = ref.watch(allBatchesProvider).valueOrNull ?? const <Batch>[];
     final sessionName = sessions.where((s) => s.sessionId == notice.academicSessionId).firstOrNull?.name;
     final className = classes.where((c) => c.classId == notice.classId).firstOrNull?.name;
     final batchName = batches.where((b) => b.batchId == notice.batchId).firstOrNull?.name;
-    final expired = notice.isExpired(DateTime.now());
 
     return Center(
       child: ConstrainedBox(
@@ -156,24 +174,22 @@ class _DetailsBody extends ConsumerWidget {
                 ],
               ),
             ),
-            if (isSignedIn) ...[
-              const SizedBox(height: AppSpacing.md),
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Targeting', style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: AppSpacing.sm),
-                    _InfoRow(label: 'Audience', value: notice.audience.label),
-                    if (notice.scope != NoticeScope.institute) ...[
-                      if (sessionName != null) _InfoRow(label: 'Session', value: sessionName),
-                      if (className != null) _InfoRow(label: 'Class', value: className),
-                      if (batchName != null) _InfoRow(label: 'Batch', value: batchName),
-                    ],
+            const SizedBox(height: AppSpacing.md),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Targeting', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: AppSpacing.sm),
+                  _InfoRow(label: 'Audience', value: notice.audience.label),
+                  if (notice.scope != NoticeScope.institute) ...[
+                    if (sessionName != null) _InfoRow(label: 'Session', value: sessionName),
+                    if (className != null) _InfoRow(label: 'Class', value: className),
+                    if (batchName != null) _InfoRow(label: 'Batch', value: batchName),
                   ],
-                ),
+                ],
               ),
-            ],
+            ),
             const SizedBox(height: AppSpacing.md),
             AppCard(
               child: Column(
