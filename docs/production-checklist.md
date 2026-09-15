@@ -98,10 +98,9 @@ as a side effect of a code change.** When you're ready, the steps are:
 
 ### Before the very first production deployment
 
-- [ ] The real institute logo has been provided and the web/PWA icon
-      files updated (see this file's "Known, accepted limitations"
-      section below, and docs/architecture.md's Set 28 notes, for
-      exactly what was still outstanding as of the last audit).
+- [x] The real institute logo is in place (`web/favicon.png`,
+      `web/icons/*.png` - generated from `branding/logo.png` in Set 28;
+      see docs/architecture.md's Set 28 notes for how).
 - [ ] Section 1-4 of this checklist all pass.
 - [ ] You have explicitly decided (and, if Firebase Hosting, explicitly
       authorized) which host will serve `build/web/`.
@@ -209,18 +208,6 @@ After every deployment (app build, rules change, or both):
   docs/database-architecture.md's "Teacher-scoped Firestore rules (Set
   23-24)" for the complete reasoning. This is a deliberate, documented
   trade-off, not an oversight.
-- **Web/PWA icons are still Flutter's default placeholder logo**
-  (`web/favicon.png`, `web/icons/*.png`) - the institute's real logo is
-  already configurable at runtime (Admin → Configuration → Institute
-  Profile, used on the public site and in generated report letterheads),
-  but the static browser-tab/home-screen icon files were never replaced
-  with real branding, since no local logo artwork file exists anywhere
-  in this repository to generate them from (Set 27 and Set 28 both
-  confirmed this by inspection). `web/manifest.json`'s `theme_color`/
-  `background_color` were corrected in Set 28 to match the app's actual
-  primary color (`#1E5AA8`, was Flutter's default `#0175C2`), but the
-  icon PNGs themselves still need the institute's real logo artwork -
-  see the Set 28 report for exactly what's needed and where to send it.
 - **Android/iOS are registered in Firebase but were never the actual
   development target** - every screen in this app was built and tested
   as a web dashboard. The Firebase project has Android/iOS apps

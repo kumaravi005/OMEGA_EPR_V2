@@ -1463,6 +1463,47 @@ was verified clean. Genuine issues found and fixed:
   cross-role path; no duplicate models, collections, calculation
   engines, or authorization helpers were found anywhere in Sets 1-24.
 
+## Set 28: production branding & deployment readiness
+
+Set 26/27 audited the whole application and Firebase/deployment
+configuration (see docs/production-checklist.md) and found the web/PWA
+icon files were still Flutter's default template logo, since no local
+logo artwork existed anywhere in the repository to generate real ones
+from. Set 28 closed that gap once the institute provided its real logo.
+
+- **`branding/logo.png`** - the institute's real logo (a rounded-square
+  badge, transparent outside the rounded shape), provided directly by
+  the institute and committed as the source asset. This is deliberately
+  NOT a Flutter asset bundle and is never loaded by the running app -
+  the in-app institute logo remains the admin-configured URL at
+  Institute Profile (Set 5/9), completely unrelated to this file. It
+  exists purely so `web/favicon.png`/`web/icons/*.png` can be
+  regenerated later without asking for the logo again - see
+  `branding/README.md`.
+- **`web/favicon.png`, `web/icons/Icon-192.png`, `Icon-512.png`** -
+  regenerated from `branding/logo.png`, composited onto a white
+  background (the source has transparent corners outside its rounded
+  badge shape; the standard/non-maskable icon slots Flutter expects are
+  opaque RGB, matching the exact size/mode of the files they replaced).
+- **`web/icons/Icon-maskable-192.png`, `Icon-maskable-512.png`** - the
+  logo scaled to ~72% of the canvas and centered on a canvas filled with
+  the logo's own background yellow (sampled from the source artwork),
+  so the photo/text content stays inside the maskable-icon "safe zone"
+  (the inner circle an OS may crop a maskable icon to) instead of being
+  clipped at the corners the way pasting the logo edge-to-edge would.
+- **`web/manifest.json`'s `theme_color`/`background_color`** were also
+  corrected (Set 28, same change) from Flutter's default template blue
+  (`#0175C2`) to the app's actual primary color (`AppColors.primary`,
+  `#1E5AA8`) - metadata only, no visual/business-logic change.
+- App title/description metadata (`web/index.html`, `web/manifest.json`)
+  was already correct ("Omega Education Centre") and was left untouched.
+- **Firebase Hosting remains unconfigured** (no `hosting` key in
+  `firebase.json`) - Set 28 only audited this, per its own explicit
+  instruction not to run `firebase init hosting`/`firebase deploy
+  --only hosting` without direct authorization. See docs/production-
+  checklist.md's "Deployment" section for the exact one-time setup
+  steps whenever that's wanted.
+
 ## What's deliberately not here yet
 
 - An online payment gateway/checkout (Razorpay/Stripe/PayPal/UPI deep-
