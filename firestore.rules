@@ -49,11 +49,20 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/students/$(request.auth.uid)).data;
     }
 
+    // Uses .get(key, default) rather than dot access - a `students/{uid}`
+    // document missing `batchId`/`active` entirely (e.g. one created
+    // directly in the Firebase Console instead of through the app's
+    // admission flow, which always writes every required field) would
+    // otherwise make Firestore Rules THROW on a bare `.batchId`/`.active`
+    // access - a rule that throws denies the request, but as an opaque
+    // internal error rather than a clean, deliberate "not this student's
+    // batch"/"not active" denial. Behavior for any complete document
+    // (every one created through the app) is identical either way.
     function isStudentOfBatch(batchId) {
       return isSignedIn()
         && exists(/databases/$(database)/documents/students/$(request.auth.uid))
-        && callerStudentDoc().batchId == batchId
-        && callerStudentDoc().active == true;
+        && callerStudentDoc().get('batchId', '') == batchId
+        && callerStudentDoc().get('active', false) == true;
     }
 
     function changedKeys() {
@@ -1071,10 +1080,11 @@ service cloud.firestore {
     // `isStudentOfBatch`'s existing active-student check, just without a
     // specific batch to compare yet (that's `targetKey` membership,
     // below).
+    // Same .get(key, default) reasoning as isStudentOfBatch above.
     function isStudentCaller() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/students/$(request.auth.uid))
-        && callerStudentDoc().active == true;
+        && callerStudentDoc().get('active', false) == true;
     }
 
     // The finite set of `targetKey` values THIS caller may ever receive -
@@ -1087,9 +1097,13 @@ service cloud.firestore {
     // docs describe: a `list` rule branch that depends on a per-document
     // field is only provable when the query itself is constrained to
     // match.
+    // Same .get(key, default) reasoning as isStudentOfBatch above - a
+    // student document missing classId/batchId gets '' for each (never
+    // matching any real notice's targetKey, so still correctly denied),
+    // rather than throwing.
     function studentNoticeTargetKeys() {
       let s = callerStudentDoc();
-      return ['all', 'students', 'students:class:' + s.classId, 'students:batch:' + s.batchId];
+      return ['all', 'students', 'students:class:' + s.get('classId', ''), 'students:batch:' + s.get('batchId', '')];
     }
 
     match /notices/{noticeId} {
