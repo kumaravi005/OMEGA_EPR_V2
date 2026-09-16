@@ -19,6 +19,7 @@ import '../../notices/data/notice.dart';
 import '../../notices/data/notice_repository.dart';
 import '../../notices/presentation/public_notice_dialog.dart';
 import '../data/banner_item.dart';
+import '../data/course.dart';
 import '../data/gallery_item.dart';
 import '../data/institute_profile.dart';
 import '../data/public_content_repositories.dart';
@@ -509,64 +510,81 @@ class _CoursesSection extends ConsumerWidget {
       children: [
         const SectionHeader('Our courses'),
         SizedBox(
-          height: 96,
+          height: 168,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: courses.length,
             separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
-            itemBuilder: (context, index) {
-              final course = courses[index];
-              final hasImage = course.imageUrl != null &&
-                  course.imageUrl!.isNotEmpty;
-              return Container(
-                width: 132,
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (hasImage)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(
-                          AppSpacing.radiusSm,
-                        ),
-                        child: Image.network(
-                          course.imageUrl!,
-                          width: 28,
-                          height: 28,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Icon(
-                            Icons.school_outlined,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      )
-                    else
-                      Icon(
-                        Icons.school_outlined,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      course.title,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+            itemBuilder: (context, index) => _CourseCard(course: courses[index]),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CourseCard extends StatelessWidget {
+  const _CourseCard({required this.course});
+
+  final Course course;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = course.imageUrl != null && course.imageUrl!.isNotEmpty;
+
+    return Container(
+      width: 140,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AspectRatio(
+            aspectRatio: 4 / 3,
+            child: hasImage
+                ? Image.network(
+                    course.imageUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => _CourseCardFallbackIcon(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  )
+                : _CourseCardFallbackIcon(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            child: Text(
+              course.title,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CourseCardFallbackIcon extends StatelessWidget {
+  const _CourseCardFallbackIcon({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: color.withValues(alpha: 0.08),
+      child: Icon(Icons.school_outlined, color: color, size: 32),
     );
   }
 }
