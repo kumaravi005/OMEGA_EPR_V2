@@ -36,6 +36,7 @@ import 'features/notifications/presentation/notifications_screen.dart';
 import 'features/public/presentation/admin/advertisements_screen.dart';
 import 'features/public/presentation/admin/announcements_screen.dart';
 import 'features/public/presentation/admin/banners_screen.dart';
+import 'features/public/presentation/admin/courses_screen.dart';
 import 'features/public/presentation/admin/gallery_screen.dart';
 import 'features/public/presentation/admin/institute_profile_screen.dart';
 import 'features/public/presentation/admin/upcoming_batches_screen.dart';
@@ -246,6 +247,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.adminBanners,
         builder: (context, state) => const BannersScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminCourses,
+        builder: (context, state) => const CoursesScreen(),
       ),
       GoRoute(
         path: AppRoutes.adminUpcomingBatches,

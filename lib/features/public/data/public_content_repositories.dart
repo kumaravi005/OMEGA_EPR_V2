@@ -5,6 +5,7 @@ import '../../../data/repositories/firestore_repository.dart';
 import 'advertisement.dart';
 import 'announcement.dart';
 import 'banner_item.dart';
+import 'course.dart';
 import 'gallery_item.dart';
 import 'institute_profile.dart';
 import 'upcoming_batch.dart';
@@ -75,6 +76,35 @@ final activeBannersProvider = StreamProvider<List<BannerItem>>((ref) {
       .watch(bannerRepositoryProvider)
       .watchWhere((query) => query.where('active', isEqualTo: true))
       .map((items) => items.toList()..sort(_bySortOrder));
+});
+
+final courseRepositoryProvider = Provider<FirestoreRepository<Course>>((ref) {
+  return FirestoreRepository<Course>(
+    firestore: ref.watch(firestoreProvider),
+    collectionPath: FirestoreCollections.courses,
+    fromFirestore: Course.fromMap,
+    toFirestore: (item) => item.toMap(),
+  );
+});
+
+int _courseBySortOrder(Course a, Course b) {
+  final bySortOrder = a.sortOrder.compareTo(b.sortOrder);
+  return bySortOrder != 0 ? bySortOrder : a.createdAt.compareTo(b.createdAt);
+}
+
+final allCoursesProvider = StreamProvider<List<Course>>((ref) {
+  return ref
+      .watch(courseRepositoryProvider)
+      .watchAll()
+      .map((items) => items.toList()..sort(_courseBySortOrder));
+});
+
+/// Public (and admin) - active items only. See [activeGalleryItemsProvider].
+final activeCoursesProvider = StreamProvider<List<Course>>((ref) {
+  return ref
+      .watch(courseRepositoryProvider)
+      .watchWhere((query) => query.where('active', isEqualTo: true))
+      .map((items) => items.toList()..sort(_courseBySortOrder));
 });
 
 final upcomingBatchRepositoryProvider =

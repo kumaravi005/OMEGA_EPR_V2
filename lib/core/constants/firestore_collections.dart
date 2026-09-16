@@ -89,4 +89,9 @@ abstract final class FirestoreCollections {
   // capability - see docs/database-architecture.md's "Teacher
   // assignments (Set 22)").
   static const teacherAssignments = 'teacherAssignments';
+
+  // Added post-Set-31 - the public site's "Our courses" listing, a
+  // distinct public-content type from `academicSessions`/`classes` (the
+  // internal, non-public academic structure) - see docs/architecture.md.
+  static const courses = 'courses';
 }

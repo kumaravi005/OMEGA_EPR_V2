@@ -499,12 +499,9 @@ class _CoursesSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final batchesAsync = ref.watch(activeUpcomingBatchesProvider);
-    final active =
-        batchesAsync.valueOrNull?.where((b) => b.active).toList() ?? const [];
-    final courses = <String>{
-      for (final batch in active) '${batch.className} (${batch.board})',
-    }.toList();
+    final coursesAsync = ref.watch(activeCoursesProvider);
+    final courses =
+        coursesAsync.valueOrNull?.where((c) => c.active).toList() ?? const [];
     if (courses.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -518,6 +515,9 @@ class _CoursesSection extends ConsumerWidget {
             itemCount: courses.length,
             separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
             itemBuilder: (context, index) {
+              final course = courses[index];
+              final hasImage = course.imageUrl != null &&
+                  course.imageUrl!.isNotEmpty;
               return Container(
                 width: 132,
                 padding: const EdgeInsets.all(AppSpacing.sm),
@@ -529,13 +529,30 @@ class _CoursesSection extends ConsumerWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.school_outlined,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                    if (hasImage)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.radiusSm,
+                        ),
+                        child: Image.network(
+                          course.imageUrl!,
+                          width: 28,
+                          height: 28,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Icon(
+                            Icons.school_outlined,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      )
+                    else
+                      Icon(
+                        Icons.school_outlined,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      courses[index],
+                      course.title,
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,

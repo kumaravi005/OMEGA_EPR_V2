@@ -32,6 +32,7 @@ abstract final class AppRoutes {
   static const adminCombinedResult = '/admin/results/combined';
   static const adminGallery = '/admin/gallery';
   static const adminBanners = '/admin/banners';
+  static const adminCourses = '/admin/courses';
   static const adminUpcomingBatches = '/admin/upcoming-batches';
   static const adminAdvertisements = '/admin/advertisements';
   static const adminAnnouncements = '/admin/announcements';

@@ -4,6 +4,7 @@ import '../../../core/services/notification_hook.dart';
 import '../data/advertisement.dart';
 import '../data/announcement.dart';
 import '../data/banner_item.dart';
+import '../data/course.dart';
 import '../data/gallery_item.dart';
 import '../data/institute_profile.dart';
 import '../data/public_content_repositories.dart';
@@ -123,6 +124,57 @@ class PublicContentController {
     final now = Timestamp.now();
     for (var i = 0; i < orderedBanners.length; i++) {
       batch.update(collection.doc(orderedBanners[i].bannerId), {
+        'sortOrder': i,
+        'updatedAt': now,
+      });
+    }
+    await batch.commit();
+  });
+
+  Future<void> saveCourse({
+    Course? existing,
+    required String title,
+    required String? description,
+    required String? imageUrl,
+    required bool active,
+    required int sortOrder,
+  }) async {
+    final now = DateTime.now();
+    final course = Course(
+      courseId: existing?.courseId ?? '',
+      title: title.trim(),
+      description: _blankToNull(description),
+      imageUrl: _blankToNull(imageUrl),
+      active: active,
+      sortOrder: existing?.sortOrder ?? sortOrder,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    );
+    await _run(() async {
+      if (existing == null) {
+        await _ref.read(courseRepositoryProvider).add(course);
+      } else {
+        await _ref
+            .read(courseRepositoryProvider)
+            .set(existing.courseId, course);
+      }
+    });
+  }
+
+  Future<void> setCourseActive(Course item, bool active) => _run(
+    () => _ref.read(courseRepositoryProvider).updateFields(item.courseId, {
+      'active': active,
+      'updatedAt': Timestamp.now(),
+    }),
+  );
+
+  /// See [reorderBanners] - same atomic-batch reorder pattern.
+  Future<void> reorderCourses(List<Course> orderedCourses) => _run(() async {
+    final collection = _ref.read(courseRepositoryProvider).collection;
+    final batch = collection.firestore.batch();
+    final now = Timestamp.now();
+    for (var i = 0; i < orderedCourses.length; i++) {
+      batch.update(collection.doc(orderedCourses[i].courseId), {
         'sortOrder': i,
         'updatedAt': now,
       });

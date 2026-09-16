@@ -128,6 +128,11 @@ class AdminDashboardScreen extends ConsumerWidget {
                       AppRoutes.adminBanners,
                     ),
                     _Dest(
+                      Icons.school_outlined,
+                      'Our courses',
+                      AppRoutes.adminCourses,
+                    ),
+                    _Dest(
                       Icons.calendar_month_outlined,
                       'Upcoming batches',
                       AppRoutes.adminUpcomingBatches,
