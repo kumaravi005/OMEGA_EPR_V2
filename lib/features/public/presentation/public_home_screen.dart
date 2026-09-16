@@ -510,7 +510,7 @@ class _CoursesSection extends ConsumerWidget {
       children: [
         const SectionHeader('Our courses'),
         SizedBox(
-          height: 168,
+          height: 156,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: courses.length,
@@ -604,7 +604,7 @@ class _UpcomingBatchesSection extends ConsumerWidget {
       children: [
         const SectionHeader('Upcoming batches'),
         SizedBox(
-          height: 190,
+          height: 172,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: active.length,
@@ -652,7 +652,7 @@ class _UpcomingBatchCard extends StatelessWidget {
             label: Text(batch.admissionStatus),
             visualDensity: VisualDensity.compact,
           ),
-          const Spacer(),
+          const SizedBox(height: AppSpacing.xs),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
