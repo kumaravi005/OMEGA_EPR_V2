@@ -19,8 +19,10 @@ import '../../notices/data/notice.dart';
 import '../../notices/data/notice_repository.dart';
 import '../../notices/presentation/public_notice_dialog.dart';
 import '../data/banner_item.dart';
+import '../data/gallery_item.dart';
 import '../data/institute_profile.dart';
 import '../data/public_content_repositories.dart';
+import '../data/upcoming_batch.dart';
 import 'ad_popup.dart';
 
 /// Public landing area - reachable without signing in. Every section
@@ -77,6 +79,7 @@ class PublicHomeScreen extends ConsumerWidget {
                             ],
                           ),
                           const _BannersSection(),
+                          const _CoursesSection(),
                           const _UpcomingBatchesSection(),
                           const _GallerySection(),
                           const _PublicNoticesSection(),
@@ -486,6 +489,71 @@ class _HeroSlide extends StatelessWidget {
   }
 }
 
+/// "Our Courses" (requested to sit above Upcoming Batches): the distinct
+/// class/board combinations drawn from the same real, already-public
+/// upcoming-batch data - there's no separate "courses" collection in this
+/// project, so rather than hard-coding a fixed placeholder list, this
+/// reuses real admin-entered data instead of inventing content.
+class _CoursesSection extends ConsumerWidget {
+  const _CoursesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final batchesAsync = ref.watch(activeUpcomingBatchesProvider);
+    final active =
+        batchesAsync.valueOrNull?.where((b) => b.active).toList() ?? const [];
+    final courses = <String>{
+      for (final batch in active) '${batch.className} (${batch.board})',
+    }.toList();
+    if (courses.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader('Our courses'),
+        SizedBox(
+          height: 96,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: courses.length,
+            separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
+            itemBuilder: (context, index) {
+              return Container(
+                width: 132,
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.school_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      courses[index],
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _UpcomingBatchesSection extends ConsumerWidget {
   const _UpcomingBatchesSection();
 
@@ -500,26 +568,146 @@ class _UpcomingBatchesSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SectionHeader('Upcoming batches'),
-        for (final batch in active)
-          AppCard(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${batch.title} - ${batch.className} (${batch.board})',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  Text('Starts ${dateKey(batch.startDate)} - ${batch.timing}'),
-                  if (batch.description != null) Text(batch.description!),
-                  const SizedBox(height: AppSpacing.xs),
-                  Chip(label: Text(batch.admissionStatus)),
-                ],
-              ),
+        SizedBox(
+          height: 190,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: active.length,
+            separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
+            itemBuilder: (context, index) =>
+                _UpcomingBatchCard(batch: active[index]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _UpcomingBatchCard extends StatelessWidget {
+  const _UpcomingBatchCard({required this.batch});
+
+  final UpcomingBatch batch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 240,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${batch.className} (${batch.board})',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Starts ${dateKey(batch.startDate)}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Chip(
+            label: Text(batch.admissionStatus),
+            visualDensity: VisualDensity.compact,
+          ),
+          const Spacer(),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => _showUpcomingBatchDetail(context, batch),
+              icon: const Icon(Icons.arrow_forward, size: 16),
+              label: const Text('Explore now'),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+void _showUpcomingBatchDetail(BuildContext context, UpcomingBatch batch) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('${batch.title} - ${batch.className} (${batch.board})'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (batch.posterUrl != null && batch.posterUrl!.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                child: AspectRatio(
+                  aspectRatio: 20 / 9,
+                  child: Image.network(
+                    batch.posterUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) =>
+                        const ColoredBox(color: Colors.black12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            _DetailRow('Academic session', batch.academicSession),
+            _DetailRow('Starts', dateKey(batch.startDate)),
+            _DetailRow('Timing', batch.timing),
+            _DetailRow('Status', batch.admissionStatus),
+            if (batch.description != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(batch.description!),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        AppButton(
+          label: 'Admission enquiry',
+          onPressed: () {
+            Navigator.of(context).pop();
+            showSubmitEnquiryDialog(context);
+          },
+        ),
       ],
+    ),
+  );
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
     );
   }
 }
@@ -548,7 +736,15 @@ class _GallerySection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader('Gallery'),
+        SectionHeader(
+          'Gallery',
+          trailing: overflow > 0
+              ? TextButton(
+                  onPressed: () => _showGalleryAll(context, active),
+                  child: const Text('View All'),
+                )
+              : null,
+        ),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -561,31 +757,34 @@ class _GallerySection extends ConsumerWidget {
           itemCount: cellCount,
           itemBuilder: (context, index) {
             if (overflow > 0 && index == shown.length) {
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.network(
-                      active[_previewCount].imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) =>
-                          const ColoredBox(color: Colors.black12),
-                    ),
-                    ColoredBox(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      child: Center(
-                        child: Text(
-                          '+$overflow More',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
+              return InkWell(
+                onTap: () => _showGalleryAll(context, active),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.network(
+                        active[_previewCount].imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            const ColoredBox(color: Colors.black12),
+                      ),
+                      ColoredBox(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        child: Center(
+                          child: Text(
+                            '+$overflow More',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             }
@@ -606,6 +805,38 @@ class _GallerySection extends ConsumerWidget {
       ],
     );
   }
+}
+
+void _showGalleryAll(BuildContext context, List<GalleryItem> items) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => Dialog.fullscreen(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Gallery')),
+        body: GridView.builder(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: AppSpacing.xs,
+            mainAxisSpacing: AppSpacing.xs,
+            childAspectRatio: 1,
+          ),
+          itemCount: items.length,
+          itemBuilder: (context, index) => ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            child: Image.network(
+              items[index].imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const ColoredBox(
+                color: Colors.black12,
+                child: Icon(Icons.broken_image_outlined),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _AnnouncementsSection extends ConsumerWidget {
@@ -765,30 +996,72 @@ class _ContactRow extends StatelessWidget {
 class _PublicNoticesSection extends ConsumerWidget {
   const _PublicNoticesSection();
 
+  static const _previewCount = 3;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final noticesAsync = ref.watch(publicNoticesProvider);
     final notices = noticesAsync.valueOrNull ?? const <Notice>[];
     if (notices.isEmpty) return const SizedBox.shrink();
 
+    final overflow = notices.length - _previewCount;
+    final shown = overflow > 0
+        ? notices.take(_previewCount).toList()
+        : notices;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader('Notices'),
-        for (final notice in notices)
-          AppCard(
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(notice.title),
-              subtitle: Text(
-                notice.type == NoticeType.other
-                    ? (notice.otherTypeLabel ?? notice.type.label)
-                    : notice.type.label,
-              ),
-              onTap: () => showPublicNoticeDialog(context, notice),
-            ),
-          ),
+        SectionHeader(
+          'Notices',
+          trailing: overflow > 0
+              ? TextButton(
+                  onPressed: () => _showNoticesAll(context, notices),
+                  child: const Text('See all'),
+                )
+              : null,
+        ),
+        for (final notice in shown) _NoticeTile(notice: notice),
       ],
     );
   }
+}
+
+class _NoticeTile extends StatelessWidget {
+  const _NoticeTile({required this.notice});
+
+  final Notice notice;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(notice.title),
+        subtitle: Text(
+          notice.type == NoticeType.other
+              ? (notice.otherTypeLabel ?? notice.type.label)
+              : notice.type.label,
+        ),
+        onTap: () => showPublicNoticeDialog(context, notice),
+      ),
+    );
+  }
+}
+
+void _showNoticesAll(BuildContext context, List<Notice> notices) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => Dialog.fullscreen(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Notices')),
+        body: ListView(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: [
+            for (final notice in notices) _NoticeTile(notice: notice),
+          ],
+        ),
+      ),
+    ),
+  );
 }
