@@ -37,22 +37,13 @@ class PublicHomeScreen extends ConsumerWidget {
         profileAsync.valueOrNull?.name ?? AppConstants.appName;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(instituteName),
-        actions: [
-          TextButton(
-            onPressed: () => context.go(AppRoutes.login),
-            child: const Text('Sign in', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
       body: SafeArea(
         child: Stack(
           children: [
             ListView(
               padding: EdgeInsets.zero,
               children: [
-                _HeroSection(
+                _TopHeader(
                   instituteName: instituteName,
                   tagline: profileAsync.valueOrNull?.tagline,
                   logoUrl: profileAsync.valueOrNull?.logoUrl,
@@ -88,10 +79,14 @@ class PublicHomeScreen extends ConsumerWidget {
                           const _BannersSection(),
                           const _UpcomingBatchesSection(),
                           const _GallerySection(),
-                          const _AnnouncementsSection(),
                           const _PublicNoticesSection(),
-                          _AboutSection(about: profileAsync.valueOrNull?.about),
+                          // Contact is placed right after Notices/Gallery
+                          // (Set 31) - prominent, not buried at the very
+                          // bottom - while Announcements/About still keep
+                          // their own section below it.
                           _ContactSection(profile: profileAsync.valueOrNull),
+                          const _AnnouncementsSection(),
+                          _AboutSection(about: profileAsync.valueOrNull?.about),
                           const SizedBox(height: AppSpacing.xl),
                           _Footer(instituteName: instituteName),
                         ],
@@ -109,8 +104,12 @@ class PublicHomeScreen extends ConsumerWidget {
   }
 }
 
-class _HeroSection extends StatelessWidget {
-  const _HeroSection({
+/// Compact top header (Set 31): a slim branded bar - small logo, institute
+/// name + tagline, and the sign-in action - instead of the old full-height
+/// blue hero band that duplicated the institute name already shown a
+/// second time inside the hero carousel below it.
+class _TopHeader extends StatelessWidget {
+  const _TopHeader({
     required this.instituteName,
     required this.tagline,
     required this.logoUrl,
@@ -126,24 +125,17 @@ class _HeroSection extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xxl,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
       ),
-      decoration: const BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(AppSpacing.radiusLg),
-        ),
-      ),
-      child: Column(
+      color: AppColors.surface,
+      child: Row(
         children: [
           Container(
-            width: 104,
-            height: 104,
-            padding: const EdgeInsets.all(AppSpacing.xs),
+            width: 40,
+            height: 40,
+            padding: const EdgeInsets.all(2),
             decoration: const BoxDecoration(
               color: AppColors.accent,
               shape: BoxShape.circle,
@@ -161,24 +153,32 @@ class _HeroSection extends StatelessWidget {
                   : Image.asset('assets/branding/logo.png', fit: BoxFit.cover),
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            instituteName,
-            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-              color: Colors.white,
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  instituteName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                if (tagline != null && tagline!.isNotEmpty)
+                  Text(
+                    tagline!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+              ],
             ),
-            textAlign: TextAlign.center,
           ),
-          if (tagline != null && tagline!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              tagline!,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: Colors.white70),
-              textAlign: TextAlign.center,
-            ),
-          ],
+          TextButton(
+            onPressed: () => context.go(AppRoutes.login),
+            child: const Text('Sign in'),
+          ),
         ],
       ),
     );
@@ -495,12 +495,23 @@ class _UpcomingBatchesSection extends ConsumerWidget {
 class _GallerySection extends ConsumerWidget {
   const _GallerySection();
 
+  /// Shown thumbnails before folding the rest behind a "+N More" tile
+  /// (Set 31) - keeps the grid a clean, uniform 2 rows of 3 regardless of
+  /// how many photos the admin has uploaded.
+  static const _previewCount = 5;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final itemsAsync = ref.watch(activeGalleryItemsProvider);
     final active =
         itemsAsync.valueOrNull?.where((i) => i.active).toList() ?? const [];
     if (active.isEmpty) return const SizedBox.shrink();
+
+    final overflow = active.length - _previewCount;
+    final shown = overflow > 0
+        ? active.take(_previewCount).toList()
+        : active;
+    final cellCount = shown.length + (overflow > 0 ? 1 : 0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -513,10 +524,40 @@ class _GallerySection extends ConsumerWidget {
             crossAxisCount: 3,
             crossAxisSpacing: AppSpacing.xs,
             mainAxisSpacing: AppSpacing.xs,
+            childAspectRatio: 1,
           ),
-          itemCount: active.length,
+          itemCount: cellCount,
           itemBuilder: (context, index) {
-            final item = active[index];
+            if (overflow > 0 && index == shown.length) {
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.network(
+                      active[_previewCount].imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          const ColoredBox(color: Colors.black12),
+                    ),
+                    ColoredBox(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      child: Center(
+                        child: Text(
+                          '+$overflow More',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+            final item = shown[index];
             return ClipRRect(
               borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
               child: Image.network(
@@ -616,11 +657,11 @@ class _ContactSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (address != null) Text(address),
-              if (email != null) Text(email),
-              if (website != null) Text(website),
+              if (address != null) _ContactRow(Icons.location_on_outlined, address),
+              if (email != null) _ContactRow(Icons.email_outlined, email),
+              if (website != null) _ContactRow(Icons.language_outlined, website),
               if (phone != null) ...[
-                Text(phone),
+                _ContactRow(Icons.phone_outlined, phone),
                 const SizedBox(height: AppSpacing.sm),
                 Row(
                   children: [
@@ -647,7 +688,9 @@ class _ContactSection extends StatelessWidget {
                 const SizedBox(height: AppSpacing.sm),
                 Row(
                   children: [
-                    Expanded(child: Text(secondaryPhone)),
+                    Expanded(
+                      child: _ContactRow(Icons.phone_outlined, secondaryPhone),
+                    ),
                     AppButton(
                       label: 'Call',
                       icon: Icons.call_outlined,
@@ -661,6 +704,28 @@ class _ContactSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ContactRow extends StatelessWidget {
+  const _ContactRow(this.icon, this.text);
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(child: Text(text)),
+        ],
+      ),
     );
   }
 }
