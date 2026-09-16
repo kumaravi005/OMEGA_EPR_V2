@@ -129,7 +129,19 @@ class _TopHeader extends StatelessWidget {
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,
       ),
-      color: AppColors.surface,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary,
+            Color.alphaBlend(
+              AppColors.accent.withValues(alpha: 0.14),
+              Color.lerp(AppColors.primary, Colors.white, 0.35)!,
+            ),
+          ],
+        ),
+      ),
       child: Row(
         children: [
           Container(
@@ -163,21 +175,41 @@ class _TopHeader extends StatelessWidget {
                   instituteName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleLarge,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                  ),
                 ),
                 if (tagline != null && tagline!.isNotEmpty)
                   Text(
                     tagline!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.white70),
                   ),
               ],
             ),
           ),
-          TextButton(
+          ElevatedButton.icon(
             onPressed: () => context.go(AppRoutes.login),
-            child: const Text('Sign in'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryDark,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.35)),
+              minimumSize: const Size(0, 36),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            icon: const Icon(Icons.person_outline, size: 16),
+            label: const Text('Sign in'),
           ),
         ],
       ),
