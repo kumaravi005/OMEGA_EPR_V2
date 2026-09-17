@@ -203,6 +203,46 @@ class AcademicConfigController {
     }),
   );
 
+  /// Every collection whose documents can reference a board by id -
+  /// checked before [deleteBoard] is allowed to proceed. `boardId` is
+  /// optional everywhere it appears (Batch/StudentProfile/Enquiry), unlike
+  /// `classId`, so there are fewer reference points; see
+  /// [_classReferenceCollections]'s doc comment for the same
+  /// historical-trace caveat (a `students/{uid}/admissions` subcollection
+  /// snapshot isn't checked).
+  static const _boardReferenceCollections = [
+    FirestoreCollections.batches,
+    FirestoreCollections.students,
+    FirestoreCollections.enquiries,
+  ];
+
+  /// Whether [boardId] is referenced by any real record.
+  Future<bool> isBoardInUse(String boardId) async {
+    final firestore = _ref.read(firestoreProvider);
+    for (final collection in _boardReferenceCollections) {
+      final snapshot = await firestore
+          .collection(collection)
+          .where('boardId', isEqualTo: boardId)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isNotEmpty) return true;
+    }
+    return false;
+  }
+
+  /// Permanently deletes [existing]. See [deleteClass]'s doc comment -
+  /// same reasoning and same scoped exception to the project's normal
+  /// "no delete, ever" rule.
+  Future<void> deleteBoard(Board existing) => _run(() async {
+    if (await isBoardInUse(existing.boardId)) {
+      throw const AcademicConfigFailure(
+        'This board is in use (by a batch, student, or enquiry record) '
+        'and cannot be deleted. Deactivate it instead.',
+      );
+    }
+    await _ref.read(boardRepositoryProvider).delete(existing.boardId);
+  });
+
   // ---- Subjects -----------------------------------------------------------
 
   Future<void> saveSubject({Subject? existing, required String name}) =>

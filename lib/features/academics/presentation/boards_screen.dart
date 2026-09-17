@@ -65,26 +65,70 @@ class _BoardTile extends ConsumerWidget {
         title: Text(board.name),
         subtitle: board.active ? null : const Text('Inactive'),
         onTap: () => _showBoardForm(context, existing: board),
-        trailing: PopupMenuButton<bool>(
-          onSelected: (active) async {
-            final messenger = ScaffoldMessenger.of(context);
-            try {
-              await ref
-                  .read(academicConfigControllerProvider)
-                  .setBoardActive(board, active);
-            } on AcademicConfigFailure catch (failure) {
-              messenger.showSnackBar(SnackBar(content: Text(failure.message)));
-            }
-          },
+        trailing: PopupMenuButton<String>(
+          onSelected: (value) => value == 'delete'
+              ? _confirmDelete(context, ref)
+              : _toggleActive(context, ref, value == 'activate'),
           itemBuilder: (context) => [
             PopupMenuItem(
-              value: !board.active,
+              value: board.active ? 'deactivate' : 'activate',
               child: Text(board.active ? 'Deactivate' : 'Activate'),
             ),
+            const PopupMenuItem(value: 'delete', child: Text('Delete permanently')),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _toggleActive(
+    BuildContext context,
+    WidgetRef ref,
+    bool active,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(academicConfigControllerProvider)
+          .setBoardActive(board, active);
+    } on AcademicConfigFailure catch (failure) {
+      messenger.showSnackBar(SnackBar(content: Text(failure.message)));
+    }
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete board?'),
+        content: Text(
+          '"${board.name}" will be permanently removed. This only '
+          'succeeds if nothing currently uses this board - otherwise '
+          'deactivate it instead.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(academicConfigControllerProvider).deleteBoard(board);
+      messenger.showSnackBar(
+        SnackBar(content: Text('"${board.name}" deleted.')),
+      );
+    } on AcademicConfigFailure catch (failure) {
+      messenger.showSnackBar(SnackBar(content: Text(failure.message)));
+    }
   }
 }
 

@@ -1662,7 +1662,8 @@ service cloud.firestore {
     match /boards/{boardId} {
       allow get, list: if true;
       allow create, update: if isAdmin() && newBoardIsValid();
-      allow delete: if false;
+      // See the same-shaped comment on /classes/{classId} above.
+      allow delete: if isAdmin();
     }
 
     function newSubjectIsValid() {
