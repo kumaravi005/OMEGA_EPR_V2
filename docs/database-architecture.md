@@ -1417,17 +1417,40 @@ admin-created collection in this project (batches, teachers, ...) - only
 the *seeded* rows need predictable ids, since `seedDefaults()` has to be
 able to tell "does this already exist" before writing.
 
-### Data safety: no delete, ever
+### Data safety: no delete, ever (with one guarded exception)
 
-`firestore.rules` denies `delete` outright on all four collections above
-(and on the extended `institutes/main`) - "prefer deactivation/archiving
-over destructive deletion" for master data that a future record could
-reference. As of Set 10, `batches` is the first live consumer
-(`academicSessionId`/`classId`/`boardId`, above) - deactivating a
-session/class/board instead of deleting it is what keeps a batch that
+`firestore.rules` denies `delete` outright on `academicSessions`,
+`boards`, and the extended `institutes/main` - "prefer deactivation/
+archiving over destructive deletion" for master data that a future
+record could reference. As of Set 10, `batches` is the first live
+consumer (`academicSessionId`/`classId`/`boardId`, above) - deactivating
+a session/board instead of deleting it is what keeps a batch that
 references it from ever pointing at a vanished document; `students`
 still uses its own free-text `className`/`board` fields (see
 docs/architecture.md) and is unaffected either way.
+
+**`classes` and `subjects` are a scoped exception** (added post-Set-32):
+`firestore.rules` allows `delete` on these two for any admin, but the
+rule itself can't verify a class/subject is actually unreferenced - a
+security rule can check specific document paths, not "does any document
+in `batches`/`students`/`tests`/... have this id", which is a
+query-shaped question. That check lives in
+`AcademicConfigController.isClassInUse`/`isSubjectInUse`, which the app
+always runs before calling delete (`deleteClass`/`deleteSubject`) - it
+queries every collection that can reference a class/subject
+(`batches`, `students`, `tests`, `academicWork`, `teacherAssignments`,
+`attendance`, `feePayments`, `notices`, `enquiries` for classes; those
+plus `classes.subjectIds`/`teachers.subjectIds` for subjects) and
+refuses with a clear message if anything is found. This exists to let
+an admin remove a class/subject that was created by mistake (e.g.
+while testing) and was never actually used - not to make deletion a
+routine alternative to deactivation. It does not check
+`students/{uid}/admissions` (a subcollection - would need a dedicated
+collection-group index), so a class/subject that only appears in a
+historical admission snapshot, with no other live reference, could
+still be deleted; existing screens that look up a class/subject name by
+id already tolerate a missing id (falling back to the raw id or an
+empty string), so this degrades gracefully rather than crashing.
 
 ## Teacher assignments (Set 22)
 

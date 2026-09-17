@@ -100,23 +100,18 @@ class _ClassTile extends ConsumerWidget {
               tooltip: 'Subjects',
               onPressed: () => _showSubjectPicker(context, ref),
             ),
-            PopupMenuButton<bool>(
-              onSelected: (active) async {
-                final messenger = ScaffoldMessenger.of(context);
-                try {
-                  await ref
-                      .read(academicConfigControllerProvider)
-                      .setClassActive(schoolClass, active);
-                } on AcademicConfigFailure catch (failure) {
-                  messenger.showSnackBar(
-                    SnackBar(content: Text(failure.message)),
-                  );
-                }
-              },
+            PopupMenuButton<String>(
+              onSelected: (value) => value == 'delete'
+                  ? _confirmDelete(context, ref)
+                  : _toggleActive(context, ref, value == 'activate'),
               itemBuilder: (context) => [
                 PopupMenuItem(
-                  value: !schoolClass.active,
+                  value: schoolClass.active ? 'deactivate' : 'activate',
                   child: Text(schoolClass.active ? 'Deactivate' : 'Activate'),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Text('Delete permanently'),
                 ),
               ],
             ),
@@ -124,6 +119,58 @@ class _ClassTile extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _toggleActive(
+    BuildContext context,
+    WidgetRef ref,
+    bool active,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(academicConfigControllerProvider)
+          .setClassActive(schoolClass, active);
+    } on AcademicConfigFailure catch (failure) {
+      messenger.showSnackBar(SnackBar(content: Text(failure.message)));
+    }
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete class?'),
+        content: Text(
+          '"${schoolClass.name}" will be permanently removed. This only '
+          'succeeds if nothing currently uses this class - otherwise '
+          'deactivate it instead.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(academicConfigControllerProvider)
+          .deleteClass(schoolClass);
+      messenger.showSnackBar(
+        SnackBar(content: Text('"${schoolClass.name}" deleted.')),
+      );
+    } on AcademicConfigFailure catch (failure) {
+      messenger.showSnackBar(SnackBar(content: Text(failure.message)));
+    }
   }
 
   Future<void> _showSubjectPicker(BuildContext context, WidgetRef ref) async {

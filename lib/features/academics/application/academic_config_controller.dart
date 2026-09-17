@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/constants/firestore_collections.dart';
+import '../../../core/services/firebase_providers.dart';
 import '../data/academic_session.dart';
 import '../data/academics_repositories.dart';
 import '../data/board.dart';
@@ -121,6 +123,59 @@ class AcademicConfigController {
     ),
   );
 
+  /// Every collection whose documents can reference a class by id -
+  /// checked before [deleteClass] is allowed to proceed. Not exhaustive of
+  /// every historical trace (a past `students/{uid}/admissions` snapshot
+  /// isn't checked - a subcollection query would need a dedicated
+  /// collection-group index), but covers every currently-operational
+  /// reference, including the live `students` document itself.
+  static const _classReferenceCollections = [
+    FirestoreCollections.batches,
+    FirestoreCollections.students,
+    FirestoreCollections.tests,
+    FirestoreCollections.academicWork,
+    FirestoreCollections.teacherAssignments,
+    FirestoreCollections.attendance,
+    FirestoreCollections.feePayments,
+    FirestoreCollections.notices,
+    FirestoreCollections.enquiries,
+  ];
+
+  /// Whether [classId] is referenced by any real record. See
+  /// [_classReferenceCollections]'s doc comment for what this does and
+  /// doesn't cover.
+  Future<bool> isClassInUse(String classId) async {
+    final firestore = _ref.read(firestoreProvider);
+    for (final collection in _classReferenceCollections) {
+      final snapshot = await firestore
+          .collection(collection)
+          .where('classId', isEqualTo: classId)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isNotEmpty) return true;
+    }
+    return false;
+  }
+
+  /// Permanently deletes [existing] - unlike every other action in this
+  /// controller, this is a real hard delete (see docs/database-
+  /// architecture.md's "Data safety: no delete, ever" for why that's
+  /// normally disallowed). Only intended for cleaning up a class that was
+  /// never actually used (e.g. created while testing) - refuses with a
+  /// clear [AcademicConfigFailure] when [isClassInUse] finds any
+  /// reference; prefer [setClassActive] to deactivate a class that's
+  /// genuinely in use.
+  Future<void> deleteClass(SchoolClass existing) => _run(() async {
+    if (await isClassInUse(existing.classId)) {
+      throw const AcademicConfigFailure(
+        'This class is in use (by a batch, student, test, homework, '
+        'attendance, fee, notice, or enquiry record) and cannot be '
+        'deleted. Deactivate it instead.',
+      );
+    }
+    await _ref.read(schoolClassRepositoryProvider).delete(existing.classId);
+  });
+
   // ---- Boards ---------------------------------------------------------------
 
   Future<void> saveBoard({Board? existing, required String name}) =>
@@ -174,6 +229,57 @@ class AcademicConfigController {
       {'active': active, 'updatedAt': Timestamp.now()},
     ),
   );
+
+  /// Every collection whose documents can reference a subject by id
+  /// (`subjectId`), plus the two places a subject is referenced from a
+  /// `subjectIds` list rather than a single field - checked before
+  /// [deleteSubject] is allowed to proceed. See
+  /// [_classReferenceCollections]'s doc comment for the same historical-
+  /// trace caveat.
+  static const _subjectReferenceCollections = [
+    FirestoreCollections.tests,
+    FirestoreCollections.academicWork,
+    FirestoreCollections.teacherAssignments,
+  ];
+
+  /// Whether [subjectId] is referenced by any real record.
+  Future<bool> isSubjectInUse(String subjectId) async {
+    final firestore = _ref.read(firestoreProvider);
+    for (final collection in _subjectReferenceCollections) {
+      final snapshot = await firestore
+          .collection(collection)
+          .where('subjectId', isEqualTo: subjectId)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isNotEmpty) return true;
+    }
+    final classesOfferingIt = await firestore
+        .collection(FirestoreCollections.classes)
+        .where('subjectIds', arrayContains: subjectId)
+        .limit(1)
+        .get();
+    if (classesOfferingIt.docs.isNotEmpty) return true;
+    final teachersCapableOfIt = await firestore
+        .collection(FirestoreCollections.teachers)
+        .where('subjectIds', arrayContains: subjectId)
+        .limit(1)
+        .get();
+    return teachersCapableOfIt.docs.isNotEmpty;
+  }
+
+  /// Permanently deletes [existing]. See [deleteClass]'s doc comment -
+  /// same reasoning and same scoped exception to the project's normal
+  /// "no delete, ever" rule.
+  Future<void> deleteSubject(Subject existing) => _run(() async {
+    if (await isSubjectInUse(existing.subjectId)) {
+      throw const AcademicConfigFailure(
+        'This subject is in use (offered by a class, taught by a '
+        'teacher, or used in a test/homework record) and cannot be '
+        'deleted. Deactivate it instead.',
+      );
+    }
+    await _ref.read(subjectRepositoryProvider).delete(existing.subjectId);
+  });
 
   // ---- One-time default seeding --------------------------------------------
 
@@ -290,6 +396,8 @@ class AcademicConfigController {
   Future<void> _run(Future<void> Function() action) async {
     try {
       await action();
+    } on AcademicConfigFailure {
+      rethrow;
     } catch (_) {
       throw const AcademicConfigFailure('Could not save. Please try again.');
     }

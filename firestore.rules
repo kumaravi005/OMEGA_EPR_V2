@@ -1641,7 +1641,13 @@ service cloud.firestore {
     match /classes/{classId} {
       allow get, list: if true;
       allow create, update: if isAdmin() && newSchoolClassIsValid();
-      allow delete: if false;
+      // Scoped exception to "no delete, ever" (see docs/database-
+      // architecture.md): the app only calls this after confirming
+      // nothing references the class (AcademicConfigController.
+      // deleteClass) - rules can't run that cross-collection check
+      // themselves, so this only gates WHO may call delete, not whether
+      // it's safe to.
+      allow delete: if isAdmin();
     }
 
     function newBoardIsValid() {
@@ -1671,7 +1677,8 @@ service cloud.firestore {
     match /subjects/{subjectId} {
       allow get, list: if isSignedIn();
       allow create, update: if isAdmin() && newSubjectIsValid();
-      allow delete: if false;
+      // See the same-shaped comment on /classes/{classId} above.
+      allow delete: if isAdmin();
     }
 
     // Atomic sequence counters (Set 11) - currently only `counters/students`,
