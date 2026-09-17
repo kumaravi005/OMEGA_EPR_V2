@@ -136,6 +136,9 @@ class PublicContentController {
     required String title,
     required String? description,
     required String? imageUrl,
+    required String? trackTag,
+    required List<String> subjectChips,
+    required String? syllabusUrl,
     required bool active,
     required int sortOrder,
   }) async {
@@ -145,6 +148,12 @@ class PublicContentController {
       title: title.trim(),
       description: _blankToNull(description),
       imageUrl: _blankToNull(imageUrl),
+      trackTag: _blankToNull(trackTag),
+      subjectChips: subjectChips
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList(),
+      syllabusUrl: _blankToNull(syllabusUrl),
       active: active,
       sortOrder: existing?.sortOrder ?? sortOrder,
       createdAt: existing?.createdAt ?? now,

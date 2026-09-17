@@ -26,15 +26,46 @@ import '../data/public_content_repositories.dart';
 import '../data/upcoming_batch.dart';
 import 'ad_popup.dart';
 
+/// Landing-page-local design tokens (per the post-Set-33 redesign brief)
+/// that are more precise than the app-wide [AppSpacing] scale calls for
+/// elsewhere - kept local rather than widening the shared theme, since
+/// admin/dashboard screens weren't part of this brief.
+const _kButtonRadius = 14.0;
+const _kChipRadius = 8.0;
+const _kCardShadow = [
+  BoxShadow(color: Color(0x0F101828), blurRadius: 2, offset: Offset(0, 1)),
+  BoxShadow(color: Color(0x1A101828), blurRadius: 24, offset: Offset(0, 10)),
+];
+
 /// Public landing area - reachable without signing in. Every section
 /// hides itself when there's no active content, rather than showing an
 /// empty placeholder - a professional public site shouldn't advertise
 /// its own emptiness.
-class PublicHomeScreen extends ConsumerWidget {
+class PublicHomeScreen extends ConsumerStatefulWidget {
   const PublicHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PublicHomeScreen> createState() => _PublicHomeScreenState();
+}
+
+class _PublicHomeScreenState extends ConsumerState<PublicHomeScreen> {
+  final _coursesKey = GlobalKey();
+  final _batchesKey = GlobalKey();
+  final _galleryKey = GlobalKey();
+  final _contactKey = GlobalKey();
+
+  void _scrollTo(GlobalKey key) {
+    final context = key.currentContext;
+    if (context == null) return;
+    Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final profileAsync = ref.watch(instituteProfileProvider);
     final instituteName =
         profileAsync.valueOrNull?.name ?? AppConstants.appName;
@@ -59,40 +90,37 @@ class PublicHomeScreen extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: AppButton(
-                                  label: 'Admission enquiry',
-                                  onPressed: () =>
-                                      showSubmitEnquiryDialog(context),
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(
-                                child: AppButton(
-                                  label: 'Request a callback',
-                                  variant: AppButtonVariant.secondary,
-                                  onPressed: () =>
-                                      showRequestCallbackDialog(context),
-                                ),
-                              ),
-                            ],
-                          ),
                           const _BannersSection(),
-                          const _CoursesSection(),
-                          const _UpcomingBatchesSection(),
-                          const _GallerySection(),
+                          const _StatStripSection(),
+                          KeyedSubtree(
+                            key: _coursesKey,
+                            child: const _CoursesSection(),
+                          ),
+                          KeyedSubtree(
+                            key: _batchesKey,
+                            child: const _UpcomingBatchesSection(),
+                          ),
+                          KeyedSubtree(
+                            key: _galleryKey,
+                            child: const _GallerySection(),
+                          ),
                           const _PublicNoticesSection(),
-                          // Contact is placed right after Notices/Gallery
-                          // (Set 31) - prominent, not buried at the very
-                          // bottom - while Announcements/About still keep
-                          // their own section below it.
-                          _ContactSection(profile: profileAsync.valueOrNull),
+                          KeyedSubtree(
+                            key: _contactKey,
+                            child: _ContactSection(
+                              profile: profileAsync.valueOrNull,
+                            ),
+                          ),
                           const _AnnouncementsSection(),
                           _AboutSection(about: profileAsync.valueOrNull?.about),
                           const SizedBox(height: AppSpacing.xl),
-                          _Footer(instituteName: instituteName),
+                          _Footer(
+                            instituteName: instituteName,
+                            onCourses: () => _scrollTo(_coursesKey),
+                            onBatches: () => _scrollTo(_batchesKey),
+                            onGallery: () => _scrollTo(_galleryKey),
+                            onContact: () => _scrollTo(_contactKey),
+                          ),
                         ],
                       ),
                     ),
@@ -108,10 +136,12 @@ class PublicHomeScreen extends ConsumerWidget {
   }
 }
 
-/// Compact top header (Set 31): a slim branded bar - small logo, institute
-/// name + tagline, and the sign-in action - instead of the old full-height
-/// blue hero band that duplicated the institute name already shown a
-/// second time inside the hero carousel below it.
+/// Header + primary CTAs (per the redesign brief): one contiguous
+/// brand-primary gradient block - small rounded-square logo, institute
+/// name/tagline, an outline "Sign in" action, then two full-width CTAs
+/// (filled accent "Admission enquiry" + outline "Request a callback") -
+/// with rounded bottom corners closing off the block before the page's
+/// light background begins.
 class _TopHeader extends StatelessWidget {
   const _TopHeader({
     required this.instituteName,
@@ -129,91 +159,143 @@ class _TopHeader extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.md,
       ),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            AppColors.primary,
-            Color.alphaBlend(
-              AppColors.accent.withValues(alpha: 0.14),
-              Color.lerp(AppColors.primary, Colors.white, 0.35)!,
-            ),
-          ],
+          colors: [AppColors.primary, AppColors.primaryDark],
+        ),
+        borderRadius: BorderRadius.vertical(
+          bottom: Radius.circular(AppSpacing.radiusLg),
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            padding: const EdgeInsets.all(2),
-            decoration: const BoxDecoration(
-              color: AppColors.accent,
-              shape: BoxShape.circle,
-            ),
-            child: ClipOval(
-              child: hasNetworkLogo
-                  ? Image.network(
-                      logoUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Image.asset(
-                        'assets/branding/logo.png',
-                        fit: BoxFit.cover,
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(_kButtonRadius),
+                child: SizedBox(
+                  width: 58,
+                  height: 58,
+                  child: hasNetworkLogo
+                      ? Image.network(
+                          logoUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Image.asset(
+                            'assets/branding/logo.png',
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : Image.asset(
+                          'assets/branding/logo.png',
+                          fit: BoxFit.cover,
+                        ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      instituteName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        height: 28 / 22,
                       ),
-                    )
-                  : Image.asset('assets/branding/logo.png', fit: BoxFit.cover),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  instituteName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
+                    ),
+                    if (tagline != null && tagline!.isNotEmpty)
+                      Text(
+                        tagline!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          height: 18 / 13,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              OutlinedButton.icon(
+                onPressed: () => context.go(AppRoutes.login),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white54),
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (tagline != null && tagline!.isNotEmpty)
-                  Text(
-                    tagline!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: Colors.white70),
-                  ),
-              ],
-            ),
+                icon: const Icon(Icons.person_outline, size: 16),
+                label: const Text('Sign in'),
+              ),
+            ],
           ),
-          ElevatedButton.icon(
-            onPressed: () => context.go(AppRoutes.login),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryDark,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.35)),
-              minimumSize: const Size(0, 36),
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: AppColors.onAccent,
+                    elevation: 0,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(_kButtonRadius),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: () => showSubmitEnquiryDialog(context),
+                  child: const Text('Admission enquiry'),
+                ),
               ),
-              textStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white70),
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(_kButtonRadius),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: () => showRequestCallbackDialog(context),
+                  child: const Text('Request a callback'),
+                ),
               ),
-            ),
-            icon: const Icon(Icons.person_outline, size: 16),
-            label: const Text('Sign in'),
+            ],
           ),
         ],
       ),
@@ -221,16 +303,112 @@ class _TopHeader extends StatelessWidget {
   }
 }
 
+/// Stat strip (new, per the redesign brief): one white card, 3 columns
+/// divided by hairlines. Figures are real (given directly by the admin)
+/// rather than Firestore-backed - see the class doc comment on why they
+/// aren't wired to an editable field yet.
+class _StatStripSection extends StatelessWidget {
+  const _StatStripSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        boxShadow: _kCardShadow,
+      ),
+      child: const Row(
+        children: [
+          Expanded(child: _StatItem(value: '6+', label: 'YEARS')),
+          _StatDivider(),
+          Expanded(child: _StatItem(value: '2,500+', label: 'STUDENTS')),
+          _StatDivider(),
+          Expanded(child: _StatItem(value: '92%', label: 'RESULT RATE')),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatItem extends StatelessWidget {
+  const _StatItem({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppColors.primary,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 36,
+      child: VerticalDivider(width: 1, color: AppColors.border),
+    );
+  }
+}
+
 class _Footer extends StatelessWidget {
-  const _Footer({required this.instituteName});
+  const _Footer({
+    required this.instituteName,
+    required this.onCourses,
+    required this.onBatches,
+    required this.onGallery,
+    required this.onContact,
+  });
 
   final String instituteName;
+  final VoidCallback onCourses;
+  final VoidCallback onBatches;
+  final VoidCallback onGallery;
+  final VoidCallback onContact;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         const Divider(),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: AppSpacing.md,
+          children: [
+            _FooterLink('Courses', onCourses),
+            _FooterLink('Batches', onBatches),
+            _FooterLink('Gallery', onGallery),
+            _FooterLink('Contact', onContact),
+          ],
+        ),
         const SizedBox(height: AppSpacing.sm),
         Text(
           instituteName,
@@ -251,12 +429,39 @@ class _Footer extends StatelessWidget {
   }
 }
 
+class _FooterLink extends StatelessWidget {
+  const _FooterLink(this.label, this.onTap);
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
 /// Hero carousel section (Set 30): resolves the live, admin-ordered
 /// banner list and hands it to [_HeroCarousel], which owns the actual
 /// auto-slide/swipe/dot-indicator behavior. Kept separate from
 /// [_HeroCarousel] so the carousel's State isn't rebuilt from scratch on
 /// every Firestore emission - only when the resolved banner list itself
 /// changes (Flutter's normal widget-update diffing).
+///
+/// The redesign brief describes a hero built from a flat gradient with
+/// programmatic copy (no photo). This project's hero is instead real,
+/// admin-uploaded poster images (Set 30's whole point) - replacing that
+/// with static gradient text would delete working, real admin content,
+/// which the brief itself says not to do ("not a rewrite of what the
+/// school offers"). This keeps the real photo carousel and only applies
+/// the brief's shadow/radius/scrim polish.
 class _BannersSection extends ConsumerWidget {
   const _BannersSection();
 
@@ -348,13 +553,7 @@ class _HeroCarouselState extends State<_HeroCarousel> {
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: _kCardShadow,
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
@@ -455,7 +654,7 @@ class _HeroSlide extends StatelessWidget {
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 20,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               if (banner.description != null) ...[
@@ -473,7 +672,11 @@ class _HeroSlide extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accent,
                     foregroundColor: AppColors.onAccent,
+                    elevation: 0,
                     minimumSize: const Size(64, 36),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(_kButtonRadius),
+                    ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.md,
                     ),
@@ -490,11 +693,9 @@ class _HeroSlide extends StatelessWidget {
   }
 }
 
-/// "Our Courses" (requested to sit above Upcoming Batches): the distinct
-/// class/board combinations drawn from the same real, already-public
-/// upcoming-batch data - there's no separate "courses" collection in this
-/// project, so rather than hard-coding a fixed placeholder list, this
-/// reuses real admin-entered data instead of inventing content.
+/// "Our courses": real, admin-managed course listings (see
+/// `features/public/data/course.dart` and Admin -> Front office &
+/// website -> Our courses).
 class _CoursesSection extends ConsumerWidget {
   const _CoursesSection();
 
@@ -510,7 +711,7 @@ class _CoursesSection extends ConsumerWidget {
       children: [
         const SectionHeader('Our courses'),
         SizedBox(
-          height: 156,
+          height: 190,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: courses.length,
@@ -531,42 +732,130 @@ class _CourseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasImage = course.imageUrl != null && course.imageUrl!.isNotEmpty;
+    final hasTag = course.trackTag != null && course.trackTag!.isNotEmpty;
+    final hasChips = course.subjectChips.isNotEmpty;
+    final hasSyllabus =
+        course.syllabusUrl != null && course.syllabusUrl!.isNotEmpty;
 
     return Container(
-      width: 140,
+      width: 172,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        border: Border.all(color: AppColors.border),
+        boxShadow: _kCardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AspectRatio(
-            aspectRatio: 4 / 3,
-            child: hasImage
-                ? Image.network(
-                    course.imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _CourseCardFallbackIcon(
-                      color: Theme.of(context).colorScheme.primary,
+          Stack(
+            children: [
+              AspectRatio(
+                aspectRatio: 4 / 3,
+                child: hasImage
+                    ? Image.network(
+                        course.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => _CourseCardFallbackIcon(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      )
+                    : _CourseCardFallbackIcon(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+              ),
+              if (hasTag)
+                Positioned(
+                  left: AppSpacing.xs,
+                  top: AppSpacing.xs,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xs,
+                      vertical: 2,
                     ),
-                  )
-                : _CourseCardFallbackIcon(
-                    color: Theme.of(context).colorScheme.primary,
+                    decoration: BoxDecoration(
+                      color: AppColors.accent,
+                      borderRadius: BorderRadius.circular(_kChipRadius),
+                    ),
+                    child: Text(
+                      course.trackTag!.toUpperCase(),
+                      style: const TextStyle(
+                        color: AppColors.onAccent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
                   ),
+                ),
+            ],
           ),
           Padding(
             padding: const EdgeInsets.all(AppSpacing.sm),
-            child: Text(
-              course.title,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  course.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    height: 22 / 16,
+                  ),
+                ),
+                if (hasChips) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      for (final subject in course.subjectChips.take(3))
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xs,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceSunken,
+                            borderRadius: BorderRadius.circular(_kChipRadius),
+                          ),
+                          child: Text(
+                            subject,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+                if (hasSyllabus) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  InkWell(
+                    onTap: () => openExternalLink(course.syllabusUrl!),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'View syllabus',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(width: 2),
+                        Icon(
+                          Icons.arrow_forward,
+                          size: 14,
+                          color: AppColors.primary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
@@ -604,7 +893,7 @@ class _UpcomingBatchesSection extends ConsumerWidget {
       children: [
         const SectionHeader('Upcoming batches'),
         SizedBox(
-          height: 172,
+          height: 132,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: active.length,
@@ -625,32 +914,83 @@ class _UpcomingBatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isOpen = batch.admissionStatus.toLowerCase().contains('open');
+
     return Container(
       width: 240,
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        border: Border.all(color: AppColors.border),
+        boxShadow: _kCardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '${batch.className} (${batch.board})',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'Starts ${dateKey(batch.startDate)}',
-            style: Theme.of(context).textTheme.bodySmall,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${batch.className} (${batch.board})',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (isOpen)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.successSoft,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        size: 12,
+                        color: AppColors.success,
+                      ),
+                      SizedBox(width: 3),
+                      Text(
+                        'OPEN',
+                        style: TextStyle(
+                          color: AppColors.success,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Chip(
+                  label: Text(batch.admissionStatus),
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          Chip(
-            label: Text(batch.admissionStatus),
-            visualDensity: VisualDensity.compact,
+          Row(
+            children: [
+              const Icon(
+                Icons.calendar_today_outlined,
+                size: 14,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Starts ${dateKey(batch.startDate)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.xs),
           Align(
@@ -747,13 +1087,16 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
+/// Gallery: 2-column grid, fixed 4:3 tiles, caption overlay (the item's
+/// own [GalleryItem.title], which the previous 3-column layout never
+/// actually surfaced).
 class _GallerySection extends ConsumerWidget {
   const _GallerySection();
 
-  /// Shown thumbnails before folding the rest behind a "+N More" tile
-  /// (Set 31) - keeps the grid a clean, uniform 2 rows of 3 regardless of
-  /// how many photos the admin has uploaded.
-  static const _previewCount = 5;
+  /// Shown thumbnails before folding the rest behind a "+N More" tile -
+  /// keeps the grid a clean, uniform 3 rows of 2 regardless of how many
+  /// photos the admin has uploaded.
+  static const _previewCount = 6;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -784,60 +1127,94 @@ class _GallerySection extends ConsumerWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: AppSpacing.xs,
-            mainAxisSpacing: AppSpacing.xs,
-            childAspectRatio: 1,
+            crossAxisCount: 2,
+            crossAxisSpacing: AppSpacing.sm,
+            mainAxisSpacing: AppSpacing.sm,
+            childAspectRatio: 4 / 3,
           ),
           itemCount: cellCount,
           itemBuilder: (context, index) {
             if (overflow > 0 && index == shown.length) {
               return InkWell(
                 onTap: () => _showGalleryAll(context, active),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Image.network(
-                        active[_previewCount].imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) =>
-                            const ColoredBox(color: Colors.black12),
-                      ),
-                      ColoredBox(
-                        color: Colors.black.withValues(alpha: 0.55),
-                        child: Center(
-                          child: Text(
-                            '+$overflow More',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                child: _GalleryTile(
+                  item: active[_previewCount],
+                  overlayLabel: '+$overflow More',
                 ),
               );
             }
-            final item = shown[index];
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-              child: Image.network(
-                item.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const ColoredBox(
-                  color: Colors.black12,
-                  child: Icon(Icons.broken_image_outlined),
-                ),
-              ),
-            );
+            return _GalleryTile(item: shown[index]);
           },
         ),
       ],
+    );
+  }
+}
+
+class _GalleryTile extends StatelessWidget {
+  const _GalleryTile({required this.item, this.overlayLabel});
+
+  final GalleryItem item;
+
+  /// When set, replaces the caption with this (the "+N More" tile).
+  final String? overlayLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_kButtonRadius),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network(
+            item.imageUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => const ColoredBox(
+              color: Colors.black12,
+              child: Icon(Icons.broken_image_outlined),
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [
+                  Colors.black.withValues(alpha: overlayLabel != null ? 0.55 : 0.5),
+                  Colors.transparent,
+                ],
+                stops: const [0.0, 0.6],
+              ),
+            ),
+          ),
+          Positioned(
+            left: AppSpacing.xs,
+            right: AppSpacing.xs,
+            bottom: AppSpacing.xs,
+            child: overlayLabel != null
+                ? Center(
+                    child: Text(
+                      overlayLabel!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  )
+                : Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -851,23 +1228,13 @@ void _showGalleryAll(BuildContext context, List<GalleryItem> items) {
         body: GridView.builder(
           padding: const EdgeInsets.all(AppSpacing.md),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: AppSpacing.xs,
-            mainAxisSpacing: AppSpacing.xs,
-            childAspectRatio: 1,
+            crossAxisCount: 2,
+            crossAxisSpacing: AppSpacing.sm,
+            mainAxisSpacing: AppSpacing.sm,
+            childAspectRatio: 4 / 3,
           ),
           itemCount: items.length,
-          itemBuilder: (context, index) => ClipRRect(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-            child: Image.network(
-              items[index].imageUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => const ColoredBox(
-                color: Colors.black12,
-                child: Icon(Icons.broken_image_outlined),
-              ),
-            ),
-          ),
+          itemBuilder: (context, index) => _GalleryTile(item: items[index]),
         ),
       ),
     ),
@@ -889,18 +1256,74 @@ class _AnnouncementsSection extends ConsumerWidget {
       children: [
         const SectionHeader('Announcements'),
         for (final item in active)
-          AppCard(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  Text(item.body),
-                ],
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              onTap: () => showDialog<void>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text(item.title),
+                  content: SingleChildScrollView(child: Text(item.body)),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  boxShadow: _kCardShadow,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.accent,
+                        borderRadius: BorderRadius.circular(_kChipRadius),
+                      ),
+                      child: const Icon(
+                        Icons.campaign_outlined,
+                        color: AppColors.onAccent,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            item.body,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -951,39 +1374,56 @@ class _ContactSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SectionHeader('Contact us'),
-        AppCard(
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            boxShadow: _kCardShadow,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (address != null) _ContactRow(Icons.location_on_outlined, address),
+              if (address != null && (email != null || website != null))
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                  child: Divider(height: 1),
+                ),
               if (email != null) _ContactRow(Icons.email_outlined, email),
-              if (website != null) _ContactRow(Icons.language_outlined, website),
+              if (website != null) ...[
+                if (email != null)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                    child: Divider(height: 1),
+                  ),
+                _ContactRow(Icons.language_outlined, website),
+              ],
               if (phone != null) ...[
-                _ContactRow(Icons.phone_outlined, phone),
                 const SizedBox(height: AppSpacing.sm),
                 Row(
                   children: [
-                    Expanded(
-                      child: AppButton(
-                        label: 'Call',
-                        icon: Icons.call_outlined,
-                        onPressed: () => callNumber(phone),
-                      ),
+                    Expanded(child: _ContactRow(Icons.phone_outlined, phone)),
+                    AppButton(
+                      label: 'Call',
+                      icon: Icons.call_outlined,
+                      onPressed: () => callNumber(phone),
                     ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: AppButton(
-                        label: 'WhatsApp',
-                        icon: Icons.chat_outlined,
-                        variant: AppButtonVariant.secondary,
-                        onPressed: () => openWhatsApp(phone),
-                      ),
+                    const SizedBox(width: AppSpacing.xs),
+                    AppButton(
+                      label: 'WhatsApp',
+                      icon: Icons.chat_outlined,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: () => openWhatsApp(phone),
                     ),
                   ],
                 ),
               ],
               if (secondaryPhone != null) ...[
-                const SizedBox(height: AppSpacing.sm),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                  child: Divider(height: 1),
+                ),
                 Row(
                   children: [
                     Expanded(
@@ -1015,7 +1455,7 @@ class _ContactRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1069,16 +1509,89 @@ class _NoticeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(notice.title),
-        subtitle: Text(
-          notice.type == NoticeType.other
-              ? (notice.otherTypeLabel ?? notice.type.label)
-              : notice.type.label,
-        ),
+    final isImportant = notice.type == NoticeType.important;
+    final typeLabel = notice.type == NoticeType.other
+        ? (notice.otherTypeLabel ?? notice.type.label)
+        : notice.type.label;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
         onTap: () => showPublicNoticeDialog(context, notice),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            boxShadow: _kCardShadow,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceSunken,
+                  borderRadius: BorderRadius.circular(_kChipRadius),
+                ),
+                child: const Icon(
+                  Icons.notifications_outlined,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            notice.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        if (isImportant)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.xs,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceSunken,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              'IMPORTANT',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${dateKey(notice.publishedAt ?? notice.createdAt)} · $typeLabel',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

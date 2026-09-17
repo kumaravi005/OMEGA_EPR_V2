@@ -8,6 +8,9 @@ Course _course({int sortOrder = 0, bool active = true}) {
     title: 'Class 9 (BSEB)',
     description: 'Board exam preparation',
     imageUrl: 'https://example.com/course.jpg',
+    trackTag: 'Foundation',
+    subjectChips: const ['Science', 'Maths'],
+    syllabusUrl: 'https://example.com/syllabus.pdf',
     active: active,
     sortOrder: sortOrder,
     createdAt: now,
@@ -25,6 +28,9 @@ void main() {
       expect(restored.title, course.title);
       expect(restored.description, course.description);
       expect(restored.imageUrl, course.imageUrl);
+      expect(restored.trackTag, course.trackTag);
+      expect(restored.subjectChips, course.subjectChips);
+      expect(restored.syllabusUrl, course.syllabusUrl);
       expect(restored.active, isTrue);
     });
 
@@ -48,5 +54,21 @@ void main() {
       expect(restored.imageUrl, isNull);
       expect(restored.description, isNull);
     });
+
+    test(
+      'fromMap defaults subjectChips to an empty list when the field is '
+      'missing, and tolerates a null trackTag/syllabusUrl',
+      () {
+        final map = _course().toMap()
+          ..remove('subjectChips')
+          ..['trackTag'] = null
+          ..['syllabusUrl'] = null;
+        final restored = Course.fromMap('course1', map);
+
+        expect(restored.subjectChips, isEmpty);
+        expect(restored.trackTag, isNull);
+        expect(restored.syllabusUrl, isNull);
+      },
+    );
   });
 }

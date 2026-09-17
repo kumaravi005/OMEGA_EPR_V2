@@ -174,6 +174,15 @@ class _CourseFormDialogState extends ConsumerState<_CourseFormDialog> {
   late final _imageUrlController = TextEditingController(
     text: widget.existing?.imageUrl ?? '',
   );
+  late final _trackTagController = TextEditingController(
+    text: widget.existing?.trackTag ?? '',
+  );
+  late final _subjectChipsController = TextEditingController(
+    text: widget.existing?.subjectChips.join(', ') ?? '',
+  );
+  late final _syllabusUrlController = TextEditingController(
+    text: widget.existing?.syllabusUrl ?? '',
+  );
   late bool _active = widget.existing?.active ?? true;
 
   bool _isSubmitting = false;
@@ -184,6 +193,9 @@ class _CourseFormDialogState extends ConsumerState<_CourseFormDialog> {
     _titleController.dispose();
     _descriptionController.dispose();
     _imageUrlController.dispose();
+    _trackTagController.dispose();
+    _subjectChipsController.dispose();
+    _syllabusUrlController.dispose();
     super.dispose();
   }
 
@@ -204,6 +216,9 @@ class _CourseFormDialogState extends ConsumerState<_CourseFormDialog> {
             title: _titleController.text,
             description: _descriptionController.text,
             imageUrl: _imageUrlController.text,
+            trackTag: _trackTagController.text,
+            subjectChips: _subjectChipsController.text.split(','),
+            syllabusUrl: _syllabusUrlController.text,
             active: _active,
             sortOrder: widget.nextSortOrder,
           );
@@ -253,6 +268,27 @@ class _CourseFormDialogState extends ConsumerState<_CourseFormDialog> {
                 label: 'Icon/image URL (optional)',
                 enabled: !_isSubmitting,
               ),
+              const SizedBox(height: AppSpacing.sm),
+              AppTextField(
+                controller: _trackTagController,
+                label: 'Track tag (optional)',
+                hintText: 'e.g. Foundation, Competitive',
+                enabled: !_isSubmitting,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppTextField(
+                controller: _subjectChipsController,
+                label: 'Subject chips (optional)',
+                hintText: 'Comma-separated, e.g. Science, Maths',
+                enabled: !_isSubmitting,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppTextField(
+                controller: _syllabusUrlController,
+                label: 'Syllabus link (optional)',
+                enabled: !_isSubmitting,
+              ),
+              const SizedBox(height: AppSpacing.sm),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Active'),
