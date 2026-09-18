@@ -36,4 +36,9 @@ abstract final class AppColors {
   static const success = Color(0xFF146B40);
   static const successSoft = Color(0xFFE5F6EC);
   static const warning = Color(0xFFE0A324);
+
+  /// Reserved for money owed/overdue and the Logout action (student
+  /// dashboard) - not a general-purpose error color; use [error] for that.
+  static const danger = Color(0xFFC0362C);
+  static const dangerSoft = Color(0xFFFDEEEB);
 }

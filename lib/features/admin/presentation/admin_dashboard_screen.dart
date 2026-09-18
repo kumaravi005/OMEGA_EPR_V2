@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/dashboard_header.dart';
+import '../../../core/widgets/logout_row.dart';
 import '../../../core/widgets/nav_grid_tile.dart';
+import '../../../core/widgets/role_dashboard_header.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../auth/application/auth_providers.dart';
 
@@ -25,11 +26,13 @@ class AdminDashboardScreen extends ConsumerWidget {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            DashboardHeader(
+            RoleDashboardHeader(
               greeting: greetingFor(DateTime.now()),
+              name: account?.displayName ?? 'Admin',
               roleLabel: 'Admin',
-              name: account?.displayName,
-              onSignOut: () => ref.read(authControllerProvider).logout(),
+              photoUrl: null,
+              onNotifications: () => context.push(AppRoutes.adminNotifications),
+              onNotices: () => context.push(AppRoutes.adminNotices),
             ),
             Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -166,6 +169,10 @@ class AdminDashboardScreen extends ConsumerWidget {
                       AppRoutes.adminReportTemplates,
                     ),
                   ]),
+                  const SizedBox(height: AppSpacing.lg),
+                  LogoutRow(
+                    onTap: () => ref.read(authControllerProvider).logout(),
+                  ),
                 ],
               ),
             ),
