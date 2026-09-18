@@ -36,6 +36,11 @@ abstract final class AppColors {
   static const success = Color(0xFF146B40);
   static const successSoft = Color(0xFFE5F6EC);
   static const warning = Color(0xFFE0A324);
+  static const warningSoft = Color(0xFFFFF4D6);
+
+  /// Readable text/icon color on [warningSoft] ([warning] itself is too
+  /// light for body text).
+  static const onWarningSoft = Color(0xFF7A5200);
 
   /// Reserved for money owed/overdue and the Logout action (student
   /// dashboard) - not a general-purpose error color; use [error] for that.

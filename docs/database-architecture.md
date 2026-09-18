@@ -874,6 +874,55 @@ exact shape a future push sender or in-app notifications feed would
 consume. No UI reads this collection yet, so read access is admin-only
 for now (tightened/opened up once a consuming feature exists).
 
+### Completion tracking: `workCompletions` (Set 34)
+
+A teacher (or admin) marks each student's homework/assignment as
+**completed**, **incomplete** (partly done, still finishable by the due
+date) or **not completed**, optionally with a short remark (200 characters
+at most). The student is then shown a colored, bilingual (English + Hindi)
+message; admin can monitor every item.
+
+- **One record per student per work**, at `workCompletions/{workId}_{studentUid}`
+  (deterministic id, the same pattern as `testResults`), holding `workId`,
+  `studentUid`, `batchId`, `status`, `remark`, `markedBy`, `markedAt` and
+  `seenAt`. "Not marked yet" is the *absence* of a record - it is never
+  stored. Re-saving updates the same document, so there are no duplicates.
+- **Why not on `academicWork`**: that document is deliberately shared by
+  the whole batch (Set 16), so per-student state cannot live there.
+- **Why not `notifications`**: a `notifications` event can only be
+  targeted by `batchId` (readable by every classmate) or `null`
+  (readable by everybody), so a per-student message cannot be private
+  there. `workCompletions` is readable only by admin, teachers and the
+  student it is about, and the app merges a student's own records into
+  their Notifications list on the client.
+- **Rules** (`firestore.rules`): admin/teachers read everything; a student
+  reads only their own (so `myWorkCompletionsProvider` must query
+  `studentUid == me`, per the query-shape requirement above). Create/update:
+  admin, or a teacher whose active `teacherAssignment` covers the parent
+  work - checked with a single `get()` on that work, which is the same path
+  for every row of a bulk save and therefore counts once against the rules'
+  access-call limit (a per-student lookup would exceed it on a full class).
+  For the same reason the rules cannot verify that each `studentUid`
+  belongs to the batch; the UI only ever lists that batch's active
+  students (the `testResults` precedent). Only `published`/`closed` work
+  can be marked. A student may write exactly one thing: their own `seenAt`.
+  Nothing can be deleted.
+- **Bulk save**: the student status screen stages every change locally and
+  writes only the changed rows in one `WriteBatch`
+  (`WorkCompletionController.saveBulk`), resetting `seenAt` on each so those
+  students are told again.
+- **Popup**: `WorkCompletionPopupHost` (student home) shows a dialog for
+  every record with `seenAt == null`, straight away if the app is open, or
+  the next time it is opened, then stamps `seenAt`. This is an in-app
+  popup, **not a push notification** - there are no Cloud Functions/FCM on
+  this plan, so nothing can reach a phone whose app is closed. The record
+  is already in the right shape for a future push sender.
+- **Admin monitoring**: the homework list shows each item's
+  completed / incomplete / not completed / not marked counts, and the
+  student status screen lists every student with a filter. The counts are
+  calculated on demand (`WorkCompletionSummary`), never stored, so they
+  cannot drift - matching `AcademicWork.isOverdue`.
+
 ## Results & ranking (Set 15)
 
 **No new collection.** Every Results screen re-derives its table from

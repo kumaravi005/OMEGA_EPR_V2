@@ -57,6 +57,10 @@ abstract final class FirestoreCollections {
   // structures.
   static const academicWork = 'academicWork';
 
+  // Added in Set 34 - one record per student per homework/assignment
+  // (completed / incomplete / not completed), keyed `<workId>_<studentUid>`.
+  static const workCompletions = 'workCompletions';
+
   // Added in Set 17 - admin-authored, targeted, published/closed notices
   // (Notices management). Deliberately NOT named `notifications`: that
   // name is already taken by the Set 4/5 auto-generated event trail

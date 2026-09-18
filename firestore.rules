@@ -910,6 +910,88 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Homework/assignment completion tracking (Set 34): one record per
+    // student per work, at `workCompletions/{workId}_{studentUid}` (same
+    // deterministic-id pattern as testResults), holding the teacher's
+    // completed / incomplete / notCompleted mark, an optional remark, and
+    // the student's own `seenAt` popup receipt. Separate from both
+    // `academicWork` (shared by the whole batch) and `notifications`
+    // (cannot be made private to one student - a batchId target is
+    // readable by every classmate, a null one by everybody).
+    //
+    // Reads: admin/teacher see everything; a student sees only their OWN
+    // records (so `myWorkCompletionsProvider` must query `studentUid ==
+    // me`). Writes: admin, or a teacher whose active teacherAssignment
+    // covers the parent work - checked with ONE get() on the parent
+    // academicWork (the same path for every row of a bulk save, so it
+    // counts once against the rules' access-call limit; a per-student
+    // lookup would blow that limit on a full class). For the same reason
+    // the rules cannot verify each studentUid really belongs to the
+    // batch - the UI only ever lists that batch's students, matching the
+    // testResults precedent. A student may write exactly one thing: their
+    // own `seenAt`.
+    function workCompletionFields() {
+      return ['workId', 'studentUid', 'batchId', 'status', 'remark', 'markedBy', 'markedAt', 'seenAt'];
+    }
+
+    function workCompletionWork(workId) {
+      return get(/databases/$(database)/documents/academicWork/$(workId)).data;
+    }
+
+    function workCompletionScopeMatches(workId) {
+      let work = workCompletionWork(workId);
+      return teacherIsAssignedTo(work.academicSessionId, work.classId, work.batchId, work.subjectId);
+    }
+
+    function workCompletionValuesAreValid() {
+      let data = request.resource.data;
+      return data.status in ['completed', 'incomplete', 'notCompleted']
+        && (data.remark == null || (data.remark is string && data.remark.size() <= 200))
+        && data.markedBy == request.auth.uid
+        && data.markedAt is timestamp
+        && data.seenAt == null
+        && data.keys().hasOnly(workCompletionFields());
+    }
+
+    function newWorkCompletionIsValid(completionId) {
+      let data = request.resource.data;
+      let work = workCompletionWork(data.workId);
+      return data.workId is string
+        && data.studentUid is string
+        && completionId == data.workId + '_' + data.studentUid
+        && data.batchId is string
+        && data.batchId == work.batchId
+        && work.status in ['published', 'closed']
+        && workCompletionValuesAreValid();
+    }
+
+    function workCompletionUpdateIsValid() {
+      let data = request.resource.data;
+      let old = resource.data;
+      return data.workId == old.workId
+        && data.studentUid == old.studentUid
+        && data.batchId == old.batchId
+        && workCompletionWork(data.workId).status in ['published', 'closed']
+        && workCompletionValuesAreValid();
+    }
+
+    function workCompletionSeenOnly() {
+      return isSelf(resource.data.studentUid)
+        && changedKeys().hasOnly(['seenAt'])
+        && request.resource.data.seenAt is timestamp;
+    }
+
+    match /workCompletions/{completionId} {
+      allow get: if isAdmin() || isTeacher() || isSelf(resource.data.studentUid);
+      allow list: if isAdmin() || isTeacher() || isSelf(resource.data.studentUid);
+      allow create: if (isAdmin() || (isTeacher() && workCompletionScopeMatches(request.resource.data.workId)))
+        && newWorkCompletionIsValid(completionId);
+      allow update: if workCompletionSeenOnly()
+        || ((isAdmin() || (isTeacher() && workCompletionScopeMatches(resource.data.workId)))
+          && workCompletionUpdateIsValid());
+      allow delete: if false;
+    }
+
     // Admin-authored, targeted Notices (Set 17) - NOT the same collection
     // as `notifications` below (that's the Set 4/5 auto-generated event
     // trail: no admin authoring, no targeting beyond batch/student, no
