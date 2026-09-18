@@ -11,11 +11,15 @@ import '../../academics/data/academics_repositories.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../auth/data/user_account.dart';
 import '../../batches/data/batch_repository.dart';
+import '../../student/data/student_repository.dart';
 import '../../teacher/data/teacher_repository.dart';
 import '../../teacher_assignments/data/teacher_assignment_repository.dart';
 import '../data/academic_work.dart';
 import '../data/academic_work_repository.dart';
+import '../data/work_completion.dart';
+import '../data/work_completion_repository.dart';
 import 'create_academic_work_dialog.dart';
+import 'work_completion_style.dart';
 
 enum _TypeFilter { all, homework, assignment }
 
@@ -100,6 +104,20 @@ class _AcademicWorkListScreenState
   @override
   Widget build(BuildContext context) {
     final workAsync = ref.watch(allAcademicWorkProvider);
+    final completionsByWork = <String, List<WorkCompletion>>{};
+    for (final completion
+        in ref.watch(allWorkCompletionsProvider).valueOrNull ??
+            const <WorkCompletion>[]) {
+      (completionsByWork[completion.workId] ??= []).add(completion);
+    }
+    final studentCountByBatch = <String, int>{};
+    for (final student
+        in ref.watch(allStudentsProvider).valueOrNull ?? const []) {
+      if (student.active) {
+        studentCountByBatch[student.batchId] =
+            (studentCountByBatch[student.batchId] ?? 0) + 1;
+      }
+    }
     final sessionsAsync = ref.watch(allAcademicSessionsProvider);
     final classesAsync = ref.watch(allSchoolClassesProvider);
     final batchesAsync = ref.watch(allBatchesProvider);
@@ -109,7 +127,9 @@ class _AcademicWorkListScreenState
     final isTeacher = account?.role == UserRole.teacher;
 
     if (account != null && isTeacher && !_defaultedTeacherSubject) {
-      final teacher = ref.watch(ownTeacherProfileProvider(account.uid)).valueOrNull;
+      final teacher = ref
+          .watch(ownTeacherProfileProvider(account.uid))
+          .valueOrNull;
       if (teacher != null) {
         _defaultedTeacherSubject = true;
         if (teacher.subjectIds.length == 1) {
@@ -118,7 +138,8 @@ class _AcademicWorkListScreenState
       }
     }
     final teacherHasActiveAssignment = isTeacher && account != null
-        ? (ref.watch(ownTeacherAssignmentsProvider(account.uid)).valueOrNull ?? const [])
+        ? (ref.watch(ownTeacherAssignmentsProvider(account.uid)).valueOrNull ??
+                  const [])
               .any((a) => a.active)
         : false;
 
@@ -274,7 +295,10 @@ class _AcademicWorkListScreenState
                   const SizedBox(height: AppSpacing.sm),
                   SegmentedButton<_StatusFilter>(
                     segments: const [
-                      ButtonSegment(value: _StatusFilter.all, label: Text('All')),
+                      ButtonSegment(
+                        value: _StatusFilter.all,
+                        label: Text('All'),
+                      ),
                       ButtonSegment(
                         value: _StatusFilter.draft,
                         label: Text('Draft'),
@@ -299,8 +323,9 @@ class _AcademicWorkListScreenState
             Expanded(
               child: workAsync.when(
                 loading: () => const LoadingView(message: 'Loading...'),
-                error: (error, stackTrace) =>
-                    ErrorView(message: 'Unable to load homework. Please try again.\n$error'),
+                error: (error, stackTrace) => ErrorView(
+                  message: 'Unable to load homework. Please try again.\n$error',
+                ),
                 data: (items) {
                   final filtered = items.where(_matches).toList();
                   if (filtered.isEmpty) {
@@ -313,10 +338,20 @@ class _AcademicWorkListScreenState
                     itemCount: filtered.length,
                     separatorBuilder: (_, _) =>
                         const SizedBox(height: AppSpacing.sm),
-                    itemBuilder: (context, index) => _WorkTile(
-                      work: filtered[index],
-                      basePath: widget.basePath,
-                    ),
+                    itemBuilder: (context, index) {
+                      final work = filtered[index];
+                      return _WorkTile(
+                        work: work,
+                        basePath: widget.basePath,
+                        summary: work.status == AcademicWorkStatus.draft
+                            ? null
+                            : WorkCompletionSummary.of(
+                                completionsByWork[work.workId] ?? const [],
+                                studentCount:
+                                    studentCountByBatch[work.batchId] ?? 0,
+                              ),
+                      );
+                    },
                   );
                 },
               ),
@@ -329,10 +364,17 @@ class _AcademicWorkListScreenState
 }
 
 class _WorkTile extends StatelessWidget {
-  const _WorkTile({required this.work, required this.basePath});
+  const _WorkTile({
+    required this.work,
+    required this.basePath,
+    required this.summary,
+  });
 
   final AcademicWork work;
   final String basePath;
+
+  /// `null` for a draft, which nobody can be marked on yet.
+  final WorkCompletionSummary? summary;
 
   @override
   Widget build(BuildContext context) {
@@ -340,9 +382,18 @@ class _WorkTile extends StatelessWidget {
     return Card(
       child: ListTile(
         title: Text('${work.title} (${work.subject})'),
-        subtitle: Text(
-          '${work.type.label} - Due ${dateKey(work.dueDate)}'
-          '${overdue ? ' - Overdue' : ''}',
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${work.type.label} - Due ${dateKey(work.dueDate)}'
+              '${overdue ? ' - Overdue' : ''}',
+            ),
+            if (summary != null) ...[
+              const SizedBox(height: AppSpacing.xs),
+              WorkCompletionSummaryRow(summary: summary!),
+            ],
+          ],
         ),
         trailing: Chip(label: Text(work.status.label)),
         onTap: () => context.push('$basePath/${work.workId}'),

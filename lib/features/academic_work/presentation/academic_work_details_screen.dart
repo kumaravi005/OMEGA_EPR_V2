@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/date_key.dart';
 import '../../../core/widgets/app_button.dart';
@@ -11,10 +13,16 @@ import '../../academics/data/academics_repositories.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../auth/data/user_account.dart';
 import '../../batches/data/batch_repository.dart';
+import '../../student/data/student_repository.dart';
+import '../../teacher/data/teacher_repository.dart';
 import '../../teacher_assignments/data/teacher_assignment_repository.dart';
 import '../application/academic_work_controller.dart';
 import '../data/academic_work.dart';
 import '../data/academic_work_repository.dart';
+import '../data/work_completion.dart';
+import '../data/work_completion_repository.dart';
+import 'work_completion_message_card.dart';
+import 'work_completion_style.dart';
 
 /// Academic Information / Homework Information / Record Information,
 /// plus edit/publish/close controls for admin, or a teacher whose own
@@ -39,8 +47,9 @@ class AcademicWorkDetailsScreen extends ConsumerWidget {
       body: SafeArea(
         child: workAsync.when(
           loading: () => const LoadingView(),
-          error: (error, stackTrace) =>
-              ErrorView(message: 'Unable to load this item. Please try again.\n$error'),
+          error: (error, stackTrace) => ErrorView(
+            message: 'Unable to load this item. Please try again.\n$error',
+          ),
           data: (work) {
             if (work == null) {
               return const ErrorView(message: 'Not found.');
@@ -76,6 +85,13 @@ class _DetailsBody extends ConsumerWidget {
       context: context,
       builder: (context) => _EditAcademicWorkDialog(work: work),
     );
+  }
+
+  /// The teacher who created this item, or "Admin" when an admin did.
+  String _assignedByName(WidgetRef ref, String createdBy) {
+    final teachers = ref.watch(allTeachersProvider).valueOrNull ?? const [];
+    return teachers.where((t) => t.uid == createdBy).firstOrNull?.name ??
+        'Admin';
   }
 
   @override
@@ -135,6 +151,18 @@ class _DetailsBody extends ConsumerWidget {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             const SizedBox(height: AppSpacing.md),
+            if ((isAdmin || isTeacher) &&
+                work.status != AcademicWorkStatus.draft) ...[
+              _StudentStatusCard(
+                work: work,
+                canMark: canManage,
+                basePath: isAdmin
+                    ? AppRoutes.adminAcademicWork
+                    : AppRoutes.teacherAcademicWork,
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+            if (account?.role == UserRole.student) _MyStatusSection(work: work),
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,6 +210,11 @@ class _DetailsBody extends ConsumerWidget {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppSpacing.sm),
+                  if (isAdmin)
+                    _InfoRow(
+                      label: 'Assigned by',
+                      value: _assignedByName(ref, work.createdBy),
+                    ),
                   _InfoRow(label: 'Created', value: dateKey(work.createdAt)),
                   _InfoRow(label: 'Updated', value: dateKey(work.updatedAt)),
                 ],
@@ -189,10 +222,7 @@ class _DetailsBody extends ConsumerWidget {
             ),
             if (canManage) ...[
               const SizedBox(height: AppSpacing.lg),
-              AppButton(
-                label: 'Edit',
-                onPressed: () => _edit(context, ref),
-              ),
+              AppButton(label: 'Edit', onPressed: () => _edit(context, ref)),
               const SizedBox(height: AppSpacing.sm),
               Row(
                 children: [
@@ -224,11 +254,8 @@ class _DetailsBody extends ConsumerWidget {
                       child: AppButton(
                         label: 'Close',
                         variant: AppButtonVariant.secondary,
-                        onPressed: () => _setStatus(
-                          context,
-                          ref,
-                          AcademicWorkStatus.closed,
-                        ),
+                        onPressed: () =>
+                            _setStatus(context, ref, AcademicWorkStatus.closed),
                       ),
                     ),
                   ],
@@ -238,6 +265,73 @@ class _DetailsBody extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Admin/teacher summary of who has completed this item, with a button to
+/// the full student-by-student list (mark/re-mark for admin or an assigned
+/// teacher, read-only for anyone else).
+class _StudentStatusCard extends ConsumerWidget {
+  const _StudentStatusCard({
+    required this.work,
+    required this.canMark,
+    required this.basePath,
+  });
+
+  final AcademicWork work;
+  final bool canMark;
+  final String basePath;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final completions =
+        ref.watch(workCompletionsForWorkProvider(work.workId)).valueOrNull ??
+        const <WorkCompletion>[];
+    final studentCount =
+        (ref.watch(allStudentsProvider).valueOrNull ?? const [])
+            .where((s) => s.active && s.batchId == work.batchId)
+            .length;
+    final summary = WorkCompletionSummary.of(
+      completions,
+      studentCount: studentCount,
+    );
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Student status', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.sm),
+          WorkCompletionSummaryRow(summary: summary),
+          const SizedBox(height: AppSpacing.md),
+          AppButton(
+            label: canMark ? 'Mark student status' : 'View student status',
+            onPressed: () => context.push('$basePath/${work.workId}/status'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A student's own status for this item, as the same colored bilingual
+/// card the popup shows - nothing at all until a teacher has marked it.
+class _MyStatusSection extends ConsumerWidget {
+  const _MyStatusSection({required this.work});
+
+  final AcademicWork work;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final view = ref
+        .watch(myWorkCompletionViewsProvider)
+        .where((v) => v.work.workId == work.workId)
+        .firstOrNull;
+    if (view == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: WorkCompletionMessageCard(view: view),
     );
   }
 }

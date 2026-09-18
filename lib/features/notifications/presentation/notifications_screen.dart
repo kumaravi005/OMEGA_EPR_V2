@@ -6,6 +6,8 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_view.dart';
+import '../../academic_work/data/work_completion_repository.dart';
+import '../../academic_work/presentation/work_completion_message_card.dart';
 import '../data/my_notifications_provider.dart';
 
 /// A read-only feed of notification events targeted to the signed-in
@@ -17,6 +19,9 @@ class NotificationsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final eventsAsync = ref.watch(myNotificationsProvider);
+    // Students also see their homework/assignment status messages here
+    // (empty for every other role).
+    final completionViews = ref.watch(myWorkCompletionViewsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Notifications')),
@@ -26,14 +31,23 @@ class NotificationsScreen extends ConsumerWidget {
           error: (error, stackTrace) =>
               ErrorView(message: 'Could not load notifications.\n$error'),
           data: (events) {
-            if (events.isEmpty) {
+            final items = <({DateTime at, Widget tile})>[
+              for (final event in events)
+                (at: event.createdAt, tile: _Tile(event: event)),
+              for (final view in completionViews)
+                (
+                  at: view.completion.markedAt,
+                  tile: WorkCompletionMessageCard(view: view),
+                ),
+            ]..sort((a, b) => b.at.compareTo(a.at));
+            if (items.isEmpty) {
               return const EmptyView(message: 'No notifications yet.');
             }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
-              itemCount: events.length,
+              itemCount: items.length,
               separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.xs),
-              itemBuilder: (context, index) => _Tile(event: events[index]),
+              itemBuilder: (context, index) => items[index].tile,
             );
           },
         ),

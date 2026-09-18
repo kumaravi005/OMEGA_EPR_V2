@@ -11,6 +11,7 @@ import 'features/academics/presentation/subjects_screen.dart';
 import 'features/admin/presentation/admin_accounts_screen.dart';
 import 'features/admin/presentation/admin_dashboard_screen.dart';
 import 'features/academic_work/presentation/academic_work_details_screen.dart';
+import 'features/academic_work/presentation/work_completion_screen.dart';
 import 'features/academic_work/presentation/academic_work_list_screen.dart';
 import 'features/academic_work/presentation/student_academic_work_screen.dart';
 import 'features/admin/presentation/create_account_screen.dart';
@@ -208,6 +209,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           workId: state.pathParameters['workId']!,
         ),
       ),
+      GoRoute(
+        path: '${AppRoutes.adminAcademicWork}/:workId/status',
+        builder: (context, state) =>
+            WorkCompletionScreen(workId: state.pathParameters['workId']!),
+      ),
 
       GoRoute(
         path: AppRoutes.adminTests,
@@ -380,6 +386,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => AcademicWorkDetailsScreen(
           workId: state.pathParameters['workId']!,
         ),
+      ),
+      GoRoute(
+        path: '${AppRoutes.teacherAcademicWork}/:workId/status',
+        builder: (context, state) =>
+            WorkCompletionScreen(workId: state.pathParameters['workId']!),
       ),
       GoRoute(
         path: AppRoutes.teacherTests,

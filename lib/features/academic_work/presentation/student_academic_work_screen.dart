@@ -11,6 +11,9 @@ import '../../auth/application/auth_providers.dart';
 import '../../student/data/student_repository.dart';
 import '../data/academic_work.dart';
 import '../data/academic_work_repository.dart';
+import '../data/work_completion.dart';
+import '../data/work_completion_repository.dart';
+import 'work_completion_style.dart';
 
 enum _TypeTab { all, homework, assignment }
 
@@ -87,7 +90,15 @@ class _BodyState extends ConsumerState<_Body> {
 
   @override
   Widget build(BuildContext context) {
-    final workAsync = ref.watch(studentVisibleAcademicWorkProvider(widget.batchId));
+    final workAsync = ref.watch(
+      studentVisibleAcademicWorkProvider(widget.batchId),
+    );
+    final completionByWork = {
+      for (final completion
+          in ref.watch(myWorkCompletionsProvider).valueOrNull ??
+              const <WorkCompletion>[])
+        completion.workId: completion,
+    };
 
     return Column(
       children: [
@@ -114,7 +125,10 @@ class _BodyState extends ConsumerState<_Body> {
               const SizedBox(height: AppSpacing.sm),
               SegmentedButton<_StatusTab>(
                 segments: const [
-                  ButtonSegment(value: _StatusTab.active, label: Text('Active')),
+                  ButtonSegment(
+                    value: _StatusTab.active,
+                    label: Text('Active'),
+                  ),
                   ButtonSegment(
                     value: _StatusTab.closed,
                     label: Text('Completed / Closed'),
@@ -144,8 +158,12 @@ class _BodyState extends ConsumerState<_Body> {
               return ListView.separated(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 itemCount: filtered.length,
-                separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-                itemBuilder: (context, index) => _WorkTile(work: filtered[index]),
+                separatorBuilder: (_, _) =>
+                    const SizedBox(height: AppSpacing.sm),
+                itemBuilder: (context, index) => _WorkTile(
+                  work: filtered[index],
+                  completion: completionByWork[filtered[index].workId],
+                ),
               );
             },
           ),
@@ -156,9 +174,10 @@ class _BodyState extends ConsumerState<_Body> {
 }
 
 class _WorkTile extends StatelessWidget {
-  const _WorkTile({required this.work});
+  const _WorkTile({required this.work, required this.completion});
 
   final AcademicWork work;
+  final WorkCompletion? completion;
 
   @override
   Widget build(BuildContext context) {
@@ -166,16 +185,23 @@ class _WorkTile extends StatelessWidget {
     return Card(
       child: ListTile(
         title: Text(work.title),
-        subtitle: Text(
-          '${work.type.label} - ${work.subject}\n'
-          'Assigned ${dateKey(work.assignedDate)} - Due ${dateKey(work.dueDate)}'
-          '${overdue ? ' (Overdue)' : ''}',
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${work.type.label} - ${work.subject}\n'
+              'Assigned ${dateKey(work.assignedDate)} - Due ${dateKey(work.dueDate)}'
+              '${overdue ? ' (Overdue)' : ''}',
+            ),
+            if (completion != null) ...[
+              const SizedBox(height: AppSpacing.xs),
+              WorkCompletionChip(status: completion!.status),
+            ],
+          ],
         ),
-        isThreeLine: true,
         trailing: Chip(label: Text(work.status.label)),
-        onTap: () => context.push(
-          '${AppRoutes.studentAcademicWork}/${work.workId}',
-        ),
+        onTap: () =>
+            context.push('${AppRoutes.studentAcademicWork}/${work.workId}'),
       ),
     );
   }

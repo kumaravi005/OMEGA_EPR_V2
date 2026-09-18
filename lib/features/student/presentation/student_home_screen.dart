@@ -13,6 +13,8 @@ import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/shadow_card.dart';
 import '../../academic_work/data/academic_work.dart';
 import '../../academic_work/data/academic_work_repository.dart';
+import '../../academic_work/data/work_completion_repository.dart';
+import '../../academic_work/presentation/work_completion_popup_host.dart';
 import '../../attendance/data/attendance_repository.dart';
 import '../../attendance/data/student_attendance_record.dart';
 import '../../auth/application/auth_providers.dart';
@@ -38,22 +40,24 @@ class StudentHomeScreen extends ConsumerWidget {
     final account = ref.watch(currentUserAccountProvider).valueOrNull;
     if (account == null) return const Scaffold(body: LoadingView());
 
-    return Scaffold(
-      body: SafeArea(
-        child: Consumer(
-          builder: (context, ref, _) {
-            final self = ref
-                .watch(ownStudentProfileProvider(account.uid))
-                .valueOrNull;
-            if (self == null) return const LoadingView();
-            return _DashboardBody(
-              studentUid: self.uid,
-              studentName: account.displayName,
-              photoUrl: self.photoUrl,
-              batchId: self.batchId,
-              finalFee: self.finalFee,
-            );
-          },
+    return WorkCompletionPopupHost(
+      child: Scaffold(
+        body: SafeArea(
+          child: Consumer(
+            builder: (context, ref, _) {
+              final self = ref
+                  .watch(ownStudentProfileProvider(account.uid))
+                  .valueOrNull;
+              if (self == null) return const LoadingView();
+              return _DashboardBody(
+                studentUid: self.uid,
+                studentName: account.displayName,
+                photoUrl: self.photoUrl,
+                batchId: self.batchId,
+                finalFee: self.finalFee,
+              );
+            },
+          ),
         ),
       ),
     );
@@ -121,7 +125,9 @@ class _DashboardBody extends ConsumerWidget {
             legacyPayments: legacyPaymentsAsync.valueOrNull!,
           );
 
-    final notificationCount = notificationsAsync.valueOrNull?.length ?? 0;
+    final notificationCount =
+        (notificationsAsync.valueOrNull?.length ?? 0) +
+        ref.watch(myWorkCompletionViewsProvider).length;
     final unreadNotices = ref.watch(unreadNoticeCountProvider);
 
     final recentNotices = [
