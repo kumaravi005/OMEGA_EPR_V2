@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_button.dart';
@@ -14,10 +15,6 @@ import '../application/auth_providers.dart';
 /// elsewhere - kept local rather than widening the shared theme, since
 /// this brief only covers the public landing page and this screen.
 const _kFieldRadius = 14.0;
-const _kCardShadow = [
-  BoxShadow(color: Color(0x0F101828), blurRadius: 2, offset: Offset(0, 1)),
-  BoxShadow(color: Color(0x1A101828), blurRadius: 24, offset: Offset(0, 10)),
-];
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -223,7 +220,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               borderRadius: BorderRadius.circular(
                                 AppSpacing.radiusLg,
                               ),
-                              boxShadow: _kCardShadow,
+                              boxShadow: AppShadows.card,
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,

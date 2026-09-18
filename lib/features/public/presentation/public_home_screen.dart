@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/contact_actions.dart';
 import '../../../core/utils/date_key.dart';
@@ -32,10 +33,7 @@ import 'ad_popup.dart';
 /// admin/dashboard screens weren't part of this brief.
 const _kButtonRadius = 14.0;
 const _kChipRadius = 8.0;
-const _kCardShadow = [
-  BoxShadow(color: Color(0x0F101828), blurRadius: 2, offset: Offset(0, 1)),
-  BoxShadow(color: Color(0x1A101828), blurRadius: 24, offset: Offset(0, 10)),
-];
+const _kCardShadow = AppShadows.card;
 
 /// Public landing area - reachable without signing in. Every section
 /// hides itself when there's no active content, rather than showing an
