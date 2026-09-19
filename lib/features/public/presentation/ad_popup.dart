@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/contact_actions.dart';
+import '../../enquiries/presentation/request_callback_dialog.dart';
+import '../../enquiries/presentation/submit_enquiry_dialog.dart';
 import '../data/advertisement.dart';
 import '../data/public_content_repositories.dart';
 
@@ -15,6 +18,10 @@ final adPopupShownProvider = StateProvider<bool>((ref) => false);
 /// Shows the first currently-live advertisement as a dismissible popup,
 /// at most once per session. Call this once from the public home
 /// screen's build method (it no-ops after the first successful show).
+///
+/// Tapping the ad's button closes the popup and then performs the ad's
+/// action - the Admission enquiry form, the callback form, or a link - from
+/// this widget's own context, since the popup's context is gone by then.
 class AdPopupTrigger extends ConsumerWidget {
   const AdPopupTrigger({super.key});
 
@@ -32,10 +39,21 @@ class AdPopupTrigger extends ConsumerWidget {
           if (!context.mounted) return;
           if (ref.read(adPopupShownProvider)) return;
           ref.read(adPopupShownProvider.notifier).state = true;
-          showDialog<void>(
+          showDialog<AdButtonAction>(
             context: context,
             builder: (context) => _AdDialog(ad: ad),
-          );
+          ).then((action) {
+            if (action == null || !context.mounted) return;
+            switch (action) {
+              case AdButtonAction.enquiry:
+                showSubmitEnquiryDialog(context);
+              case AdButtonAction.callback:
+                showRequestCallbackDialog(context);
+              case AdButtonAction.link:
+                final url = ad.buttonUrl;
+                if (url != null) openExternalLink(url.trim());
+            }
+          });
         });
       }
     }
@@ -80,14 +98,30 @@ class _AdDialog extends StatelessWidget {
                   Text(ad.description!),
                 ],
                 if (ad.buttonText != null && ad.buttonText!.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: AppSpacing.md),
                   ElevatedButton(
-                    onPressed: ad.buttonUrl == null
-                        ? null
-                        : () => launchUrl(
-                            Uri.parse(ad.buttonUrl!),
-                            mode: LaunchMode.externalApplication,
+                    style:
+                        ElevatedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(48),
+                          elevation: 2,
+                          shadowColor: AppColors.primary.withValues(alpha: 0.4),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
                           ),
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ).copyWith(
+                          backgroundColor: WidgetStateProperty.resolveWith(
+                            (states) => states.contains(WidgetState.pressed)
+                                ? AppColors.primaryDark
+                                : AppColors.primary,
+                          ),
+                        ),
+                    onPressed: () =>
+                        Navigator.of(context).pop(ad.resolvedButtonAction),
                     child: Text(ad.buttonText!),
                   ),
                 ],

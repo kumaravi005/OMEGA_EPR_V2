@@ -245,6 +245,7 @@ class PublicContentController {
     required String? description,
     required String? buttonText,
     required String? buttonUrl,
+    required AdButtonAction buttonAction,
     required bool active,
     required DateTime? startDate,
     required DateTime? endDate,
@@ -256,7 +257,11 @@ class PublicContentController {
       title: title.trim(),
       description: _blankToNull(description),
       buttonText: _blankToNull(buttonText),
-      buttonUrl: _blankToNull(buttonUrl),
+      // A link is only kept when it is what the button actually opens.
+      buttonUrl: buttonAction == AdButtonAction.link
+          ? _blankToNull(buttonUrl)
+          : null,
+      buttonAction: buttonAction,
       active: active,
       startDate: startDate,
       endDate: endDate,

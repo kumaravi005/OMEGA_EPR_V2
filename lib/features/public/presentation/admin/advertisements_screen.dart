@@ -116,6 +116,8 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
     text: widget.existing?.buttonUrl ?? '',
   );
   late bool _active = widget.existing?.active ?? true;
+  late AdButtonAction _buttonAction =
+      widget.existing?.resolvedButtonAction ?? AdButtonAction.enquiry;
   DateTime? _startDate;
   DateTime? _endDate;
 
@@ -170,6 +172,7 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
             description: _descriptionController.text,
             buttonText: _buttonTextController.text,
             buttonUrl: _buttonUrlController.text,
+            buttonAction: _buttonAction,
             active: _active,
             startDate: _startDate,
             endDate: _endDate,
@@ -233,11 +236,33 @@ class _FormDialogState extends ConsumerState<_FormDialog> {
                 enabled: !_isSubmitting,
               ),
               const SizedBox(height: AppSpacing.sm),
-              AppTextField(
-                controller: _buttonUrlController,
-                label: 'Button link URL (optional)',
-                enabled: !_isSubmitting,
+              DropdownButtonFormField<AdButtonAction>(
+                initialValue: _buttonAction,
+                decoration: const InputDecoration(
+                  labelText: 'When the button is tapped',
+                ),
+                items: [
+                  for (final action in AdButtonAction.values)
+                    DropdownMenuItem(value: action, child: Text(action.label)),
+                ],
+                onChanged: _isSubmitting
+                    ? null
+                    : (value) {
+                        if (value != null) setState(() => _buttonAction = value);
+                      },
               ),
+              if (_buttonAction == AdButtonAction.link) ...[
+                const SizedBox(height: AppSpacing.sm),
+                AppTextField(
+                  controller: _buttonUrlController,
+                  label: 'Button link URL',
+                  enabled: !_isSubmitting,
+                  validator: (value) => Validators.required(
+                    value,
+                    message: 'Enter the link the button should open',
+                  ),
+                ),
+              ],
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(

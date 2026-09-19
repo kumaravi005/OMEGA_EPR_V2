@@ -1487,19 +1487,28 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // `buttonAction` (what the popup button does: enquiry / callback /
+    // link) is optional so ads saved before it existed stay valid.
+    function adButtonActionIsValid() {
+      let action = request.resource.data.get('buttonAction', null);
+      return action == null || action in ['enquiry', 'callback', 'link'];
+    }
+
     match /advertisements/{adId} {
       allow get, list: if resource.data.active == true || isAdmin();
       allow create: if isAdmin()
         && publicContentIsValid([
-          'posterUrl', 'title', 'description', 'buttonText', 'buttonUrl', 'active', 'startDate', 'endDate',
+          'posterUrl', 'title', 'description', 'buttonText', 'buttonUrl', 'buttonAction', 'active', 'startDate', 'endDate',
           'createdAt', 'updatedAt'
         ])
-        && request.resource.data.posterUrl is string;
+        && request.resource.data.posterUrl is string
+        && adButtonActionIsValid();
       allow update: if isAdmin()
         && publicContentUpdateIsValid([
-          'posterUrl', 'title', 'description', 'buttonText', 'buttonUrl', 'active', 'startDate', 'endDate',
+          'posterUrl', 'title', 'description', 'buttonText', 'buttonUrl', 'buttonAction', 'active', 'startDate', 'endDate',
           'createdAt', 'updatedAt'
-        ]);
+        ])
+        && adButtonActionIsValid();
       allow delete: if false;
     }
 
